@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]*.[0-9]*.[0-9]*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build changelog excerpt
+        id: changelog
+        run: |
+          # Collect commits since the previous vX.Y.Z tag (or all if first release)
+          PREV=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
+          if [ -n "$PREV" ]; then
+            LOG=$(git log "${PREV}..${GITHUB_REF_NAME}" --pretty="- %s (%h)" --no-merges)
+          else
+            LOG=$(git log "${GITHUB_REF_NAME}" --pretty="- %s (%h)" --no-merges | head -50)
+          fi
+          # Write to file to avoid quoting issues with multiline
+          echo "$LOG" > /tmp/changelog.txt
+
+      - name: List changed skills
+        id: skills
+        run: |
+          PREV=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p')
+          if [ -n "$PREV" ]; then
+            SKILLS=$(git diff --name-only "${PREV}..${GITHUB_REF_NAME}" \
+              | grep '^neo4j-.*-skill/' \
+              | cut -d/ -f1 | sort -u \
+              | sed 's/^/- /')
+          else
+            SKILLS=$(ls -d neo4j-*-skill/ | sed 's|/$||' | sed 's/^/- /')
+          fi
+          echo "$SKILLS" > /tmp/skills.txt
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          TAG="${GITHUB_REF_NAME}"
+
+          BODY=$(cat <<EOF
+          ## neo4j-skills ${TAG}
+
+          ### Changed skills
+          $(cat /tmp/skills.txt)
+
+          ### Commits
+          $(cat /tmp/changelog.txt)
+
+          ---
+
+          ### Install
+
+          **neo4j-cli** (recommended — installs any skill from this catalog):
+          \`\`\`bash
+          neo4j-cli skill install                     # self-skill only
+          neo4j-cli skill install neo4j-cypher-skill  # one catalog skill
+          neo4j-cli skill install --all               # everything
+          \`\`\`
+
+          **Claude Code**:
+          \`\`\`
+          /plugin marketplace add https://github.com/neo4j-contrib/neo4j-skills.git
+          /plugin install neo4j-skills@neo4j-skills-marketplace
+          \`\`\`
+
+          **Gemini CLI**: \`gemini extensions install https://github.com/neo4j-contrib/neo4j-skills\`
+
+          **Cursor / Cline / Windsurf**: \`npx skills add neo4j-contrib/neo4j-skills\`
+          EOF
+          )
+
+          gh release create "$TAG" \
+            --title "neo4j-skills ${TAG}" \
+            --notes "$BODY"

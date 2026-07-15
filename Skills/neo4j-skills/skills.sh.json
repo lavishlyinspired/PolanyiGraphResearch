@@ -1,0 +1,95 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Get Started",
+      "description": "Provision a database, design a schema, and build your first app.",
+      "skills": [
+        "neo4j-getting-started-skill",
+        "neo4j-modeling-skill",
+        "neo4j-cypher-skill"
+      ]
+    },
+    {
+      "title": "Drivers",
+      "description": "Connect to Neo4j from Python, JavaScript, Java, Go, or .NET.",
+      "skills": [
+        "neo4j-driver-python-skill",
+        "neo4j-driver-javascript-skill",
+        "neo4j-driver-java-skill",
+        "neo4j-driver-go-skill",
+        "neo4j-driver-dotnet-skill"
+      ]
+    },
+    {
+      "title": "AI & GraphRAG",
+      "description": "Build GraphRAG pipelines, vector search, and agent memory on Neo4j.",
+      "skills": [
+        "neo4j-graphrag-skill",
+        "neo4j-vector-index-skill",
+        "neo4j-agent-memory-skill",
+        "neo4j-genai-plugin-skill"
+      ]
+    },
+    {
+      "title": "MCP & Agent Tools",
+      "description": "Connect AI agents to Neo4j via MCP, CLI, and agent skill management.",
+      "skills": [
+        "neo4j-mcp-skill",
+        "neo4j-cli-tools-skill"
+      ]
+    },
+    {
+      "title": "Aura Cloud",
+      "description": "Provision and manage Neo4j Aura instances and graph analytics.",
+      "skills": [
+        "neo4j-aura-provisioning-skill",
+        "neo4j-aura-agent-skill",
+        "neo4j-aura-graph-analytics-skill",
+        "neo4j-snowflake-graph-analytics-skill"
+      ]
+    },
+    {
+      "title": "Data Import",
+      "description": "Load data from files, streams, and external systems into Neo4j.",
+      "skills": [
+        "neo4j-import-skill",
+        "neo4j-document-import-skill",
+        "neo4j-kafka-skill",
+        "neo4j-spark-skill"
+      ]
+    },
+    {
+      "title": "Graph Analytics",
+      "description": "Run graph algorithms and analytical queries with GDS.",
+      "skills": [
+        "neo4j-gds-skill",
+        "neo4j-query-tuning-skill"
+      ]
+    },
+    {
+      "title": "Integrations",
+      "description": "Use Neo4j with GraphQL, Spring Data, and Snowflake.",
+      "skills": [
+        "neo4j-graphql-skill",
+        "neo4j-spring-data-skill"
+      ]
+    },
+    {
+      "title": "Operations",
+      "description": "Migrate, secure, and maintain Neo4j databases.",
+      "skills": [
+        "neo4j-migration-skill",
+        "neo4j-security-skill"
+      ]
+    },
+    {
+      "title": "Visualization",
+      "description": "Build graph visualizations with NVL.",
+      "skills": [
+        "neo4j-nvl-skill"
+      ]
+    }
+  ]
+}
