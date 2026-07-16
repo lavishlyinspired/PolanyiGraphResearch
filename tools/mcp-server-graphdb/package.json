@@ -1,0 +1,29 @@
+{
+  "name": "mcp-server-graphdb",
+  "version": "0.1.0",
+  "description": "MCP server for interacting with Ontotext GraphDB via SPARQL",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "mcp-server-graphdb": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "postbuild": "node -e \"if (process.platform !== 'win32') require('child_process').execSync('chmod +x dist/index.js')\"",
+    "prepare": "yarn build",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.0.1",
+    "dotenv": "^16.3.1",
+    "node-fetch": "^3.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "@types/node-fetch": "^2.6.4",
+    "typescript": "^5.6.2"
+  }
+}
