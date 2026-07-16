@@ -7,13 +7,7 @@ from typing import Any, Generator, Optional
 import databricks.sql as dbsql
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config
-from databricks.sdk.errors import (
-    BadRequest,
-    NotFound,
-    PermissionDenied,
-    ResourceDoesNotExist,
-    TooManyRequests,
-)
+from databricks.sdk.errors import TooManyRequests
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -60,7 +54,9 @@ class DatabricksClient:
 
         wh_id = warehouse_id or self.config.warehouse_id
         if not wh_id:
-            raise ValueError("warehouse_id required — set DATABRICKS_WAREHOUSE_ID or pass explicitly")
+            raise ValueError(
+                "warehouse_id required — set DATABRICKS_WAREHOUSE_ID or pass explicitly"
+            )
 
         connect_kwargs: dict[str, Any] = {
             "server_hostname": self.config.server_hostname,
@@ -117,7 +113,9 @@ class DatabricksClient:
         """Execute a SQL query and return rows as list of dicts."""
         with self.sql_cursor(warehouse_id) as cursor:
             cursor.execute(query, params or [])
-            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+            columns = (
+                [desc[0] for desc in cursor.description] if cursor.description else []
+            )
             rows = cursor.fetchall()
             return [dict(zip(columns, row)) for row in rows]
 
@@ -147,12 +145,28 @@ class DatabricksClient:
         **kwargs,
     ) -> dict[str, Any]:
         """Query a Databricks model serving endpoint (OpenAI-compatible)."""
+        from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
+
         ep = endpoint or self.config.serving_endpoint
         if not ep:
-            raise ValueError("serving_endpoint required — set DATABRICKS_SERVING_ENDPOINT or pass explicitly")
+            raise ValueError(
+                "serving_endpoint required — set DATABRICKS_SERVING_ENDPOINT or pass explicitly"
+            )
 
-        payload = {"messages": messages or [], **kwargs}
-        response = self.sdk.serving_endpoints.query(name=ep, **payload)
+        role_map = {
+            "user": ChatMessageRole.USER,
+            "assistant": ChatMessageRole.ASSISTANT,
+            "system": ChatMessageRole.SYSTEM,
+        }
+        sdk_messages = [
+            ChatMessage(
+                role=role_map.get(m["role"], ChatMessageRole.USER), content=m["content"]
+            )
+            for m in (messages or [])
+        ]
+        response = self.sdk.serving_endpoints.query(
+            name=ep, messages=sdk_messages, **kwargs
+        )
         return response
 
     def get_openai_client(self, endpoint: Optional[str] = None):
@@ -173,29 +187,35 @@ class DatabricksClient:
         cat = catalog or self.config.catalog or "hive_metastore"
         return [s.name for s in self.sdk.schemas.list(catalog_name=cat)]
 
-    def list_tables(self, catalog: Optional[str] = None, schema: Optional[str] = None) -> list[dict]:
+    def list_tables(
+        self, catalog: Optional[str] = None, schema: Optional[str] = None
+    ) -> list[dict]:
         """List tables in a schema."""
         cat = catalog or self.config.catalog or "hive_metastore"
         sch = schema or self.config.schema_name or "default"
         tables = []
         for t in self.sdk.tables.list(catalog_name=cat, schema_name=sch):
-            tables.append({
-                "name": t.name,
-                "table_type": t.table_type,
-                "data_source_format": t.data_source_format,
-                "comment": t.comment,
-            })
+            tables.append(
+                {
+                    "name": t.name,
+                    "table_type": t.table_type,
+                    "data_source_format": t.data_source_format,
+                    "comment": t.comment,
+                }
+            )
         return tables
 
     def list_serving_endpoints(self) -> list[dict]:
         """List available serving endpoints."""
         endpoints = []
         for ep in self.sdk.serving_endpoints.list():
-            endpoints.append({
-                "name": ep.name,
-                "state": ep.state,
-                "creator": ep.creator,
-            })
+            endpoints.append(
+                {
+                    "name": ep.name,
+                    "state": ep.state,
+                    "creator": ep.creator,
+                }
+            )
         return endpoints
 
     # ── Lifecycle ───────────────────────────────────────────────────

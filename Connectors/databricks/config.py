@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 
@@ -37,7 +37,9 @@ class DatabricksConfig:
             )
 
         auth_type = "pat"
-        if os.environ.get("DATABRICKS_CLIENT_ID") and os.environ.get("DATABRICKS_CLIENT_SECRET"):
+        if os.environ.get("DATABRICKS_CLIENT_ID") and os.environ.get(
+            "DATABRICKS_CLIENT_SECRET"
+        ):
             auth_type = "oauth-m2m"
 
         return cls(
@@ -63,11 +65,17 @@ class DatabricksConfig:
         """Return list of missing-but-recommended fields."""
         warnings = []
         if not self.token and not (self.client_id and self.client_secret):
-            warnings.append("No auth credentials: set DATABRICKS_TOKEN or CLIENT_ID+CLIENT_SECRET")
+            warnings.append(
+                "No auth credentials: set DATABRICKS_TOKEN or CLIENT_ID+CLIENT_SECRET"
+            )
         if not self.warehouse_id:
-            warnings.append("No DATABRICKS_WAREHOUSE_ID — SQL execution will require explicit warehouse_id")
+            warnings.append(
+                "No DATABRICKS_WAREHOUSE_ID — SQL execution will require explicit warehouse_id"
+            )
         if not self.serving_endpoint:
-            warnings.append("No DATABRICKS_SERVING_ENDPOINT — LLM calls will require explicit endpoint")
+            warnings.append(
+                "No DATABRICKS_SERVING_ENDPOINT — LLM calls will require explicit endpoint"
+            )
         return warnings
 
 

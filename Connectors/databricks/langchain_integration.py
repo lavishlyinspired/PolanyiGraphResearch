@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Optional
 
-from .client import DatabricksClient
 from .config import DatabricksConfig
 
 
@@ -29,7 +28,9 @@ def get_chat_databricks(
         if config and config.serving_endpoint:
             ep = config.serving_endpoint
         else:
-            raise ValueError("endpoint required — set DATABRICKS_SERVING_ENDPOINT or pass endpoint=")
+            raise ValueError(
+                "endpoint required — set DATABRICKS_SERVING_ENDPOINT or pass endpoint="
+            )
 
     return ChatDatabricks(
         endpoint=ep,
@@ -63,7 +64,9 @@ def get_sql_database(
 
     http_path = cfg.http_path or (f"/sql/1.0/warehouses/{wh_id}" if wh_id else None)
     if not http_path:
-        raise ValueError("warehouse_id or http_path required for SQLDatabase connection")
+        raise ValueError(
+            "warehouse_id or http_path required for SQLDatabase connection"
+        )
 
     connection_url = f"databricks://token:{cfg.token}@{cfg.server_hostname}{http_path}"
     if cat and sch:
@@ -92,8 +95,6 @@ def get_vector_search_retriever(
         raise ImportError(
             "databricks-langchain not installed. Run: pip install databricks-langchain"
         )
-
-    cfg = config or DatabricksConfig.from_env()
 
     if embedding is None:
         embedding = DatabricksEmbeddings(endpoint="databricks-bge-large-en")

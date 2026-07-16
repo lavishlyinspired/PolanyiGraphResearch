@@ -12,6 +12,7 @@ langgraph>=1.0
 # ── Databricks ───────────────────────────────────────────────────
 databricks-sdk>=0.120
 databricks-sql-connector>=4.0
+pyarrow>=15.0
 
 # ── Jupyter ──────────────────────────────────────────────────────
 jupyter>=1.0
