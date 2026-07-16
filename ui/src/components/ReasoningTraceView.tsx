@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { reasoningSteps, sampleQueries, type ReasoningStep } from "@/data/mockData";
+import { sampleQueries as fallbackQueries, type ReasoningStep } from "@/data/mockData";
+import { ask, AskError, getContext, type ApiAskStep } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,9 +44,45 @@ type ChatMessage = {
   steps?: ReasoningStep[];
 };
 
+const stepLabels: Record<string, string> = {
+  sql_db_list_tables: "Discover Tables",
+  sql_db_schema: "Inspect Schema",
+  sql_db_query: "SQL Query",
+};
+
+function toReasoningStep(step: ApiAskStep, index: number): ReasoningStep {
+  if (step.kind === "validation") {
+    return {
+      id: `s-${index}`,
+      label: step.name === "blocked" ? "Rule Guard — BLOCKED" : "Rule Guard — passed",
+      detail: step.detail,
+      type: "validation",
+    };
+  }
+  if (step.kind === "answer") {
+    return { id: `s-${index}`, label: "Answer", detail: step.detail, type: "answer" };
+  }
+  if (step.kind === "tool_call") {
+    return {
+      id: `s-${index}`,
+      label: stepLabels[step.name] ?? step.name,
+      detail: step.detail,
+      type: step.name === "sql_db_query" ? "sql" : "planner",
+    };
+  }
+  return {
+    id: `s-${index}`,
+    label: `${stepLabels[step.name] ?? step.name} result`,
+    detail: step.detail,
+    type: "execution",
+  };
+}
+
 export function ReasoningTraceView() {
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>(fallbackQueries);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -54,21 +91,46 @@ export function ReasoningTraceView() {
     }
   }, [messages]);
 
-  const runQuery = (q: string) => {
-    if (!q.trim()) return;
-    const userMsg: ChatMessage = {
-      id: `u-${Date.now()}`,
-      role: "user",
-      content: q,
-    };
-    const agentMsg: ChatMessage = {
-      id: `a-${Date.now()}`,
-      role: "agent",
-      content: "Here's my reasoning trace for your query:",
-      steps: reasoningSteps,
-    };
-    setMessages((prev) => [...prev, userMsg, agentMsg]);
+  useEffect(() => {
+    void getContext().then((ctx) => {
+      if (ctx && ctx.common_queries.length > 0) {
+        setSuggestions(ctx.common_queries.slice(0, 4));
+      }
+    });
+  }, []);
+
+  const runQuery = async (q: string) => {
+    if (!q.trim() || busy) return;
     setQuery("");
+    setBusy(true);
+    setMessages((prev) => [
+      ...prev,
+      { id: `u-${Date.now()}`, role: "user", content: q },
+      { id: `a-${Date.now()}`, role: "agent", content: "Thinking…" },
+    ]);
+    try {
+      const result = await ask(q);
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        {
+          id: `a-${Date.now()}`,
+          role: "agent",
+          content: result.answer,
+          steps: result.steps.map(toReasoningStep),
+        },
+      ]);
+    } catch (error) {
+      const message =
+        error instanceof AskError
+          ? error.message
+          : "Something went wrong talking to the agent.";
+      setMessages((prev) => [
+        ...prev.slice(0, -1),
+        { id: `a-${Date.now()}`, role: "agent", content: message },
+      ]);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -193,24 +255,25 @@ export function ReasoningTraceView() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && runQuery(query)}
+              onKeyDown={(e) => e.key === "Enter" && void runQuery(query)}
               placeholder="Ask a question about your enterprise data..."
               className="flex-1 border-0 shadow-none focus-visible:ring-0 text-base"
             />
             <Button
-              onClick={() => runQuery(query)}
+              onClick={() => void runQuery(query)}
+              disabled={busy}
               className="bg-teal-600 hover:bg-teal-700 text-white"
             >
               <Send className="w-4 h-4 mr-1" />
-              Run
+              {busy ? "Running…" : "Run"}
             </Button>
           </div>
           <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
             <span className="text-xs text-slate-400 self-center mr-1">Try:</span>
-            {sampleQueries.map((sq) => (
+            {suggestions.map((sq) => (
               <button
                 key={sq}
-                onClick={() => runQuery(sq)}
+                onClick={() => void runQuery(sq)}
                 className="text-xs px-3 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-teal-50 hover:text-teal-700 transition-colors"
               >
                 {sq}

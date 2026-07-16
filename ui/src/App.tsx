@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getHealth, type ApiHealth } from "@/lib/api";
 import { DataSourcesView } from "@/components/DataSourcesView";
 import { AlignmentWorkbench } from "@/components/AlignmentWorkbench";
 import { ReasoningTraceView } from "@/components/ReasoningTraceView";
@@ -19,6 +20,11 @@ const tabs: { id: TabId; label: string; icon: typeof Database }[] = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>("sources");
+  const [health, setHealth] = useState<ApiHealth | null>(null);
+
+  useEffect(() => {
+    void getHealth().then(setHealth);
+  }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
@@ -40,17 +46,29 @@ export default function App() {
           </div>
           <div className="hidden md:flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-teal-100">Connected</span>
+              <span
+                className={
+                  health
+                    ? "w-2 h-2 rounded-full bg-emerald-400 animate-pulse"
+                    : "w-2 h-2 rounded-full bg-amber-400"
+                }
+              />
+              <span className="text-teal-100">
+                {health ? "Connected" : "Demo mode — API offline"}
+              </span>
             </div>
             <div className="h-6 w-px bg-white/20" />
             <div className="text-sm">
-              <span className="text-teal-200">Databricks:</span>{" "}
-              <span className="font-medium">ABC Capital</span>
+              <span className="text-teal-200">Source:</span>{" "}
+              <span className="font-medium">
+                {health ? health.db_uri : "sample data"}
+              </span>
             </div>
             <div className="text-sm">
-              <span className="text-teal-200">Catalog:</span>{" "}
-              <span className="font-medium">Unity</span>
+              <span className="text-teal-200">Engine:</span>{" "}
+              <span className="font-medium">
+                {health ? health.llm_mode : "—"}
+              </span>
             </div>
           </div>
         </div>

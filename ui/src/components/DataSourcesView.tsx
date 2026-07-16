@@ -1,11 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  dataSources,
-  catalogs,
-  discoveryStats,
+  dataSources as fallbackSources,
+  catalogs as fallbackCatalogs,
+  discoveryStats as fallbackStats,
   enterpriseSummary,
   type CatalogNode,
+  type DataSource,
 } from "@/data/mockData";
+import {
+  getContext,
+  getSchema,
+  getSources,
+  type ApiContext,
+  type ApiSchema,
+} from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +41,7 @@ function CatalogTree({ nodes, depth = 0 }: { nodes: CatalogNode[]; depth?: numbe
   return (
     <div className="space-y-0.5">
       {nodes.map((node) => {
-        const isOpen = expanded[node.name];
+        const isOpen = expanded[node.name] ?? depth === 0;
         const hasChildren = node.children && node.children.length > 0;
         return (
           <div key={node.name}>
@@ -108,9 +116,70 @@ function StatCard({
   );
 }
 
+function catalogsFromSchema(schema: ApiSchema): CatalogNode[] {
+  return [
+    {
+      name: schema.dialect,
+      count: schema.tables.length,
+      children: schema.tables.map((table) => ({
+        name: table.name,
+        count: table.columns.length,
+      })),
+    },
+  ];
+}
+
+function statsFromApi(schema: ApiSchema, context: ApiContext | null) {
+  const columns = schema.tables.reduce((sum, t) => sum + t.columns.length, 0);
+  const relationships =
+    context?.relationships.length ??
+    schema.tables.reduce((sum, t) => sum + t.foreign_keys.length, 0);
+  const coveredTables = new Set(
+    (context?.glossary ?? []).flatMap((entry) => entry.source_tables)
+  );
+  const coverage =
+    schema.tables.length > 0 && context
+      ? Math.round((coveredTables.size / schema.tables.length) * 100)
+      : 0;
+  return { tables: schema.tables.length, columns, relationships, coverage };
+}
+
 export function DataSourcesView() {
   const [selectedSource, setSelectedSource] = useState("databricks");
   const [showSummary, setShowSummary] = useState(false);
+  const [live, setLive] = useState<{
+    sources: DataSource[];
+    catalogs: CatalogNode[];
+    stats: typeof fallbackStats;
+    catalogTitle: string;
+  } | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const [sources, schema, context] = await Promise.all([
+        getSources(),
+        getSchema(),
+        getContext(),
+      ]);
+      if (!sources || !schema) return;
+      setLive({
+        sources: sources.map((s) => ({
+          id: s.name,
+          name: s.name,
+          type: s.dialect,
+          connected: s.status === "connected",
+          detail: `${s.uri} · ${s.table_count} tables`,
+        })),
+        catalogs: catalogsFromSchema(schema),
+        stats: statsFromApi(schema, context),
+        catalogTitle: `${schema.dialect} · live schema`,
+      });
+    })();
+  }, []);
+
+  const dataSources = live?.sources ?? fallbackSources;
+  const catalogs = live?.catalogs ?? fallbackCatalogs;
+  const discoveryStats = live?.stats ?? fallbackStats;
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -225,7 +294,7 @@ export function DataSourcesView() {
             <CardHeader className="border-b border-slate-100 pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="font-serif text-lg text-slate-800">
-                  Databricks · Unity Catalog
+                  {live?.catalogTitle ?? "Databricks · Unity Catalog (demo)"}
                 </CardTitle>
                 <Badge variant="secondary" className="bg-teal-50 text-teal-700 border border-teal-200">
                   {discoveryStats.tables} tables

@@ -10,3 +10,12 @@ build/
 *.sqlite
 .ipynb_checkpoints/
 .ruff_cache/
+
+# macOS
+.DS_Store
+
+# GraphOS generated artifacts
+data/
+
+# Local Claude Code settings
+.claude/settings.local.json
