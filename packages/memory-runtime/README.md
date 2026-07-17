@@ -1,7 +1,11 @@
-# Memory Runtime
+# graphos.memory
 
-Session state and agent memory (LangGraph checkpointers).
+The Memory Runtime: durable session state for agents.
 
-**Currently lives in / provided by:** `src/graphos/agents/semantic_agent.py (InMemorySaver)`
+Sessions are LangGraph checkpoints keyed by `session_id`, persisted to SQLite
+in the artifact store (`semantics/knowledge/sessions.db`) so conversations
+survive server restarts. `GRAPHOS_SESSIONS_DB` overrides the path;
+`:memory:` forces ephemeral sessions.
 
-**Status:** reserved — extraction target per [docs/repo-structure.md](../../docs/repo-structure.md).
+Code: `graphos/memory/` (+ `tests/`) — part of the single `graphos`
+distribution (mapped in the root `pyproject.toml`).

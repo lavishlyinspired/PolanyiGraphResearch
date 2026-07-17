@@ -1,0 +1,8 @@
+name: fx-conversion
+capability: ConvertCurrency
+description: Convert monetary amounts between currencies using configured FX rates
+handler: handler.py:convert_currency
+agent_tool: true
+metadata:
+  provider: demo-rates
+  base_currency: USD

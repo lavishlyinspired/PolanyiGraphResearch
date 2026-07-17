@@ -127,6 +127,10 @@ def default_registry(
         )
 
     _register_optional_backends(registry)
+
+    from graphos.kernel.skills import load_skills
+
+    load_skills(registry)
     return registry
 
 

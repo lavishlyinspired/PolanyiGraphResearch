@@ -71,7 +71,8 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
 | Neuro-symbolic fusion (block → self-correct) | ✅ proven end-to-end | `graphos/agent.py` |
 | Evidence/confidence/explanation builder | 🧩 partial (reasoning trace) | `AskResult.steps` |
 | **Observability** | 🧩 reasoning trace in API/UI | `graphos/api.py`, Studio Agent Workspace |
-| **Session Runtime** (multi-turn conversations) | ✅ LangGraph `InMemorySaver`, per-session thread ids | `graphos/agent.py`, `session_id` on `POST /api/ask` |
+| **Session/Memory Runtime** (multi-turn conversations) | ✅ durable SQLite checkpoints per `session_id`; survive restarts | `packages/memory-runtime` (`graphos.memory`), `session_id` on `POST /api/ask` |
+| **Skill plugins** (drop-in capability providers) | ✅ `platform/skills/*/skill.yaml` auto-registered; `agent_tool: true` exposes them to the agent | `graphos/kernel/skills.py`, shipped `fx-conversion` example |
 
 ## Evolution path (no rewrite required)
 

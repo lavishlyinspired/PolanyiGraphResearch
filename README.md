@@ -80,6 +80,41 @@ Extractor selection: `GRAPHOS_EXTRACTOR=llm|heuristic|gliner` (GLiNER needs `pip
 PDF parsing needs `pip install docling`). HermiT reasoning activates automatically when Java
 exists (`brew install openjdk` is enough — the Homebrew keg-only path is detected).
 
+### Plugging in skills
+
+Drop a folder into `platform/skills/` and GraphOS loads it at startup — no code
+changes. A skill is a `skill.yaml` manifest plus a handler file:
+
+```yaml
+# platform/skills/finance/fx-conversion/skill.yaml
+name: fx-conversion
+capability: ConvertCurrency
+description: Convert monetary amounts between currencies
+handler: handler.py:convert_currency
+agent_tool: true          # also expose it as a tool the agent can call
+```
+
+The shipped `fx-conversion` skill demonstrates the pattern: it registers the
+`ConvertCurrency` capability and the agent can call it mid-conversation
+("what is that notional in EUR?"). Override the directory with
+`GRAPHOS_SKILLS_DIR`. Note: skills execute local code — trust them like
+installed packages. (`docs/research/vendored-skills/` is different: those are
+*coding-agent* skill packs kept as reference material.)
+
+### Where the semantic libraries live
+
+The semantic stack is **declared, not vendored** — standard Python dependency
+management (see `pyproject.toml`), installed into your venv or the Docker image:
+
+| Library | Extra | Used by |
+|---|---|---|
+| RDFLib, pySHACL, pyoxigraph, Owlready2 | `pip install -e ".[semantic]"` | `graphos.semantic` (rdf, owl) |
+| neo4j driver | `pip install -e ".[graph]"` | `graphos.execution.knowledge_graph` |
+| databricks-sdk, databricks-sql-connector | `pip install -e ".[databricks]"` | the Databricks connector |
+| everything above | `pip install -e ".[all]"` (included in `[dev]`) | — |
+| **neosemantics (n10s)** | *not a Python library* — a Java plugin inside the **Neo4j server** | auto-installed by the compose stack |
+| GLiNER, Docling | optional heavy installs (`pip install gliner docling`) | extractor plugins |
+
 ### The UI
 
 ```bash

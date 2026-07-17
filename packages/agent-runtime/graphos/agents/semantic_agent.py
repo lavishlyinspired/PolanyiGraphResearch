@@ -141,9 +141,9 @@ class SemanticAgent:
     """A SQL agent grounded in a SemanticContext.
 
     Tools come from a CapabilityRegistry, so alternative executors (Databricks,
-    Neo4j, MCP servers) can be plugged in without changing agent code. An
-    in-memory LangGraph checkpointer gives each session_id its own
-    multi-turn conversation state.
+    Neo4j, MCP servers) can be plugged in without changing agent code. The
+    memory runtime supplies a durable checkpointer, so each session_id keeps
+    its multi-turn conversation across restarts.
     """
 
     def __init__(self, db_uri: str, context: SemanticContext, llm, registry=None):
@@ -163,13 +163,14 @@ class SemanticAgent:
         system_prompt = _AGENT_PREAMBLE.format(dialect=dialect) + build_agent_prompt(context)
 
         from langchain.agents import create_agent
-        from langgraph.checkpoint.memory import InMemorySaver
+
+        from graphos.memory import build_checkpointer
 
         self._agent = create_agent(
             model=llm,
             tools=registry.agent_tools(),
             system_prompt=system_prompt,
-            checkpointer=InMemorySaver(),
+            checkpointer=build_checkpointer(),
         )
 
     def ask(self, question: str, session_id: Optional[str] = None) -> AskResult:

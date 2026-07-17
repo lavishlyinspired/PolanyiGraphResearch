@@ -101,10 +101,12 @@ def test_default_registry_execute_sql_goes_through_rule_guard(demo_uri):
     assert "3" in clean
 
 
-def test_default_registry_agent_tools_are_the_sql_toolset(demo_uri):
+def test_default_registry_agent_tools_include_the_sql_toolset(demo_uri):
+    """Plugged skills (agent_tool: true) may add tools; the guarded SQL
+    toolset must always be present."""
     registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
     names = {t.name for t in registry.agent_tools()}
-    assert names == {"sql_db_list_tables", "sql_db_schema", "sql_db_query"}
+    assert {"sql_db_list_tables", "sql_db_schema", "sql_db_query"} <= names
 
 
 def test_default_registry_reports_validation_events(demo_uri):
