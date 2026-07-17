@@ -125,4 +125,58 @@ def default_registry(
                 metadata={"guarded": capability == "ExecuteSQL"},
             )
         )
+
+    _register_optional_backends(registry)
     return registry
+
+
+def _register_optional_backends(registry: CapabilityRegistry) -> None:
+    from graphos.knowledge_graph import neo4j_configured
+    from graphos.ontology import graphdb_configured
+
+    if graphdb_configured():
+        from graphos.ontology import GraphDBOntologyStore
+
+        store = GraphDBOntologyStore()
+        registry.register(
+            CapabilityProvider(
+                name="graphdb-fibo-search",
+                capability="SearchOntology",
+                kind="function",
+                description="Search ontology classes (FIBO) in GraphDB by business term",
+                handler=store.search_classes,
+                metadata={"repository": store.repository},
+            )
+        )
+
+    if neo4j_configured():
+        from langchain.tools import tool
+
+        from graphos.knowledge_graph import Neo4jGraphStore, guard_cypher
+
+        @tool
+        def query_knowledge_graph(cypher: str) -> str:
+            """Run read-only Cypher against the enterprise knowledge graph.
+            It contains (:Entity {name}) nodes for business entities,
+            (:Term {term, definition, ontology_class}) glossary nodes linked via
+            [:DESCRIBES], and [:RELATES_TO {foreign_key}] edges between entities.
+            Write operations are rejected."""
+            violation = guard_cypher(cypher)
+            if violation:
+                return f"QUERY BLOCKED: {violation}"
+            try:
+                rows = Neo4jGraphStore().run_cypher(cypher)
+            except Exception as exc:  # noqa: BLE001 — surface driver errors to the model
+                return f"Error: {exc}"
+            return str(rows[:50])
+
+        registry.register(
+            CapabilityProvider(
+                name="neo4j-query_knowledge_graph",
+                capability="RunCypher",
+                kind="tool",
+                description="Read-only Cypher over the materialized enterprise knowledge graph",
+                handler=query_knowledge_graph,
+                metadata={"guarded": True},
+            )
+        )

@@ -106,13 +106,13 @@ export const getContext = () => getJson<ApiContext>("/api/context");
 
 export class AskError extends Error {}
 
-export async function ask(question: string): Promise<ApiAskResult> {
+export async function ask(question: string, sessionId?: string): Promise<ApiAskResult> {
   let res: Response;
   try {
     res = await fetch("/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, session_id: sessionId ?? null }),
     });
   } catch {
     throw new AskError(

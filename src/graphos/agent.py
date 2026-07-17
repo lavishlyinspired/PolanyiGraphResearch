@@ -98,11 +98,52 @@ def build_sql_tools(
     return [sql_db_list_tables, sql_db_schema, sql_db_query]
 
 
+def trace_from_messages(messages: list, question: str) -> list[AgentStep]:
+    """Build the reasoning trace for the turn that answered `question`.
+
+    With session memory the message list contains the whole conversation;
+    only messages from the latest matching HumanMessage onward belong to
+    this turn's trace.
+    """
+    from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+    start = 0
+    for index, message in enumerate(messages):
+        if isinstance(message, HumanMessage) and message.content == question:
+            start = index
+
+    steps: list[AgentStep] = []
+    for message in messages[start:]:
+        if isinstance(message, AIMessage):
+            for call in message.tool_calls or []:
+                steps.append(
+                    AgentStep(
+                        kind="tool_call",
+                        name=call["name"],
+                        detail=str(call.get("args", {}))[:500],
+                    )
+                )
+        elif isinstance(message, ToolMessage):
+            steps.append(
+                AgentStep(
+                    kind="tool_result",
+                    name=str(message.name or "tool"),
+                    detail=str(message.content)[:500],
+                )
+            )
+
+    answer = str(messages[-1].content) if messages else ""
+    steps.append(AgentStep(kind="answer", name="final", detail=answer[:500]))
+    return steps
+
+
 class SemanticAgent:
     """A SQL agent grounded in a SemanticContext.
 
     Tools come from a CapabilityRegistry, so alternative executors (Databricks,
-    Neo4j, MCP servers) can be plugged in without changing agent code.
+    Neo4j, MCP servers) can be plugged in without changing agent code. An
+    in-memory LangGraph checkpointer gives each session_id its own
+    multi-turn conversation state.
     """
 
     def __init__(self, db_uri: str, context: SemanticContext, llm, registry=None):
@@ -122,40 +163,28 @@ class SemanticAgent:
         system_prompt = _AGENT_PREAMBLE.format(dialect=dialect) + build_agent_prompt(context)
 
         from langchain.agents import create_agent
+        from langgraph.checkpoint.memory import InMemorySaver
 
         self._agent = create_agent(
-            model=llm, tools=registry.agent_tools(), system_prompt=system_prompt
+            model=llm,
+            tools=registry.agent_tools(),
+            system_prompt=system_prompt,
+            checkpointer=InMemorySaver(),
         )
 
-    def ask(self, question: str) -> AskResult:
-        from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+    def ask(self, question: str, session_id: Optional[str] = None) -> AskResult:
+        from langchain_core.messages import HumanMessage
 
         self._steps.clear()
-        result = self._agent.invoke({"messages": [HumanMessage(content=question)]})
+        config = {"configurable": {"thread_id": session_id or "default"}}
+        result = self._agent.invoke(
+            {"messages": [HumanMessage(content=question)]}, config
+        )
         messages = result["messages"]
 
-        steps: list[AgentStep] = []
-        validation_steps = list(self._steps)
-        for message in messages:
-            if isinstance(message, AIMessage):
-                for call in message.tool_calls or []:
-                    steps.append(
-                        AgentStep(
-                            kind="tool_call",
-                            name=call["name"],
-                            detail=str(call.get("args", {}))[:500],
-                        )
-                    )
-            elif isinstance(message, ToolMessage):
-                steps.append(
-                    AgentStep(
-                        kind="tool_result",
-                        name=str(message.name or "tool"),
-                        detail=str(message.content)[:500],
-                    )
-                )
-        steps.extend(validation_steps)
-
         answer = str(messages[-1].content) if messages else ""
-        steps.append(AgentStep(kind="answer", name="final", detail=answer[:500]))
+        steps = trace_from_messages(messages, question)
+        answer_step = steps.pop()
+        steps.extend(self._steps)
+        steps.append(answer_step)
         return AskResult(question=question, answer=answer, steps=steps)

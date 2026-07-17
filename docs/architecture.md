@@ -51,8 +51,9 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
 | Relationship Discovery (FK-derived) | ✅ | `graphos/generate.py` |
 | Context Expansion → agent prompt | ✅ | `graphos/prompt.py` |
 | Semantic Validation (rule engine over SQL) | ✅ | `graphos/validate.py` |
-| Ontology Manager / FIBO alignment | 🔜 roadmap | (`tools/mcp-server-graphdb` + OLS4/GraphDB research in `docs/research/`) |
-| Entity Resolution, SHACL, semantic memory, versioning | 🔜 roadmap | — |
+| Ontology alignment (FIBO via GraphDB SPARQL) | ✅ precision-first lexical alignment | `graphos/ontology.py`, `graphos align`, `POST /api/context/align` |
+| Knowledge Graph Manager (Neo4j materialization) | ✅ | `graphos/knowledge_graph.py`, `graphos materialize`, `POST /api/graph/materialize` |
+| Entity Resolution, SHACL, versioning | 🔜 roadmap | — |
 | **Agent Runtime** | | |
 | ReAct planning/reflection loop | ✅ via LangChain `create_agent` | `graphos/agent.py` |
 | Intent analyzer, task decomposer, multi-agent | 🔜 roadmap | — |
@@ -60,7 +61,7 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
 | SQL executor with symbolic guard | ✅ | `graphos/agent.py` (`build_sql_tools`) |
 | Databricks executor + ingestion | ✅ | `graphos/connectors/databricks`, `graphos/ingest.py` |
 | MCP executor (GraphDB/SPARQL) | 🧩 server vendored, not wired | `tools/mcp-server-graphdb` |
-| Neo4j/Cypher executor | 🔜 roadmap | — |
+| Neo4j/Cypher executor (read-only guarded) | ✅ registers as `RunCypher` when `NEO4J_URI` set | `graphos/knowledge_graph.py`, `graphos/capabilities.py` |
 | **Capability Runtime** | | |
 | Capability Registry (capability → provider resolution) | ✅ initial | `graphos/capabilities.py`, `GET /api/capabilities` |
 | Skill / MCP / model / policy registries | 🔜 roadmap | — |
@@ -70,7 +71,7 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
 | Neuro-symbolic fusion (block → self-correct) | ✅ proven end-to-end | `graphos/agent.py` |
 | Evidence/confidence/explanation builder | 🧩 partial (reasoning trace) | `AskResult.steps` |
 | **Observability** | 🧩 reasoning trace in API/UI | `graphos/api.py`, Studio Agent Workspace |
-| **Session Runtime** (state, checkpoints) | 🔜 roadmap (LangGraph checkpointers) | — |
+| **Session Runtime** (multi-turn conversations) | ✅ LangGraph `InMemorySaver`, per-session thread ids | `graphos/agent.py`, `session_id` on `POST /api/ask` |
 
 ## Evolution path (no rewrite required)
 
@@ -83,15 +84,20 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
    now draws its tools from the registry, and `GET /api/capabilities` exposes
    the catalog. New backends register providers; planner/agent code is
    untouched.
-2. **Ontology alignment.** Add a FIBO alignment provider (GraphDB/OLS4 lookup +
-   LLM ranking of retrieved candidates — never free invention). This upgrades
-   glossary entries with `fibo:` classes the Studio UI already visualizes.
-3. **More executors.** Neo4j/Cypher and SPARQL executors join SQL behind the
-   same validation gate; MCP servers (e.g. `tools/mcp-server-graphdb`) register
-   as capability providers.
-4. **Session + reflection.** Adopt LangGraph checkpointers for session state;
-   promote the ask-loop to an explicit LangGraph graph
-   (plan → ground → execute → validate → reflect → explain) once more than one
-   executor exists.
+2. **Ontology alignment (done, v0.1).** `graphos/ontology.py` searches FIBO
+   classes in GraphDB via SPARQL and aligns glossary terms with a
+   precision-first lexical score — only exact/inflection matches (≥0.9) attach
+   automatically, because "Revenue" must not silently become "revenue bond".
+   Prefix/substring hits still rank in `GET /api/ontology/search`. LLM ranking
+   of retrieved candidates (never free invention) is the next refinement.
+3. **Graph executors (Neo4j done, v0.1).** `graphos/knowledge_graph.py`
+   materializes the semantic context into Neo4j (`:Entity`, `:Term`,
+   `RELATES_TO`, `DESCRIBES`) and registers a read-only, guarded `RunCypher`
+   agent tool. SPARQL executors and MCP servers
+   (e.g. `tools/mcp-server-graphdb`) register the same way.
+4. **Sessions (done, v0.1) + reflection.** LangGraph `InMemorySaver` gives each
+   `session_id` a multi-turn conversation. Next: durable checkpointers and an
+   explicit LangGraph graph (plan → ground → execute → validate → reflect →
+   explain).
 
 Each step extends the current modules; none replaces them.

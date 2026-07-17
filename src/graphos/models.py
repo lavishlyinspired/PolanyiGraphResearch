@@ -59,6 +59,12 @@ class GlossaryEntry(BaseModel):
     source_columns: list[str] = Field(description="Specific columns")
     unit: Optional[str] = Field(default=None, description="Unit of measurement")
     synonyms: list[str] = Field(default_factory=list, description="Alternative names")
+    ontology_class: Optional[str] = Field(
+        default=None, description="Aligned ontology class label (e.g., FIBO)"
+    )
+    ontology_uri: Optional[str] = Field(
+        default=None, description="URI of the aligned ontology class"
+    )
 
 
 class EntityRelationship(BaseModel):

@@ -69,6 +69,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--schema", default="graphos_demo")
     p.set_defaults(func=cmd_ingest_databricks)
 
+    p = sub.add_parser("align", help="Align glossary terms with the ontology (GraphDB/FIBO)")
+    p.add_argument("--context", default=DEFAULT_CONTEXT_PATH)
+    p.set_defaults(func=cmd_align)
+
+    p = sub.add_parser(
+        "materialize", help="Project the semantic context into Neo4j as a knowledge graph"
+    )
+    p.add_argument("--context", default=DEFAULT_CONTEXT_PATH)
+    p.set_defaults(func=cmd_materialize)
+
     return parser
 
 
@@ -211,6 +221,53 @@ def cmd_ingest_databricks(args) -> int:
     from graphos.ingest import ingest_demo_to_databricks
 
     return ingest_demo_to_databricks(catalog=args.catalog, schema=args.schema)
+
+
+def cmd_align(args) -> int:
+    from graphos.models import SemanticContext
+    from graphos.ontology import GraphDBOntologyStore, align_glossary
+
+    path = Path(args.context)
+    if not path.exists():
+        print(f"No context at {path}. Run: graphos generate")
+        return 1
+    store = GraphDBOntologyStore()
+    if not store.is_available():
+        print(f"GraphDB not reachable at {store.endpoint}")
+        return 1
+    ctx = SemanticContext.model_validate_json(path.read_text(encoding="utf-8"))
+    aligned = align_glossary(ctx, store)
+    path.write_text(aligned.model_dump_json(indent=2), encoding="utf-8")
+    hits = [g for g in aligned.glossary if g.ontology_uri]
+    print(f"Aligned {len(hits)}/{len(aligned.glossary)} glossary terms with {store.repository}:")
+    for g in hits:
+        print(f"  ✓ {g.term} → {g.ontology_class}  <{g.ontology_uri}>")
+    return 0
+
+
+def cmd_materialize(args) -> int:
+    from graphos.knowledge_graph import Neo4jGraphStore
+    from graphos.models import SemanticContext
+
+    path = Path(args.context)
+    if not path.exists():
+        print(f"No context at {path}. Run: graphos generate")
+        return 1
+    store = Neo4jGraphStore()
+    if not store.is_available():
+        print("Neo4j not reachable — check NEO4J_URI / NEO4J_PASSWORD")
+        return 1
+    ctx = SemanticContext.model_validate_json(path.read_text(encoding="utf-8"))
+    try:
+        stats = store.materialize(ctx)
+    finally:
+        store.close()
+    print(
+        f"Knowledge graph materialized: {stats['entities']} entities, "
+        f"{stats['terms']} terms, {stats['relationships']} relationships"
+    )
+    print("Explore in Neo4j Browser: MATCH (n) RETURN n LIMIT 50")
+    return 0
 
 
 if __name__ == "__main__":

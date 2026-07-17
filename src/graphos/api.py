@@ -29,6 +29,7 @@ class ValidateRequest(BaseModel):
 
 class AskRequest(BaseModel):
     question: str
+    session_id: Optional[str] = None
 
 
 class GenerateRequest(BaseModel):
@@ -156,9 +157,50 @@ def create_app(
 
             state["agent"] = SemanticAgent(db_uri, context(), llm)
         try:
-            return state["agent"].ask(req.question).model_dump()
+            return state["agent"].ask(req.question, session_id=req.session_id).model_dump()
         except Exception as exc:  # noqa: BLE001 — agent/LLM failures become 502s
             raise HTTPException(status_code=502, detail=f"Agent failed: {exc}") from exc
+
+    @app.get("/api/ontology/search")
+    def ontology_search(q: str):
+        from graphos.ontology import GraphDBOntologyStore, graphdb_configured
+
+        if not graphdb_configured():
+            raise HTTPException(status_code=503, detail="GRAPHDB_ENDPOINT not configured")
+        try:
+            return [c.model_dump() for c in GraphDBOntologyStore().search_classes(q)]
+        except Exception as exc:  # noqa: BLE001 — GraphDB failures become 502s
+            raise HTTPException(status_code=502, detail=f"Ontology search failed: {exc}") from exc
+
+    @app.post("/api/context/align")
+    def align_context():
+        from graphos.ontology import GraphDBOntologyStore, align_glossary, graphdb_configured
+
+        if not graphdb_configured():
+            raise HTTPException(status_code=503, detail="GRAPHDB_ENDPOINT not configured")
+        store = GraphDBOntologyStore()
+        if not store.is_available():
+            raise HTTPException(status_code=503, detail="GraphDB is not reachable")
+        ctx = align_glossary(context(), store)
+        state["context"] = ctx
+        state["agent"] = None
+        save_context(ctx)
+        aligned = [g.term for g in ctx.glossary if g.ontology_uri]
+        return {"aligned_terms": aligned, "total_terms": len(ctx.glossary)}
+
+    @app.post("/api/graph/materialize")
+    def materialize_graph():
+        from graphos.knowledge_graph import Neo4jGraphStore, neo4j_configured
+
+        if not neo4j_configured():
+            raise HTTPException(status_code=503, detail="NEO4J_URI not configured")
+        store = Neo4jGraphStore()
+        if not store.is_available():
+            raise HTTPException(status_code=503, detail="Neo4j is not reachable")
+        try:
+            return store.materialize(context())
+        finally:
+            store.close()
 
     _mount_ui(app, ui_dist)
     return app

@@ -84,6 +84,11 @@ export function ReasoningTraceView() {
   const [busy, setBusy] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>(fallbackQueries);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sessionIdRef = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `session-${Date.now()}`
+  );
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -109,7 +114,7 @@ export function ReasoningTraceView() {
       { id: `a-${Date.now()}`, role: "agent", content: "Thinking…" },
     ]);
     try {
-      const result = await ask(q);
+      const result = await ask(q, sessionIdRef.current);
       setMessages((prev) => [
         ...prev.slice(0, -1),
         {
