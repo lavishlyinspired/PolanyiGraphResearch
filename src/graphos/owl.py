@@ -20,18 +20,33 @@ from typing import Optional
 import httpx
 
 
-@lru_cache(maxsize=1)
-def java_available() -> bool:
-    """A usable Java runtime — macOS ships a /usr/bin/java stub that only errors."""
-    if shutil.which("java") is None:
-        return False
+_JAVA_CANDIDATES = (
+    "java",  # PATH — but macOS ships a /usr/bin/java stub that only errors
+    "/opt/homebrew/opt/openjdk/bin/java",
+    "/usr/local/opt/openjdk/bin/java",
+)
+
+
+def _runs(java_path: str) -> bool:
     try:
-        probe = subprocess.run(
-            ["java", "-version"], capture_output=True, timeout=10
-        )
+        probe = subprocess.run([java_path, "-version"], capture_output=True, timeout=10)
     except (OSError, subprocess.TimeoutExpired):
         return False
     return probe.returncode == 0
+
+
+@lru_cache(maxsize=1)
+def find_java() -> Optional[str]:
+    """Locate a usable Java runtime, including Homebrew's keg-only OpenJDK."""
+    for candidate in _JAVA_CANDIDATES:
+        resolved = shutil.which(candidate) if "/" not in candidate else candidate
+        if resolved and Path(resolved).exists() and _runs(resolved):
+            return resolved
+    return None
+
+
+def java_available() -> bool:
+    return find_java() is not None
 
 
 @dataclass(frozen=True)
@@ -153,13 +168,16 @@ class OwlReasoner:
 
     def run_reasoner(self) -> ReasonerResult:
         """Run HermiT if a Java runtime exists; report honestly otherwise."""
-        if not java_available():
+        java = find_java()
+        if java is None:
             return ReasonerResult(
                 ran=False,
                 detail="No Java runtime found — HermiT/Pellet need Java. "
                 "Structural hierarchy traversal remains available.",
             )
         import owlready2
+
+        owlready2.JAVA_EXE = java
 
         try:
             with self._ontology:

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   ontologyConcepts,
   semanticConcepts,
@@ -7,7 +7,9 @@ import {
   type OntologyConcept,
   type SemanticConcept,
   type GraphNode,
+  type GraphEdge,
 } from "@/data/mockData";
+import { getContext, type ApiContext } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -877,6 +879,11 @@ function GraphCanvas({
   const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>(
     () => Object.fromEntries(nodes.map((n) => [n.id, { x: n.x, y: n.y }]))
   );
+  const nodeKey = nodes.map((n) => n.id).join("|");
+  useEffect(() => {
+    setPositions(Object.fromEntries(nodes.map((n) => [n.id, { x: n.x, y: n.y }])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeKey]);
   const [dragging, setDragging] = useState<string | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -1090,6 +1097,7 @@ function NodeDetailPanel({ node }: { node: GraphNode }) {
         </div>
       </div>
 
+      {node.sampleData.length > 0 && (
       <div>
         <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
           <FileText className="w-4 h-4 text-teal-600" />
@@ -1123,6 +1131,7 @@ function NodeDetailPanel({ node }: { node: GraphNode }) {
           </table>
         </div>
       </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -1148,9 +1157,82 @@ function NodeDetailPanel({ node }: { node: GraphNode }) {
   );
 }
 
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function humanize(name: string): string {
+  return name
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function liveGraphFromContext(ctx: ApiContext): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const entityNames = Array.from(
+    new Set([
+      ...ctx.key_entities,
+      ...ctx.relationships.flatMap((r) => [r.from_entity, r.to_entity]),
+      ...ctx.glossary.flatMap((g) => g.source_tables),
+    ])
+  );
+  const cx = 400;
+  const cy = 280;
+  const radius = Math.min(210, 60 + entityNames.length * 18);
+
+  const nodes: GraphNode[] = entityNames.map((name, index) => {
+    const angle = (2 * Math.PI * index) / entityNames.length - Math.PI / 2;
+    const terms = ctx.glossary.filter((g) => g.source_tables.includes(name));
+    const aligned = terms.find((g) => g.ontology_class);
+    const relationship = ctx.relationships.find(
+      (r) => r.from_entity === name || r.to_entity === name
+    );
+    return {
+      id: name,
+      label: humanize(name),
+      fiboClass: aligned ? `fibo:${aligned.ontology_class}` : "unaligned",
+      x: Math.round(cx + radius * Math.cos(angle)),
+      y: Math.round(cy + radius * Math.sin(angle)),
+      type: "concept",
+      confidence: aligned ? 97 : 85,
+      tables: [name],
+      sampleData: [],
+      sparql:
+        `PREFIX gos: <https://graphos.dev/ontology#>\n` +
+        `SELECT ?p ?o WHERE {\n  <https://graphos.dev/entity/${slugify(name)}> ?p ?o .\n}`,
+      cypher: `MATCH (e:Entity {name: '${name}'})-[r:RELATES_TO]-(other)\nRETURN e, r, other`,
+      definition:
+        terms[0]?.definition ??
+        relationship?.description ??
+        `Business entity backed by the ${name} table.`,
+    };
+  });
+
+  const edges: GraphEdge[] = ctx.relationships.map((r) => ({
+    from: r.from_entity,
+    to: r.to_entity,
+    label: r.foreign_key,
+  }));
+  return { nodes, edges };
+}
+
 export function KnowledgeGraphView() {
+  const [live, setLive] = useState<{ nodes: GraphNode[]; edges: GraphEdge[] } | null>(null);
   const [selectedId, setSelectedId] = useState("trade");
-  const selected = graphNodes.find((n) => n.id === selectedId)!;
+
+  useEffect(() => {
+    void getContext().then((ctx) => {
+      if (ctx && (ctx.relationships.length > 0 || ctx.key_entities.length > 0)) {
+        const graph = liveGraphFromContext(ctx);
+        setLive(graph);
+        if (graph.nodes.length > 0) setSelectedId(graph.nodes[0].id);
+      }
+    });
+  }, []);
+
+  const nodes = live?.nodes ?? graphNodes;
+  const edges = live?.edges ?? graphEdges;
+  const selected = nodes.find((n) => n.id === selectedId) ?? nodes[0];
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
@@ -1159,18 +1241,18 @@ export function KnowledgeGraphView() {
           Knowledge Graph
         </h2>
         <p className="text-slate-500">
-          An interactive semantic map of your enterprise. Drag nodes to rearrange,
-          click any node to inspect its FIBO class, Databricks tables, sample data,
-          and query definitions.
+          {live
+            ? "The live enterprise knowledge graph from your semantic context — click any node for its ontology class, source table, and query definitions."
+            : "An interactive semantic map of your enterprise (demo data — start the API for the live graph)."}
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:h-[640px]">
         <div className="lg:col-span-3 h-[420px] lg:h-auto">
           <GraphCanvas
-            nodes={graphNodes}
-            edges={graphEdges}
-            selectedId={selectedId}
+            nodes={nodes}
+            edges={edges}
+            selectedId={selected.id}
             onSelect={setSelectedId}
           />
         </div>

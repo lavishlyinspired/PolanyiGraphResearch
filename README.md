@@ -55,14 +55,20 @@ graphos serve            # http://localhost:8000
 With GraphDB (FIBO) and/or Neo4j running, the semantic layer goes further:
 
 ```bash
-graphos align            # align glossary terms with FIBO (LLM ranks ambiguous hits)
-graphos rdf              # context → SKOS/RDF, validated with SHACL (pip install -e ".[semantic]")
-graphos publish          # push RDF into GraphDB next to FIBO (skos:exactMatch links)
-graphos sparql "..."     # SPARQL via GraphDB, or locally via pyoxigraph without any server
-graphos materialize      # project the context into Neo4j (pip install -e ".[graph]")
+graphos align                  # align glossary terms with FIBO (LLM ranks ambiguous hits)
+graphos rdf                    # context → SKOS/RDF, validated with SHACL (pip install -e ".[semantic]")
+graphos publish                # push RDF into GraphDB next to FIBO (skos:exactMatch links)
+graphos sparql "..."           # SPARQL via GraphDB, or locally via pyoxigraph without any server
+graphos materialize            # project the context into Neo4j (pip install -e ".[graph]")
+graphos sync-rdf               # import the context RDF into Neo4j via neosemantics (n10s)
+graphos ingest-document <path> # documents → mentions → glossary links → GraphDB + Neo4j
+graphos reason [--uri <class>] # OWL hierarchy + HermiT consistency (needs a Java runtime)
 ```
 
 Once materialized, the agent gains a read-only `query_knowledge_graph` Cypher tool automatically.
+Extractor selection: `GRAPHOS_EXTRACTOR=llm|heuristic|gliner` (GLiNER needs `pip install gliner`;
+PDF parsing needs `pip install docling`). HermiT reasoning activates automatically when Java
+exists (`brew install openjdk` is enough — the Homebrew keg-only path is detected).
 
 ### The UI
 

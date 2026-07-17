@@ -48,6 +48,8 @@ export type ApiGlossaryEntry = {
   source_columns: string[];
   unit: string | null;
   synonyms: string[];
+  ontology_class: string | null;
+  ontology_uri: string | null;
 };
 
 export type ApiRelationship = {

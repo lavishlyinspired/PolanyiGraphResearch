@@ -71,6 +71,43 @@ def test_glossary_scan_reports_each_term_once():
     assert len([m for m in mentions if m.text.lower() == "notional amount"]) == 1
 
 
+class FakeGLiNERModel:
+    def predict_entities(self, text, labels, threshold=0.5):
+        return [
+            {"text": "Goldman Sachs Group Inc", "label": "organization", "start": 0, "score": 0.95},
+            {"text": "US Treasury 10Y", "label": "financial instrument", "start": 120, "score": 0.9},
+            {"text": "made up thing", "label": "unmapped label", "start": 50, "score": 0.9},
+        ]
+
+
+def test_gliner_extractor_maps_labels_to_entity_types():
+    from graphos.documents import GLiNERExtractor
+
+    extraction = GLiNERExtractor(model=FakeGLiNERModel()).extract(SAMPLE)
+    by_text = {m.text: m.entity_type for m in extraction.mentions}
+    assert by_text["Goldman Sachs Group Inc"] == "Organization"
+    assert by_text["US Treasury 10Y"] == "FinancialInstrument"
+    assert by_text["made up thing"] == "Other"
+
+
+def test_gliner_extractor_without_package_gives_install_hint():
+    import pytest as _pytest
+
+    from graphos.documents import GLiNERExtractor
+
+    with _pytest.raises(ImportError, match="pip install gliner"):
+        GLiNERExtractor().extract(SAMPLE)
+
+
+def test_make_extractor_honors_env_override(monkeypatch):
+    from graphos.documents import HeuristicExtractor, LLMExtractor, make_extractor
+
+    monkeypatch.setenv("GRAPHOS_EXTRACTOR", "heuristic")
+    assert isinstance(make_extractor(llm=object()), HeuristicExtractor)
+    monkeypatch.delenv("GRAPHOS_EXTRACTOR")
+    assert isinstance(make_extractor(llm=object()), LLMExtractor)
+
+
 def make_document() -> IngestedDocument:
     return IngestedDocument(
         source="sample-report.md",

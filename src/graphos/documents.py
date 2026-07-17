@@ -199,8 +199,64 @@ class LLMExtractor:
         return self._fallback.extract(text)
 
 
+_GLINER_LABELS: dict[str, EntityType] = {
+    "organization": "Organization",
+    "financial instrument": "FinancialInstrument",
+    "financial metric": "Metric",
+    "monetary amount": "MonetaryAmount",
+    "date": "Date",
+    "currency": "Currency",
+    "regulation": "Regulation",
+    "person": "Person",
+}
+
+
+class GLiNERExtractor:
+    """Zero-shot NER via GLiNER — optional heavy dependency, injected model
+    for tests. Install with: pip install gliner (pulls torch)."""
+
+    def __init__(self, model=None, model_name: str = "urchade/gliner_medium-v2.1"):
+        self._model = model
+        self._model_name = model_name
+
+    def _load_model(self):
+        if self._model is None:
+            try:
+                from gliner import GLiNER
+            except ImportError as exc:
+                raise ImportError(
+                    "GLiNER extraction needs the gliner package: pip install gliner"
+                ) from exc
+            self._model = GLiNER.from_pretrained(self._model_name)
+        return self._model
+
+    def extract(self, text: str) -> DocumentExtraction:
+        model = self._load_model()
+        entities = model.predict_entities(text, list(_GLINER_LABELS), threshold=0.5)
+        mentions = [
+            ExtractedMention(
+                text=re.sub(r"\s+", " ", entity["text"]).strip(),
+                entity_type=_GLINER_LABELS.get(entity["label"], "Other"),
+                context=_sentence_of(text, int(entity.get("start", 0))),
+            )
+            for entity in entities
+        ]
+        return DocumentExtraction(mentions=mentions)
+
+
 def make_extractor(llm=None) -> Extractor:
-    return LLMExtractor(llm) if llm is not None else HeuristicExtractor()
+    """Pick the extractor: GRAPHOS_EXTRACTOR ∈ {llm, heuristic, gliner} wins;
+    otherwise LLM when available, heuristics when not."""
+    import os
+
+    forced = os.environ.get("GRAPHOS_EXTRACTOR", "").lower()
+    if forced == "heuristic":
+        return HeuristicExtractor()
+    if forced == "gliner":
+        return GLiNERExtractor()
+    if forced == "llm" or llm is not None:
+        return LLMExtractor(llm)
+    return HeuristicExtractor()
 
 
 # ── Resolution & RDF ─────────────────────────────────────────────

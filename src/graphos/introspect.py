@@ -2,14 +2,43 @@
 
 from __future__ import annotations
 
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
 from sqlalchemy import create_engine, inspect as sa_inspect
 
 from graphos.models import ColumnInfo, ForeignKeyInfo, SchemaSnapshot, TableInfo
 
 
+def _normalize_databricks_uri(db_uri: str) -> str:
+    """Convert a user-friendly Databricks URI to the format expected by databricks-sqlalchemy.
+
+    Accepts:  databricks://token:PASS@HOST/sql/1.0/warehouses/WH?catalog=C&schema=S
+    Returns:  databricks+thrift://token:PASS@HOST?http_path=/sql/1.0/warehouses/WH&catalog=C&schema=S
+    """
+    if not db_uri.startswith("databricks://"):
+        return db_uri
+
+    parsed = urlparse(db_uri)
+    # Extract the path (e.g. /sql/1.0/warehouses/abc123) as http_path
+    http_path = parsed.path
+    query = parse_qs(parsed.query, keep_blank_values=True)
+
+    # Flatten single-value lists from parse_qs
+    flat_query = {k: v[0] if len(v) == 1 else v for k, v in query.items()}
+    if http_path:
+        flat_query["http_path"] = http_path
+
+    # Rebuild with no path (http_path moved to query params)
+    rebuilt = parsed._replace(
+        path="",
+        query=urlencode(flat_query),
+    )
+    return urlunparse(rebuilt)
+
+
 def introspect(db_uri: str) -> SchemaSnapshot:
     """Read tables, columns, and foreign keys from any SQLAlchemy-compatible database."""
-    engine = create_engine(db_uri)
+    engine = create_engine(_normalize_databricks_uri(db_uri))
     try:
         inspector = sa_inspect(engine)
         tables = [
@@ -23,7 +52,7 @@ def introspect(db_uri: str) -> SchemaSnapshot:
         return SchemaSnapshot(
             dialect=engine.dialect.name,
             tables=tables,
-            table_info_text=_table_info_text(db_uri),
+            table_info_text=_table_info_text(_normalize_databricks_uri(db_uri)),
         )
     finally:
         engine.dispose()
