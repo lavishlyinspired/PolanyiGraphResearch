@@ -92,11 +92,26 @@ distributions) remain the final step, triggered by a real second consumer.
 | `research/` | `notebooks/ vendored-skills/` (was root `notebooks/` and `Skills/`) |
 | `tools/` | absorbed `scripts/` |
 
-Remaining top level: `apps/ packages/ platform/ semantics/ research/ tests/
-docs/ data/ config/ examples/ infrastructure/ tools/` plus root files.
 Note: macOS's case-insensitive filesystem had merged the scaffolded lowercase
 `skills/` into the vendored `Skills/` on disk — the grouping untangled them
 (`platform/skills/` vs `research/vendored-skills/`).
+
+## Final consolidation — six top-level directories (2026-07-17)
+
+| Floating piece | New home |
+|---|---|
+| `tests/unit/*` | co-located: `packages/*/tests/` and `apps/server/tests/` |
+| `tests/{integration,e2e,benchmark,performance}` | `infrastructure/tests/` (cross-cutting suites) |
+| `examples/` | `docs/examples/` |
+| `research/` (notebooks, vendored-skills) | `docs/research/` |
+| `tools/` (+scripts) | `infrastructure/tools/` |
+| `config/` | `infrastructure/config/` |
+| `data/` (runtime artifacts) | `semantics/knowledge/` — the knowledge tree IS the artifact store: db at its root, contexts in `semantic-models/`, RDF in `rdf/`, ingested docs in `documents/` (CLI/API defaults updated; artifacts gitignored, READMEs tracked) |
+| stray `ui/` | removed (it was only a Vite dev-server cache recreated by a process started before the `ui/` → `apps/studio` move) |
+
+Final top level: **`apps/ packages/ platform/ semantics/ infrastructure/ docs/`**
+plus root files. pytest discovers the co-located suites via
+`testpaths = ["packages", "apps", "infrastructure/tests"]`.
 
 ## Evolution triggers — split when it hurts, not before
 

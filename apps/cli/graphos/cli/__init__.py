@@ -8,8 +8,8 @@ from pathlib import Path
 
 from graphos.kernel.env import load_dotenv
 
-DEFAULT_DB_PATH = "data/financial_demo.db"
-DEFAULT_CONTEXT_PATH = "data/semantic_context.json"
+DEFAULT_DB_PATH = "semantics/knowledge/financial_demo.db"
+DEFAULT_CONTEXT_PATH = "semantics/knowledge/semantic-models/semantic_context.json"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -81,7 +81,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("rdf", help="Build + SHACL-validate the RDF form of the context")
     p.add_argument("--context", default=DEFAULT_CONTEXT_PATH)
-    p.add_argument("--out", default="data/semantic_context.ttl")
+    p.add_argument("--out", default="semantics/knowledge/rdf/semantic_context.ttl")
     p.set_defaults(func=cmd_rdf)
 
     p = sub.add_parser("publish", help="Publish the context RDF to GraphDB (named graph)")
@@ -90,7 +90,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("sparql", help="Run SPARQL (GraphDB if configured, else local)")
     p.add_argument("query")
-    p.add_argument("--ttl", default="data/semantic_context.ttl")
+    p.add_argument("--ttl", default="semantics/knowledge/rdf/semantic_context.ttl")
     p.set_defaults(func=cmd_sparql)
 
     p = sub.add_parser(
@@ -114,7 +114,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser(
         "sync-rdf", help="Import the context RDF into Neo4j via neosemantics (n10s)"
     )
-    p.add_argument("--ttl", default="data/semantic_context.ttl")
+    p.add_argument("--ttl", default="semantics/knowledge/rdf/semantic_context.ttl")
     p.set_defaults(func=cmd_sync_rdf)
 
     return parser
@@ -393,7 +393,7 @@ def cmd_ingest_document(args) -> int:
         return 2
     print(f"✓ SHACL-valid document RDF ({len(graph)} triples)")
 
-    out = Path("data/documents") / (Path(args.path).stem + ".ttl")
+    out = Path("semantics/knowledge/documents") / (Path(args.path).stem + ".ttl")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(graph.serialize(format="turtle"), encoding="utf-8")
     print(f"Written to {out}")

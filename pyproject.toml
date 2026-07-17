@@ -65,7 +65,8 @@ packages = [
 "graphos.semantic" = ["shapes/*.ttl"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["packages", "apps", "infrastructure/tests"]
+norecursedirs = ["node_modules", "dist", ".venv", "*.egg-info"]
 addopts = "-q"
 
 [tool.ruff]

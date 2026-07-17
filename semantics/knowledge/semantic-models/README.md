@@ -1,7 +1,3 @@
 # Semantic Models
 
-Generated semantic contexts.
-
-**Currently lives in / provided by:** `data/semantic_context.json`
-
-**Status:** reserved — extraction target per `docs/repo-structure.md`.
+Generated semantic contexts (`semantic_context.json`) — produced by `graphos generate`, consumed by the agent, API, and Studio.

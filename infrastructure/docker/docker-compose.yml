@@ -68,7 +68,7 @@ services:
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       GRAPHOS_LLM_PROVIDER: "${GRAPHOS_LLM_PROVIDER:-}"
     volumes:
-      - graphos-data:/app/data
+      - graphos-data:/app/semantics/knowledge
 
 volumes:
   graphdb-data:

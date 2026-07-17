@@ -6,7 +6,7 @@ test:
 	.venv/bin/python -m pytest
 
 lint:
-	.venv/bin/python -m ruff check packages apps tests
+	.venv/bin/python -m ruff check packages apps
 
 ui:
 	cd apps/studio && npm run build

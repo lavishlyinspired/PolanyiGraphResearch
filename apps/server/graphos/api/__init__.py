@@ -19,7 +19,7 @@ from graphos.kernel.llm import llm_mode, resolve_llm
 from graphos.models import BusinessRule, SemanticContext
 from graphos.execution.validate import validate_sql
 
-DEFAULT_DB_PATH = "data/financial_demo.db"
+DEFAULT_DB_PATH = "semantics/knowledge/financial_demo.db"
 CONTEXT_FILENAME = "semantic_context.json"
 
 
@@ -44,7 +44,7 @@ class IngestDocumentRequest(BaseModel):
 def create_app(
     db_uri: Optional[str] = None,
     rules: Optional[list[BusinessRule]] = None,
-    artifacts_dir: str = "data",
+    artifacts_dir: str = "semantics/knowledge/semantic-models",
     ui_dist: str = "apps/studio/dist",
 ) -> FastAPI:
     db_uri = db_uri or f"sqlite:///{DEFAULT_DB_PATH}"

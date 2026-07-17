@@ -121,23 +121,16 @@ Business rules are declared as JSON (`rule_id`, `name`, `description`, `tables`,
 The tree mirrors the runtime architecture (see [docs/architecture.md](docs/architecture.md)
 and [docs/repo-structure.md](docs/repo-structure.md)):
 
+Six top-level directories; tests live beside the code they verify:
+
 | Path | What it is |
 |---|---|
-| `packages/kernel/` | `graphos.kernel` — capability registry, LLM providers, env |
-| `packages/semantic-runtime/` | `graphos.semantic` — introspection, context generation, ontology alignment, RDF/SHACL, OWL reasoning, document ingestion |
-| `packages/agent-runtime/` | `graphos.agents` — the grounded SQL agent (LangChain/LangGraph, sessions) |
-| `packages/execution-runtime/` | `graphos.execution` — symbolic SQL guard, Neo4j knowledge graph, connectors, ingestion |
-| `packages/common/` | `graphos` root — shared models, demo dataset |
-| `packages/{memory,observability}-runtime/` | Reserved by the six-runtime plan (thin today, documented) |
-| `apps/studio/` | GraphOS Studio (React + Vite) |
-| `apps/server/`, `apps/cli/` | `graphos.api` and `graphos.cli` — the API server and CLI |
-| `infrastructure/docker/` | One-command dev stack (GraphDB + FIBO, Neo4j + n10s, API) |
-| `platform/` | Extension surfaces: `skills/ agents/ workflows/ prompts/ policies/ connectors/ plugins/ mcp/` (incl. the vendored GraphDB MCP server at `platform/mcp/servers/graphdb/`) |
-| `semantics/` | Semantic assets: `ontologies/` (FIBO, SKOS, …) and `knowledge/` (graphs, RDF, documents) |
-| `research/` | Provenance: prototype `notebooks/` and `vendored-skills/` (Neo4j, Databricks repos) |
-| `tests/unit/` | The behavior test suite (integration/e2e dirs reserved) |
-| `docs/product-vision.md` | Product direction & gap analysis distillation |
-| `docs/research/`, `docs/archive/` | Research inputs and raw conversation provenance |
+| `apps/` | Applications: `studio/` (React), `server/` (`graphos.api`), `cli/` (`graphos.cli`), plus gateway/worker/scheduler placeholders — each app carries its own `tests/` |
+| `packages/` | The six runtimes + common, each with its code **and its `tests/`**: `kernel/` (capabilities, LLM, env) · `semantic-runtime/` (introspection, context, ontology, RDF/SHACL, OWL, documents) · `agent-runtime/` (grounded agent, sessions) · `execution-runtime/` (SQL guard, knowledge graph, connectors) · `common/` (models, demo) · `memory-`/`observability-runtime/` (reserved) |
+| `platform/` | Extension surfaces: `skills/ agents/ workflows/ prompts/ policies/ connectors/ plugins/ mcp/` (incl. the vendored GraphDB MCP server at `mcp/servers/graphdb/`) |
+| `semantics/` | `ontologies/` (FIBO, SKOS, …) and `knowledge/` — **the artifact store**: demo db, semantic contexts, RDF, ingested documents all land here |
+| `infrastructure/` | `docker/` (the dev stack) · `tests/` (integration/e2e/benchmark reserved) · `tools/` · `config/` · kubernetes/terraform/monitoring placeholders |
+| `docs/` | Product docs, `examples/`, `research/` (incl. the prototype notebooks and vendored skill repos), `archive/` (conversation provenance) |
 
 All Python packages form **one installable distribution** — `pip install -e .`
 maps `graphos.*` onto the `packages/` and `apps/` trees (see `pyproject.toml`).
