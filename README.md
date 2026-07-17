@@ -23,7 +23,17 @@ AI agents give wrong answers because nobody told them what "Revenue" means, whic
 
 The LLM **reasons**; the symbolic layer **decides**. A query that joins `trades` to `counterparties` without handling `is_sanctioned` is rejected before it runs, and the agent is told why so it can self-correct.
 
-## Quickstart (5 minutes, no cloud required)
+## Quickstart — one command (Docker)
+
+```bash
+make up        # GraphDB (+FIBO repo), Neo4j (+n10s), GraphOS API + Studio
+open http://localhost:8000
+```
+
+Ports clash with local services? `GRAPHDB_PORT=17200 NEO4J_PORT=17687 API_PORT=18000 make up`.
+Skip the FIBO download with `IMPORT_FIBO=false`. Details: `infrastructure/docker/`.
+
+## Quickstart — local Python (5 minutes, no cloud required)
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
