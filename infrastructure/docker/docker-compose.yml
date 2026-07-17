@@ -1,0 +1,76 @@
+# GraphOS development stack: GraphDB (FIBO) + Neo4j (n10s) + API/Studio.
+#
+#   docker compose -f infrastructure/docker/docker-compose.yml up
+#   (or: make up)
+#
+# Ports are overridable so the stack can run beside existing local services:
+#   GRAPHDB_PORT=17200 NEO4J_PORT=17687 API_PORT=18000 docker compose ... up
+#
+# The API boots in deterministic mode (no API key needed). Pass NVIDIA_API_KEY
+# or OPENAI_API_KEY through the environment to enable the agent and LLM
+# context enrichment. Set IMPORT_FIBO=false to skip the FIBO download.
+
+services:
+  graphdb:
+    # 10.x is the last line that runs without a license file; 11.x refuses
+    # writes with "No license was set".
+    image: ontotext/graphdb:10.7.0
+    ports:
+      - "${GRAPHDB_PORT:-7200}:7200"
+    volumes:
+      - graphdb-data:/opt/graphdb/home
+    environment:
+      GDB_JAVA_OPTS: "-Xms1g -Xmx2g"
+
+  graphdb-init:
+    image: curlimages/curl:8.10.1
+    depends_on:
+      - graphdb
+    volumes:
+      - ./graphdb-repo-config.ttl:/config/graphdb-repo-config.ttl:ro
+      - ./graphdb-init.sh:/init.sh:ro
+    environment:
+      IMPORT_FIBO: "${IMPORT_FIBO:-true}"
+      FIBO_URL: "${FIBO_URL:-}"
+    entrypoint: ["/bin/sh", "/init.sh"]
+    restart: "no"
+
+  neo4j:
+    # 5.x LTS: last image line whose NEO4J_PLUGINS registry includes n10s
+    # (2026.x dropped it — there, install the neosemantics jar manually).
+    image: neo4j:5.26-community
+    ports:
+      - "${NEO4J_PORT:-7687}:7687"
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+    volumes:
+      - neo4j-data:/data
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:-12345678}"
+      NEO4J_PLUGINS: '["n10s"]'
+      NEO4J_dbms_security_procedures_unrestricted: "n10s.*"
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      - graphdb
+      - neo4j
+    environment:
+      GRAPHDB_ENDPOINT: "http://graphdb:7200"
+      GRAPHDB_REPOSITORY: "fibo"
+      NEO4J_URI: "neo4j://neo4j:7687"
+      NEO4J_USERNAME: "neo4j"
+      NEO4J_PASSWORD: "${NEO4J_PASSWORD:-12345678}"
+      NVIDIA_API_KEY: "${NVIDIA_API_KEY:-}"
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      GRAPHOS_LLM_PROVIDER: "${GRAPHOS_LLM_PROVIDER:-}"
+    volumes:
+      - graphos-data:/app/data
+
+volumes:
+  graphdb-data:
+  neo4j-data:
+  graphos-data:
