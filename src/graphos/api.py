@@ -128,6 +128,14 @@ def create_app(
     def get_rules():
         return [r.model_dump() for r in rules]
 
+    @app.get("/api/capabilities")
+    def get_capabilities():
+        if state.get("registry") is None:
+            from graphos.capabilities import default_registry
+
+            state["registry"] = default_registry(db_uri, context().business_rules)
+        return state["registry"].catalog()
+
     @app.post("/api/validate")
     def validate(req: ValidateRequest):
         return validate_sql(req.sql, context().business_rules).model_dump()

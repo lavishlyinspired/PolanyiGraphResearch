@@ -52,6 +52,15 @@ def test_rules_endpoint_lists_business_rules(client):
     assert any(r["rule_id"] == "BR-001" for r in res.json())
 
 
+def test_capabilities_endpoint_lists_providers(client):
+    res = client.get("/api/capabilities")
+    assert res.status_code == 200
+    catalog = res.json()
+    capabilities = {entry["capability"] for entry in catalog}
+    assert {"DiscoverMetadata", "ExecuteSQL", "ValidateSQL"} <= capabilities
+    assert all("handler" not in entry for entry in catalog)
+
+
 def test_validate_endpoint_flags_bad_sql(client):
     res = client.post("/api/validate", json={"sql": "DROP TABLE trades"})
     assert res.status_code == 200

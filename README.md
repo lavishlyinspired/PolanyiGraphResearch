@@ -59,6 +59,10 @@ cd ui && npm install && npm run dev    # dev mode, proxies /api to :8000
 
 GraphOS Studio shows data sources, the semantic layer (glossary/ontology view), the knowledge graph, and an agent workspace with the full reasoning trace — including queries that were **blocked by the symbolic validator**.
 
+### Capabilities, not implementations
+
+Agents request capabilities (`ExecuteSQL`, `DiscoverMetadata`, `ValidateSQL`, …) which a registry resolves to concrete providers — Python functions, guarded LangChain tools, and (roadmap) MCP servers and vendor skills. Inspect the catalog at `GET /api/capabilities`; see [docs/architecture.md](docs/architecture.md).
+
 ## LLM configuration (optional)
 
 GraphOS works with any OpenAI-compatible endpoint. Set one of:

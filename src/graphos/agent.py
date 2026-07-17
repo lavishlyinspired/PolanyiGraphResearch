@@ -99,22 +99,33 @@ def build_sql_tools(
 
 
 class SemanticAgent:
-    """A SQL agent grounded in a SemanticContext."""
+    """A SQL agent grounded in a SemanticContext.
 
-    def __init__(self, db_uri: str, context: SemanticContext, llm):
+    Tools come from a CapabilityRegistry, so alternative executors (Databricks,
+    Neo4j, MCP servers) can be plugged in without changing agent code.
+    """
+
+    def __init__(self, db_uri: str, context: SemanticContext, llm, registry=None):
         if llm is None:
             raise ValueError(
                 "No LLM configured. Set NVIDIA_API_KEY, OPENAI_API_KEY, or "
                 "DATABRICKS_TOKEN + DATABRICKS_SERVING_ENDPOINT to enable the agent."
             )
         self._steps: list[AgentStep] = []
+        if registry is None:
+            from graphos.capabilities import default_registry
+
+            registry = default_registry(
+                db_uri, context.business_rules, on_event=self._steps.append
+            )
         dialect = db_uri.split(":", 1)[0]
-        tools = build_sql_tools(db_uri, context.business_rules, self._steps.append)
         system_prompt = _AGENT_PREAMBLE.format(dialect=dialect) + build_agent_prompt(context)
 
         from langchain.agents import create_agent
 
-        self._agent = create_agent(model=llm, tools=tools, system_prompt=system_prompt)
+        self._agent = create_agent(
+            model=llm, tools=registry.agent_tools(), system_prompt=system_prompt
+        )
 
     def ask(self, question: str) -> AskResult:
         from langchain_core.messages import AIMessage, HumanMessage, ToolMessage

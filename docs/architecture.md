@@ -61,7 +61,9 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
 | Databricks executor + ingestion | ✅ | `graphos/connectors/databricks`, `graphos/ingest.py` |
 | MCP executor (GraphDB/SPARQL) | 🧩 server vendored, not wired | `tools/mcp-server-graphdb` |
 | Neo4j/Cypher executor | 🔜 roadmap | — |
-| **Capability Runtime** (registries) | 🔜 next architectural step | — |
+| **Capability Runtime** | | |
+| Capability Registry (capability → provider resolution) | ✅ initial | `graphos/capabilities.py`, `GET /api/capabilities` |
+| Skill / MCP / model / policy registries | 🔜 roadmap | — |
 | **Reasoning Runtime** | | |
 | Symbolic reasoner (rule checks) | ✅ | `graphos/validate.py` |
 | LLM reasoner | ✅ | `graphos/llm.py` |
@@ -72,10 +74,15 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
 
 ## Evolution path (no rewrite required)
 
-1. **Capability Registry (next).** Introduce `Capability` + `Provider` records;
-   register today's functions (`introspect`, `generate_context`, `validate_sql`,
-   SQL tools) as the first providers. The agent's tools then come from the
-   registry instead of being hard-wired in `build_sql_tools`.
+1. **Capability Registry (done, v0.1).** `graphos/capabilities.py` defines
+   `CapabilityProvider` records (name, capability, kind: function/tool/mcp/api,
+   metadata) and a `CapabilityRegistry` with `resolve(capability, prefer=...)`.
+   `default_registry` registers the built-ins (`DiscoverMetadata`,
+   `ValidateSQL`, `ListTables`, `InspectSchema`, `ExecuteSQL` — the last three
+   as agent tools, with `ExecuteSQL` behind the symbolic guard). `SemanticAgent`
+   now draws its tools from the registry, and `GET /api/capabilities` exposes
+   the catalog. New backends register providers; planner/agent code is
+   untouched.
 2. **Ontology alignment.** Add a FIBO alignment provider (GraphDB/OLS4 lookup +
    LLM ranking of retrieved candidates — never free invention). This upgrades
    glossary entries with `fibo:` classes the Studio UI already visualizes.
