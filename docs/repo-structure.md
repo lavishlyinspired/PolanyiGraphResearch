@@ -54,7 +54,7 @@ Every directory carries a README stating its purpose, status, and — where
 the functionality already exists — the module that currently provides it,
 so the scaffold documents intent rather than implying unbuilt capability.
 Real content moved to its target home: tests → `tests/unit/`, the vendored
-GraphDB MCP server → `mcp/servers/graphdb`, thin app entry points in
+GraphDB MCP server → `platform/mcp/servers/graphdb`, thin app entry points in
 `apps/server` and `apps/cli`.
 
 ## src/ dissolved into packages/ and apps/ (2026-07-17)
@@ -80,6 +80,23 @@ knowledge/plugin/connector/graph/sdk/shared) were removed per the
 six-runtime consolidation — `packages/` now holds exactly the six runtimes
 plus `common`. Per-package `pyproject.toml` files (separately versioned
 distributions) remain the final step, triggered by a real second consumer.
+
+## Top level grouped under umbrellas (2026-07-17)
+
+22 top-level directories were grouped into 12 without deleting anything:
+
+| Umbrella | Contains |
+|---|---|
+| `platform/` | `skills/ agents/ workflows/ prompts/ policies/ connectors/ plugins/ mcp/` — the extension surfaces |
+| `semantics/` | `ontologies/ knowledge/` — semantic assets |
+| `research/` | `notebooks/ vendored-skills/` (was root `notebooks/` and `Skills/`) |
+| `tools/` | absorbed `scripts/` |
+
+Remaining top level: `apps/ packages/ platform/ semantics/ research/ tests/
+docs/ data/ config/ examples/ infrastructure/ tools/` plus root files.
+Note: macOS's case-insensitive filesystem had merged the scaffolded lowercase
+`skills/` into the vendored `Skills/` on disk — the grouping untangled them
+(`platform/skills/` vs `research/vendored-skills/`).
 
 ## Evolution triggers — split when it hurts, not before
 

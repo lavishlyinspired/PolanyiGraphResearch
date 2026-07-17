@@ -60,7 +60,7 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
 | **Execution Runtime** | | |
 | SQL executor with symbolic guard | ✅ | `graphos/agent.py` (`build_sql_tools`) |
 | Databricks executor + ingestion | ✅ | `graphos/connectors/databricks`, `graphos/ingest.py` |
-| MCP executor (GraphDB/SPARQL) | 🧩 server vendored, not wired | `tools/mcp-server-graphdb` |
+| MCP executor (GraphDB/SPARQL) | 🧩 server vendored, not wired | `platform/mcp/servers/graphdb` |
 | Neo4j/Cypher executor (read-only guarded) | ✅ registers as `RunCypher` when `NEO4J_URI` set | `graphos/knowledge_graph.py`, `graphos/capabilities.py` |
 | **Capability Runtime** | | |
 | Capability Registry (capability → provider resolution) | ✅ initial | `graphos/capabilities.py`, `GET /api/capabilities` |
@@ -94,7 +94,7 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
    materializes the semantic context into Neo4j (`:Entity`, `:Term`,
    `RELATES_TO`, `DESCRIBES`) and registers a read-only, guarded `RunCypher`
    agent tool. SPARQL executors and MCP servers
-   (e.g. `tools/mcp-server-graphdb`) register the same way.
+   (e.g. `platform/mcp/servers/graphdb`) register the same way.
 4. **Sessions (done, v0.1) + reflection.** LangGraph `InMemorySaver` gives each
    `session_id` a multi-turn conversation. Next: durable checkpointers and an
    explicit LangGraph graph (plan → ground → execute → validate → reflect →

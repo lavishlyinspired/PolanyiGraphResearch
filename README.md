@@ -132,12 +132,12 @@ and [docs/repo-structure.md](docs/repo-structure.md)):
 | `apps/studio/` | GraphOS Studio (React + Vite) |
 | `apps/server/`, `apps/cli/` | `graphos.api` and `graphos.cli` — the API server and CLI |
 | `infrastructure/docker/` | One-command dev stack (GraphDB + FIBO, Neo4j + n10s, API) |
-| `mcp/servers/graphdb/` | Vendored MCP server for Ontotext GraphDB |
+| `platform/` | Extension surfaces: `skills/ agents/ workflows/ prompts/ policies/ connectors/ plugins/ mcp/` (incl. the vendored GraphDB MCP server at `platform/mcp/servers/graphdb/`) |
+| `semantics/` | Semantic assets: `ontologies/` (FIBO, SKOS, …) and `knowledge/` (graphs, RDF, documents) |
+| `research/` | Provenance: prototype `notebooks/` and `vendored-skills/` (Neo4j, Databricks repos) |
 | `tests/unit/` | The behavior test suite (integration/e2e dirs reserved) |
-| `ontologies/ knowledge/ skills/ agents/ workflows/ …` | Documented placeholders from the target architecture |
 | `docs/product-vision.md` | Product direction & gap analysis distillation |
 | `docs/research/`, `docs/archive/` | Research inputs and raw conversation provenance |
-| `Skills/` | Vendored agent-skill repos (Neo4j, Databricks) used during research |
 
 All Python packages form **one installable distribution** — `pip install -e .`
 maps `graphos.*` onto the `packages/` and `apps/` trees (see `pyproject.toml`).
