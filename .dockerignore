@@ -10,8 +10,8 @@ Skills/
 tools/
 examples/
 tests/
-ui/node_modules
-ui/dist
+apps/studio/node_modules
+apps/studio/dist
 **/__pycache__
 **/*.pyc
 .DS_Store

@@ -17,19 +17,27 @@ single capability. Directory structure is not architecture: the boundaries
 that matter already exist as module seams inside `graphos`, which is exactly
 where they're cheapest to maintain and to refactor.
 
-## The six runtimes already exist as module seams
+## The runtime split is now the filesystem (implemented 2026-07-17)
 
-| Proposed package | Where it lives today |
+The tree was reorganized so the six-runtime map is visible in the layout —
+every directory has real content, and each future extraction from the target
+structure is a `git mv` from here:
+
+| Proposed | Implemented as |
 |---|---|
-| `kernel/` (platform services) | `capabilities.py` (registry), `env.py`, `llm.py` |
-| `semantic-runtime/` | `introspect.py`, `generate.py`, `prompt.py`, `ontology.py`, `rdf.py`, `owl.py`, `documents.py`, `shapes/` |
-| `agent-runtime/` | `agent.py` (LangChain/LangGraph, sessions) — capability + workflow concerns folded in, as amended |
-| `execution-runtime/` | guarded tools in `agent.py`/`capabilities.py`, `knowledge_graph.py`, `connectors/databricks/`, `ingest.py` |
-| `memory-runtime/` | LangGraph `InMemorySaver` sessions (thin — correctly not a package yet) |
-| `observability-runtime/` | `AskResult` reasoning traces (thin — correctly not a package yet) |
+| `packages/kernel/` | `src/graphos/kernel/` — `capabilities.py`, `llm.py`, `env.py` |
+| `packages/semantic-runtime/` | `src/graphos/semantic/` — introspect, generate, prompt, ontology, rdf, owl, documents, `shapes/` |
+| `packages/agent-runtime/` | `src/graphos/agents/` — `semantic_agent.py` (capability + workflow concerns folded in, as amended) |
+| `packages/execution-runtime/` | `src/graphos/execution/` — validate, knowledge_graph, ingest, `connectors/databricks/` |
+| `packages/memory-runtime/` | LangGraph sessions inside `agents/` (thin — extracts when durable checkpointers land) |
+| `packages/observability-runtime/` | `AskResult` traces (thin — extracts when tracing/cost accounting lands) |
+| `apps/studio/` | ✅ moved from `ui/` |
+| `apps/server/`, `apps/cli/` | `graphos/api.py`, `graphos/cli.py` — single files by design at this size |
+| root `docker-compose.yml` | ✅ thin include of `infrastructure/docker/docker-compose.yml` |
+| `common/`/`shared/` | `graphos/models.py` |
 
-`apps/` maps to: `ui/` (studio), `graphos/api.py` (server), `graphos/cli.py`
-(cli). At this size, an app is a file, and that is a feature.
+Still intentionally one installable distribution (`pip install graphos`) —
+the split into separately versioned packages waits for a real second consumer.
 
 ## Evolution triggers — split when it hurts, not before
 

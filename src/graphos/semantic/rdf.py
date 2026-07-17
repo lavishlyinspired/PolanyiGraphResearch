@@ -97,7 +97,7 @@ def context_to_rdf(context: SemanticContext) -> Graph:
 
 def _shapes_graph() -> Graph:
     graph = Graph()
-    shapes_dir = resources.files("graphos") / "shapes"
+    shapes_dir = resources.files("graphos.semantic") / "shapes"
     for entry in shapes_dir.iterdir():
         if entry.name.endswith(".ttl"):
             graph.parse(data=entry.read_text(encoding="utf-8"), format="turtle")

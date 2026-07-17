@@ -9,7 +9,7 @@ lint:
 	.venv/bin/python -m ruff check src tests
 
 ui:
-	cd ui && npm run build
+	cd apps/studio && npm run build
 
 serve:
 	.venv/bin/graphos serve

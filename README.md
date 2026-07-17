@@ -83,8 +83,8 @@ exists (`brew install openjdk` is enough — the Homebrew keg-only path is detec
 ### The UI
 
 ```bash
-cd ui && npm install && npm run dev    # dev mode, proxies /api to :8000
-# or: npm run build                    # graphos serve will host ui/dist
+cd apps/studio && npm install && npm run dev   # dev mode, proxies /api to :8000
+# or: npm run build                            # graphos serve hosts apps/studio/dist
 ```
 
 GraphOS Studio shows data sources, the semantic layer (glossary/ontology view), the knowledge graph, and an agent workspace with the full reasoning trace — including queries that were **blocked by the symbolic validator**.
@@ -118,18 +118,23 @@ Business rules are declared as JSON (`rule_id`, `name`, `description`, `tables`,
 
 ## Repository layout
 
+The tree mirrors the runtime architecture (see [docs/architecture.md](docs/architecture.md)
+and [docs/repo-structure.md](docs/repo-structure.md)):
+
 | Path | What it is |
 |---|---|
-| `src/graphos/` | The product: introspection, context generation, validation, agent, API, CLI |
-| `ui/` | GraphOS Studio (React + Vite) |
+| `src/graphos/kernel/` | Platform services: capability registry, LLM providers, env |
+| `src/graphos/semantic/` | Semantic Runtime: introspection, context generation, ontology alignment, RDF/SHACL, OWL reasoning, document ingestion |
+| `src/graphos/agents/` | Agent Runtime: the grounded SQL agent (LangChain/LangGraph, sessions) |
+| `src/graphos/execution/` | Execution Runtime: symbolic SQL guard, Neo4j knowledge graph, connectors, ingestion |
+| `src/graphos/api.py`, `cli.py` | The server and CLI apps (single files by design at this size) |
+| `apps/studio/` | GraphOS Studio (React + Vite) |
+| `infrastructure/docker/` | One-command dev stack (GraphDB + FIBO, Neo4j + n10s, API) |
 | `tests/` | Behavior tests for the semantic runtime |
 | `notebooks/` | The original prototype notebook (superseded by the package) |
 | `tools/mcp-server-graphdb` | Vendored MCP server for Ontotext GraphDB (SPARQL/FIBO experiments) |
-| `docs/architecture.md` | Runtime architecture: semantic/agent/execution split, status map, evolution path |
-| `docs/repo-structure.md` | Repository layout review: six-runtime mapping, split triggers, what stays monolithic |
 | `docs/product-vision.md` | Product direction & gap analysis distillation |
-| `docs/research/` | Market/technology research that informed the product |
-| `docs/archive/` | Raw research conversations kept for provenance (not documentation) |
+| `docs/research/`, `docs/archive/` | Research inputs and raw conversation provenance |
 | `Skills/` | Vendored agent-skill repos (Neo4j, Databricks) used during research |
 
 ## Roadmap (from the product vision)

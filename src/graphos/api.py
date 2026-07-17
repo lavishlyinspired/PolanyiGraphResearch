@@ -45,7 +45,7 @@ def create_app(
     db_uri: Optional[str] = None,
     rules: Optional[list[BusinessRule]] = None,
     artifacts_dir: str = "data",
-    ui_dist: str = "ui/dist",
+    ui_dist: str = "apps/studio/dist",
 ) -> FastAPI:
     db_uri = db_uri or f"sqlite:///{DEFAULT_DB_PATH}"
     rules = rules if rules is not None else DEMO_BUSINESS_RULES
