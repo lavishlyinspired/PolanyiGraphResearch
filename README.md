@@ -116,6 +116,7 @@ Business rules are declared as JSON (`rule_id`, `name`, `description`, `tables`,
 | `notebooks/` | The original prototype notebook (superseded by the package) |
 | `tools/mcp-server-graphdb` | Vendored MCP server for Ontotext GraphDB (SPARQL/FIBO experiments) |
 | `docs/architecture.md` | Runtime architecture: semantic/agent/execution split, status map, evolution path |
+| `docs/repo-structure.md` | Repository layout review: six-runtime mapping, split triggers, what stays monolithic |
 | `docs/product-vision.md` | Product direction & gap analysis distillation |
 | `docs/research/` | Market/technology research that informed the product |
 | `docs/archive/` | Raw research conversations kept for provenance (not documentation) |
