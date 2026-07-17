@@ -1,7 +1,6 @@
-# Kernel
+# graphos.kernel
 
-Platform services: capability registry, LLM providers, configuration.
+Platform services: capability registry, LLM provider resolution, environment loading.
 
-**Currently lives in / provided by:** `src/graphos/kernel/`
-
-**Status:** reserved — extraction target per [docs/repo-structure.md](../../docs/repo-structure.md).
+Code: `graphos/kernel/` — part of the single `graphos` distribution
+(mapped in the root `pyproject.toml`).

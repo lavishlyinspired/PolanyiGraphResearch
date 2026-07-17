@@ -123,19 +123,24 @@ and [docs/repo-structure.md](docs/repo-structure.md)):
 
 | Path | What it is |
 |---|---|
-| `src/graphos/kernel/` | Platform services: capability registry, LLM providers, env |
-| `src/graphos/semantic/` | Semantic Runtime: introspection, context generation, ontology alignment, RDF/SHACL, OWL reasoning, document ingestion |
-| `src/graphos/agents/` | Agent Runtime: the grounded SQL agent (LangChain/LangGraph, sessions) |
-| `src/graphos/execution/` | Execution Runtime: symbolic SQL guard, Neo4j knowledge graph, connectors, ingestion |
-| `src/graphos/api.py`, `cli.py` | The server and CLI apps (single files by design at this size) |
+| `packages/kernel/` | `graphos.kernel` — capability registry, LLM providers, env |
+| `packages/semantic-runtime/` | `graphos.semantic` — introspection, context generation, ontology alignment, RDF/SHACL, OWL reasoning, document ingestion |
+| `packages/agent-runtime/` | `graphos.agents` — the grounded SQL agent (LangChain/LangGraph, sessions) |
+| `packages/execution-runtime/` | `graphos.execution` — symbolic SQL guard, Neo4j knowledge graph, connectors, ingestion |
+| `packages/common/` | `graphos` root — shared models, demo dataset |
+| `packages/{memory,observability}-runtime/` | Reserved by the six-runtime plan (thin today, documented) |
 | `apps/studio/` | GraphOS Studio (React + Vite) |
+| `apps/server/`, `apps/cli/` | `graphos.api` and `graphos.cli` — the API server and CLI |
 | `infrastructure/docker/` | One-command dev stack (GraphDB + FIBO, Neo4j + n10s, API) |
-| `tests/` | Behavior tests for the semantic runtime |
-| `notebooks/` | The original prototype notebook (superseded by the package) |
-| `tools/mcp-server-graphdb` | Vendored MCP server for Ontotext GraphDB (SPARQL/FIBO experiments) |
+| `mcp/servers/graphdb/` | Vendored MCP server for Ontotext GraphDB |
+| `tests/unit/` | The behavior test suite (integration/e2e dirs reserved) |
+| `ontologies/ knowledge/ skills/ agents/ workflows/ …` | Documented placeholders from the target architecture |
 | `docs/product-vision.md` | Product direction & gap analysis distillation |
 | `docs/research/`, `docs/archive/` | Research inputs and raw conversation provenance |
 | `Skills/` | Vendored agent-skill repos (Neo4j, Databricks) used during research |
+
+All Python packages form **one installable distribution** — `pip install -e .`
+maps `graphos.*` onto the `packages/` and `apps/` trees (see `pyproject.toml`).
 
 ## Roadmap (from the product vision)
 

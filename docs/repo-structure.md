@@ -57,6 +57,30 @@ Real content moved to its target home: tests → `tests/unit/`, the vendored
 GraphDB MCP server → `mcp/servers/graphdb`, thin app entry points in
 `apps/server` and `apps/cli`.
 
+## src/ dissolved into packages/ and apps/ (2026-07-17)
+
+`src/graphos` no longer exists — the code physically lives where the target
+structure says it belongs, while remaining **one installable distribution**
+via `package-dir` mapping in the root `pyproject.toml`:
+
+| Import path | Physical location |
+|---|---|
+| `graphos` (models, demo) | `packages/common/graphos/` |
+| `graphos.kernel` | `packages/kernel/graphos/kernel/` |
+| `graphos.semantic` (+ SHACL shapes) | `packages/semantic-runtime/graphos/semantic/` |
+| `graphos.agents` | `packages/agent-runtime/graphos/agents/` |
+| `graphos.execution` (+ connectors) | `packages/execution-runtime/graphos/execution/` |
+| `graphos.api` | `apps/server/graphos/api/` |
+| `graphos.cli` (console script) | `apps/cli/graphos/cli/` |
+
+Imports, the `graphos` command, `pip install -e .`, Docker, and all 97 tests
+are unchanged/verified. The folded-in runtime placeholders
+(capability/workflow/prompt/context/reasoning/policy/security/event/
+knowledge/plugin/connector/graph/sdk/shared) were removed per the
+six-runtime consolidation — `packages/` now holds exactly the six runtimes
+plus `common`. Per-package `pyproject.toml` files (separately versioned
+distributions) remain the final step, triggered by a real second consumer.
+
 ## Evolution triggers — split when it hurts, not before
 
 1. **`src/graphos/semantic/` subpackage** — when the semantic modules pass

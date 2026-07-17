@@ -1,7 +1,6 @@
-# Semantic Runtime
+# graphos.semantic
 
-Understanding meaning: introspection, context, ontology, RDF/SHACL, OWL, documents.
+The Semantic Runtime: schema introspection, context generation, ontology alignment (FIBO), RDF/SKOS + SHACL, OWL reasoning, document ingestion.
 
-**Currently lives in / provided by:** `src/graphos/semantic/`
-
-**Status:** reserved — extraction target per [docs/repo-structure.md](../../docs/repo-structure.md).
+Code: `graphos/semantic/` — part of the single `graphos` distribution
+(mapped in the root `pyproject.toml`).

@@ -35,8 +35,31 @@ dev = ["pytest>=8.0", "httpx>=0.27", "ruff>=0.4"]
 [project.scripts]
 graphos = "graphos.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+# One installable distribution; the graphos namespace is assembled from the
+# monorepo packages/ and apps/ trees (see docs/repo-structure.md).
+[tool.setuptools]
+packages = [
+    "graphos",
+    "graphos.kernel",
+    "graphos.semantic",
+    "graphos.agents",
+    "graphos.execution",
+    "graphos.execution.connectors",
+    "graphos.execution.connectors.databricks",
+    "graphos.api",
+    "graphos.cli",
+]
+
+[tool.setuptools.package-dir]
+"graphos" = "packages/common/graphos"
+"graphos.kernel" = "packages/kernel/graphos/kernel"
+"graphos.semantic" = "packages/semantic-runtime/graphos/semantic"
+"graphos.agents" = "packages/agent-runtime/graphos/agents"
+"graphos.execution" = "packages/execution-runtime/graphos/execution"
+"graphos.execution.connectors" = "packages/execution-runtime/graphos/execution/connectors"
+"graphos.execution.connectors.databricks" = "packages/execution-runtime/graphos/execution/connectors/databricks"
+"graphos.api" = "apps/server/graphos/api"
+"graphos.cli" = "apps/cli/graphos/cli"
 
 [tool.setuptools.package-data]
 "graphos.semantic" = ["shapes/*.ttl"]
@@ -47,4 +70,4 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 100
-src = ["src", "tests"]
+src = ["packages", "apps", "tests"]

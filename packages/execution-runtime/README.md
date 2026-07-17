@@ -1,7 +1,6 @@
-# Execution Runtime
+# graphos.execution
 
-Guarded executors: SQL, Cypher, connectors, ingestion.
+The Execution Runtime: symbolic SQL validation, Neo4j knowledge graph + Graph RAG projection, Databricks connector, demo ingestion.
 
-**Currently lives in / provided by:** `src/graphos/execution/`
-
-**Status:** reserved — extraction target per [docs/repo-structure.md](../../docs/repo-structure.md).
+Code: `graphos/execution/` — part of the single `graphos` distribution
+(mapped in the root `pyproject.toml`).

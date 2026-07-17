@@ -1,7 +1,6 @@
-# Common
+# graphos (common)
 
-Shared domain models.
+Shared domain models and the demo dataset.
 
-**Currently lives in / provided by:** `src/graphos/models.py`
-
-**Status:** reserved — extraction target per [docs/repo-structure.md](../../docs/repo-structure.md).
+Code: `graphos/models.py`, `graphos/demo.py`, package `__init__` — part of the single `graphos` distribution
+(mapped in the root `pyproject.toml`).

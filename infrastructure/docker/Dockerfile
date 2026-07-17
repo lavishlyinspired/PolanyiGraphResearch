@@ -10,7 +10,9 @@ RUN npm run build
 FROM python:3.12-slim
 WORKDIR /app
 COPY pyproject.toml README.md ./
-COPY src/ src/
+COPY packages/ packages/
+COPY apps/server/graphos apps/server/graphos
+COPY apps/cli/graphos apps/cli/graphos
 RUN pip install --no-cache-dir ".[semantic,graph]"
 COPY --from=studio /studio/dist apps/studio/dist
 COPY infrastructure/docker/entrypoint.sh /entrypoint.sh

@@ -1,7 +1,6 @@
-# Agent Runtime
+# graphos.agents
 
-Agent orchestration: planning, sessions, reflection.
+The Agent Runtime: the grounded SQL agent (LangChain/LangGraph) with session memory. Capability and workflow concerns are folded in per the six-runtime consolidation.
 
-**Currently lives in / provided by:** `src/graphos/agents/`
-
-**Status:** reserved — extraction target per [docs/repo-structure.md](../../docs/repo-structure.md).
+Code: `graphos/agents/` — part of the single `graphos` distribution
+(mapped in the root `pyproject.toml`).
