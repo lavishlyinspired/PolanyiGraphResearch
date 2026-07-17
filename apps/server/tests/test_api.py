@@ -1,8 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from graphos.api import create_app
-from graphos.demo import seed_demo_db
+from polanyi.api import create_app
+from polanyi.demo import seed_demo_db
 
 
 @pytest.fixture()

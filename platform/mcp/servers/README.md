@@ -1,6 +1,6 @@
 # MCP Servers
 
-MCP servers vendored or built for GraphOS.
+MCP servers vendored or built for Polanyi Works.
 
 | Server | Purpose |
 |---|---|

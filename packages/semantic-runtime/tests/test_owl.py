@@ -1,6 +1,6 @@
 import pytest
 
-from graphos.semantic.owl import OwlReasoner, java_available
+from polanyi.semantic.owl import OwlReasoner, java_available
 
 TINY_ONTOLOGY = """<?xml version="1.0"?>
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"

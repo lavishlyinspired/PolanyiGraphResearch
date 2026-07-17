@@ -1,4 +1,4 @@
-// Typed client for the GraphOS API. Every getter returns null when the API
+// Typed client for the Polanyi Works API. Every getter returns null when the API
 // is unreachable so views can fall back to bundled demo data.
 
 export type ApiHealth = {
@@ -177,7 +177,7 @@ export async function ask(question: string, sessionId?: string): Promise<ApiAskR
     });
   } catch {
     throw new AskError(
-      "GraphOS API is not reachable. Start it with `graphos serve` and reload."
+      "Polanyi Works API is not reachable. Start it with `polanyi serve` and reload."
     );
   }
   if (!res.ok) {

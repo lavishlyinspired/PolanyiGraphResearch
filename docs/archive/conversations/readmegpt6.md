@@ -5,7 +5,7 @@
 
 what say 
 
-I think you're now at an interesting point. The immediate bug is fixed, and you should resist the temptation to jump straight into Phase 3. Instead, use this opportunity to design something that can become a core GraphOS capability, not just another feature.
+I think you're now at an interesting point. The immediate bug is fixed, and you should resist the temptation to jump straight into Phase 3. Instead, use this opportunity to design something that can become a core Polanyi Works capability, not just another feature.
 
 Here's how I'd approach it.
 
@@ -57,7 +57,7 @@ Materialization Policy
 ↓
 
 Neo4j
-This becomes the heart of GraphOS.
+This becomes the heart of Polanyi Works.
 
 Example
 Today your extractor produces
@@ -139,7 +139,7 @@ materialization:
 
   Country:
       policy: SHARED_NODE
-Now GraphOS becomes configurable.
+Now Polanyi Works becomes configurable.
 
 Then ask a harder question
 Today SME decides
@@ -256,9 +256,9 @@ NetworkX
 The SME never knows which backend is used.
 
 I think there's actually an even bigger opportunity
-Looking at your GraphOS vision over the last few weeks, I think the Semantic Materialization Engine shouldn't live inside ingestion.
+Looking at your Polanyi Works vision over the last few weeks, I think the Semantic Materialization Engine shouldn't live inside ingestion.
 
-It should become part of the GraphOS Compiler.
+It should become part of the Polanyi Works Compiler.
 
 Something like
 
@@ -293,7 +293,7 @@ Optimizer → Materialization Planner
 
 Code generator → Neo4j / RDF / SQL
 
-That's a much more ambitious architecture, but it aligns with the direction you've been taking GraphOS: an operating system and compiler for graph-native AI rather than a collection of utilities.
+That's a much more ambitious architecture, but it aligns with the direction you've been taking Polanyi Works: an operating system and compiler for graph-native AI rather than a collection of utilities.
 
 What I would prioritize next
 I wouldn't start coding Phase 3 yet. I'd spend one design sprint producing four specifications:
@@ -306,7 +306,7 @@ Backend Adapter Interface – how Neo4j, GraphDB, PostgreSQL, etc., consume the 
 
 Workload Profile Specification – predefined profiles (analytics, GraphRAG, temporal reasoning, RDF export, etc.) that influence materialization.
 
-Once those four pieces are stable, implementing the Semantic Materialization Engine becomes much more mechanical. More importantly, it becomes a foundational GraphOS capability instead of a Neo4j-specific optimization. I think that's the direction with the most long-term leverage for your platform.
+Once those four pieces are stable, implementing the Semantic Materialization Engine becomes much more mechanical. More importantly, it becomes a foundational Polanyi Works capability instead of a Neo4j-specific optimization. I think that's the direction with the most long-term leverage for your platform.
 
 
 forget. graph os. just tell generall what should i do next 

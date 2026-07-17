@@ -1,10 +1,10 @@
-from graphos.models import (
+from polanyi.models import (
     BusinessRuleContext,
     EntityRelationship,
     GlossaryEntry,
     SemanticContext,
 )
-from graphos.semantic.prompt import build_agent_prompt
+from polanyi.semantic.prompt import build_agent_prompt
 
 
 def make_context() -> SemanticContext:

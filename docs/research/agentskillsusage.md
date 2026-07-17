@@ -4,7 +4,7 @@
 Tuesday 11:37 PM
 Agents skilsss are use with coding plaforms like vscode, claude code etc only?https://agentskills.io/skill-creation/quickstart. But are they not recommended to use with laggraph lagchain python applications ?
 
-No. In fact, I would recommend using Agent Skills in LangGraph/LangChain applications as well, especially for a project like your GraphOS.
+No. In fact, I would recommend using Agent Skills in LangGraph/LangChain applications as well, especially for a project like your Polanyi Works.
 
 The examples on agentskills.io focus on VS Code, Claude Code, Codex, and GitHub Copilot because those are the first products that support the Agent Skills specification out of the box. However, the specification itself is just a directory containing a SKILL.md plus optional scripts and resources. It is not tied to any IDE. 
 
@@ -34,7 +34,7 @@ loads the full SKILL.md only when needed (progressive disclosure),
 
 executes the instructions and any associated scripts. 
 
-For GraphOS, I'd go one step further. Instead of generic coding skills, create domain skills, for example:
+For Polanyi Works, I'd go one step further. Instead of generic coding skills, create domain skills, for example:
 
 Ontology Alignment
 
@@ -83,6 +83,6 @@ LangGraph
 └── Graph Runtime
 This is cleaner than putting huge prompts directly into every LangGraph node.
 
-Given everything we've discussed about GraphOS, I think Agent Skills should become one of your core abstractions. They provide a portable way to package semantic expertise, while LangGraph remains responsible for orchestration, state management, retries, branching, and execution. The two complement each other rather than compete.
+Given everything we've discussed about Polanyi Works, I think Agent Skills should become one of your core abstractions. They provide a portable way to package semantic expertise, while LangGraph remains responsible for orchestration, state management, retries, branching, and execution. The two complement each other rather than compete.
 
 

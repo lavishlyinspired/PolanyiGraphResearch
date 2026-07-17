@@ -1,6 +1,6 @@
-# GraphOS CLI
+# Polanyi Works CLI
 
-The `graphos` command. The implementation is the `graphos.cli` package in this directory; the console script entry point is `graphos.cli:main`.
+The `polanyi` command. The implementation is the `polanyi.cli` package in this directory; the console script entry point is `polanyi.cli:main`.
 
-Code: `graphos/cli/` — part of the single `graphos` distribution
+Code: `polanyi/cli/` — part of the single `polanyi` distribution
 (mapped in the root `pyproject.toml`).

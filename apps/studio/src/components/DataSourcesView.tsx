@@ -316,7 +316,7 @@ export function DataSourcesView() {
                 <CatalogTree nodes={catalogs} />
               ) : (
                 <p className="text-sm text-slate-400 text-center py-8">
-                  No schema data available. Run <code className="bg-slate-100 px-1.5 py-0.5 rounded">graphos generate</code> first.
+                  No schema data available. Run <code className="bg-slate-100 px-1.5 py-0.5 rounded">polanyi generate</code> first.
                 </p>
               )}
             </CardContent>

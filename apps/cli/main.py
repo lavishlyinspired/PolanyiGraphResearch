@@ -1,12 +1,12 @@
-"""GraphOS CLI — thin app wrapper over the graphos package.
+"""Polanyi Works CLI — thin app wrapper over the polanyi package.
 
 Run:  python -m apps.cli.main --help
-      (equivalent to the installed `graphos` command)
+      (equivalent to the installed `polanyi` command)
 """
 
 import sys
 
-from graphos.cli import main
+from polanyi.cli import main
 
 if __name__ == "__main__":
     sys.exit(main())

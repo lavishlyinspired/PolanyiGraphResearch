@@ -9,7 +9,7 @@ Edit
 
 Yes. In fact, I think this is where your thinking should evolve.
 
-You've been mixing GraphOS, LangGraph, Claude Code, MCP, ontologies, and agents into one product. They're actually different layers of a stack.
+You've been mixing Polanyi Works, LangGraph, Claude Code, MCP, ontologies, and agents into one product. They're actually different layers of a stack.
 
 Let's start with the Agent Runtime.
 
@@ -360,7 +360,7 @@ AutoGen
 
 Very few are building a reusable Semantic Runtime that any of those runtimes can plug into.
 
-A possible future GraphOS architecture
+A possible future Polanyi Works architecture
                     User
                       │
                       ▼
@@ -780,7 +780,7 @@ The LLM doesn't invent Revenue.
 
 The symbolic engine tells it exactly what Revenue means.
 
-Another example from GraphOS
+Another example from Polanyi Works
 Suppose the agent writes SQL
 
 SELECT SUM(amount)

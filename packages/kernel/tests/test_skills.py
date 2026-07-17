@@ -1,7 +1,7 @@
 import pytest
 
-from graphos.kernel.capabilities import CapabilityRegistry
-from graphos.kernel.skills import load_skills
+from polanyi.kernel.capabilities import CapabilityRegistry
+from polanyi.kernel.skills import load_skills
 
 FX_MANIFEST = """
 name: fx-conversion
@@ -76,7 +76,7 @@ def test_missing_skills_dir_is_a_noop(tmp_path):
 
 def test_env_var_overrides_skills_dir(tmp_path, monkeypatch):
     write_skill(tmp_path)
-    monkeypatch.setenv("GRAPHOS_SKILLS_DIR", str(tmp_path))
+    monkeypatch.setenv("POLANYI_SKILLS_DIR", str(tmp_path))
     registry = CapabilityRegistry()
     assert load_skills(registry) == ["fx-conversion"]
 
@@ -93,9 +93,9 @@ def test_shipped_fx_skill_loads_from_platform_skills():
 def test_default_registry_includes_plugged_skills(tmp_path):
     import pytest as _p
 
-    from graphos.demo import DEMO_BUSINESS_RULES, seed_demo_db
-    from graphos.kernel.capabilities import default_registry
-    from graphos.semantic.generate import build_rule_contexts
+    from polanyi.demo import DEMO_BUSINESS_RULES, seed_demo_db
+    from polanyi.kernel.capabilities import default_registry
+    from polanyi.semantic.generate import build_rule_contexts
 
     db = tmp_path / "demo.db"
     seed_demo_db(str(db))

@@ -45,7 +45,7 @@ function DocumentIngestPanel() {
     const result = await ingestDocumentText(text, "Studio ingestion");
     setBusy(false);
     if (!result) {
-      setError("Ingestion failed — is the GraphOS API running?");
+      setError("Ingestion failed — is the Polanyi Works API running?");
       return;
     }
     setMentions(result.mentions);

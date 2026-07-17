@@ -32,7 +32,7 @@ Knowledge Graph (GraphDB/Neo4j)
 LangGraph Agents
         │
         ▼
-GraphOS
+Polanyi Works
 
 I can provide all the code, including:
 
@@ -87,9 +87,9 @@ ERP
            ▼
     AI / Analytics / Reporting
 
-For GraphOS, your platform would connect to these enterprise systems, ingest the relevant data into a semantic layer, map it to ontologies like FIBO, and provide knowledge graph reasoning and AI agents on top.
+For Polanyi Works, your platform would connect to these enterprise systems, ingest the relevant data into a semantic layer, map it to ontologies like FIBO, and provide knowledge graph reasoning and AI agents on top.
 
-So if your goal is to build GraphOS for financial institutions, it's worth learning how to integrate with platforms like Databricks and Snowflake, because many banks already use them as part of their data architecture.
+So if your goal is to build Polanyi Works for financial institutions, it's worth learning how to integrate with platforms like Databricks and Snowflake, because many banks already use them as part of their data architecture.
 
 So how do i add this then to databricks
 
@@ -113,7 +113,7 @@ Cloud Storage (S3, ADLS, GCS)
 Databricks (Delta Lake)
           │
           ▼
-Analytics / AI / GraphOS
+Analytics / AI / Polanyi Works
 
 For learning, since you don't have access to a bank's private systems, you simulate this process:
 

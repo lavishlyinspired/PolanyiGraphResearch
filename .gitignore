@@ -14,7 +14,7 @@ build/
 # macOS
 .DS_Store
 
-# GraphOS generated artifacts (semantics/knowledge is the artifact store;
+# Polanyi Works generated artifacts (semantics/knowledge is the artifact store;
 # READMEs stay tracked)
 semantics/knowledge/**/*.json
 semantics/knowledge/**/*.ttl

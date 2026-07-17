@@ -1,0 +1,1866 @@
+<title>Polanyi Works Studio — UI Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#ffffff; --panel:#f6f7f3; --side:#f3f5ee; --line:#e5e8de; --line-2:#cdd2c4;
+    --ink:#1d211a; --ink-2:#454c3d; --ink-3:#6c7362;
+    --moss:#3e5226; --moss-deep:#32421e; --moss-tint:#edf1e3; --moss-line:#c9d3b4;
+    --neural:#5b4fc7; --neural-text:#443aa6; --neural-tint:#edebfa; --neural-line:#cdc7ef;
+    --good:#1e7a4a; --good-tint:#e2f1e8; --good-line:#b7dcc6;
+    --bad:#a83226; --bad-deep:#8c2a20; --bad-tint:#fbe9e6; --bad-line:#ecc4bc;
+    --warn:#8a6116; --warn-tint:#f8efda; --warn-line:#e6d3a4;
+    --doc:#2276b5; --doc-tint:#e4f0f8; --doc-line:#bcd8ec;
+    --g-entity:#557f26; --g-term:#5b4fc7; --g-doc:#2276b5; --g-mention:#b07818;
+    --chart-pass:#7e9155; --chart-block:#a83226;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --z-topbar:20; --z-drawer:30; --z-dialog:50; --z-toast:60;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:13px/1.5 var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{margin:0;font-weight:600;text-wrap:balance}
+  p{margin:0}
+  a{color:var(--moss)}
+  code,.mono{font-family:var(--mono);font-size:12px}
+  button{font:inherit;color:inherit;background:none;border:none;padding:0;cursor:pointer}
+  :focus-visible{outline:2px solid var(--moss);outline-offset:2px;border-radius:4px}
+
+  /* ---------- app shell ---------- */
+  .app{display:grid;grid-template-columns:230px 1fr;min-height:100vh}
+  .sidebar{
+    background:var(--side);border-right:1px solid var(--line);
+    padding:14px 10px 18px;display:flex;flex-direction:column;gap:2px;
+    position:sticky;top:0;height:100vh;overflow-y:auto;
+  }
+  .wordmark{display:flex;align-items:baseline;gap:7px;padding:2px 10px 14px}
+  .wordmark .mark{
+    width:15px;height:15px;background:var(--moss);align-self:center;flex:none;
+    clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
+  }
+  .wordmark b{font-size:14px;font-weight:650;letter-spacing:-.01em}
+  .wordmark span{color:var(--ink-3);font-size:12px}
+  .nav-group{margin-top:14px;padding:0 10px 5px;font-size:10.5px;font-weight:600;letter-spacing:.07em;color:var(--ink-3);text-transform:uppercase}
+  .nav-item{
+    display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+    padding:6px 10px;border-radius:6px;color:var(--ink-2);font-weight:500;
+  }
+  .nav-item:hover{background:rgba(62,82,38,.07)}
+  .nav-item[aria-current="page"]{background:var(--moss-tint);color:var(--moss-deep);font-weight:600}
+  .nav-item .count{margin-left:auto;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .nav-item[aria-current="page"] .count{color:var(--moss-deep)}
+  .sidebar .foot{margin-top:auto;padding:14px 10px 0;font-size:11px;color:var(--ink-3);border-top:1px solid var(--line)}
+
+  .main{min-width:0}
+  .topbar{
+    position:sticky;top:0;z-index:var(--z-topbar);
+    display:flex;align-items:center;gap:14px;
+    background:rgba(255,255,255,.92);backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line);padding:0 22px;height:52px;
+  }
+  .ctx-switch{
+    display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line-2);
+    border-radius:6px;background:var(--bg);font-weight:500;
+  }
+  .ctx-switch .db{font-family:var(--mono);font-size:12px}
+  .ctx-switch .caret{color:var(--ink-3);font-size:10px}
+  .topbar .spacer{flex:1}
+  .beacons{display:flex;gap:6px;flex-wrap:wrap}
+  .beacon{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);
+    border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--bg)}
+  .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .dot.on{background:var(--good)} .dot.off{background:var(--line-2)}
+  .kbtn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line-2);border-radius:6px;
+    padding:5px 10px;color:var(--ink-3);background:var(--bg)}
+  .kbtn kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-2);border-radius:4px;padding:0 5px;background:var(--panel)}
+
+  /* ---------- shared components ---------- */
+  .view{display:none;padding:24px 26px 60px;max-width:1240px}
+  .view.active{display:block;animation:viewin .18s cubic-bezier(.22,.9,.34,1)}
+  @keyframes viewin{from{opacity:0;transform:translateY(4px)}}
+  @media (prefers-reduced-motion:reduce){
+    .view.active{animation:none}
+    *{transition-duration:.01ms!important;animation-duration:.01ms!important}
+  }
+  .view-head{display:flex;align-items:flex-start;gap:16px;margin-bottom:22px}
+  .view-head h1{font-size:18px;letter-spacing:-.01em}
+  .view-head .sub{color:var(--ink-3);margin-top:3px;max-width:68ch}
+  .view-head .actions{margin-left:auto;display:flex;gap:8px;flex:none;align-items:center}
+
+  .btn{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;border-radius:6px;
+    border:1px solid var(--line-2);background:var(--bg);font-weight:500;color:var(--ink)}
+  .btn:hover{border-color:var(--ink-3)}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{background:var(--moss);border-color:var(--moss);color:#fff}
+  .btn-primary:hover{background:var(--moss-deep);border-color:var(--moss-deep)}
+  .btn-sm{padding:3px 10px;font-size:12px}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+
+  .panel{border:1px solid var(--line);border-radius:8px;background:var(--bg);overflow:hidden}
+  .panel-h{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+  .panel-h h2{font-size:13px}
+  .panel-h .hint{color:var(--ink-3);font-size:12px}
+  .panel-h .actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+  .tblwrap{overflow-x:auto}
+  table.tbl{width:100%;border-collapse:collapse}
+  .tbl th{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);
+    text-align:left;padding:8px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .tbl td{padding:9px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  .tbl tr:last-child td{border-bottom:none}
+  .tbl tbody tr.rowlink{cursor:pointer}
+  .tbl tbody tr.rowlink:hover{background:var(--panel)}
+  .tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+  .tbl .dim{color:var(--ink-3)}
+
+  .chip{display:inline-flex;align-items:center;gap:5px;padding:1px 8px;border-radius:999px;
+    font-size:11.5px;font-weight:500;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);white-space:nowrap}
+  .chip .g{font-size:10px}
+  .chip-moss{background:var(--moss-tint);border-color:var(--moss-line);color:var(--moss-deep)}
+  .chip-neural{background:var(--neural-tint);border-color:var(--neural-line);color:var(--neural-text)}
+  .chip-good{background:var(--good-tint);border-color:var(--good-line);color:var(--good)}
+  .chip-bad{background:var(--bad-tint);border-color:var(--bad-line);color:var(--bad-deep)}
+  .chip-warn{background:var(--warn-tint);border-color:var(--warn-line);color:var(--warn)}
+  .chip-doc{background:var(--doc-tint);border-color:var(--doc-line);color:var(--doc)}
+
+  .stamp{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10.5px;
+    font-weight:700;letter-spacing:.06em;padding:2px 8px;border-radius:4px;border:1.5px solid;white-space:nowrap}
+  .stamp-pass{color:var(--good);border-color:var(--good);background:var(--good-tint)}
+  .stamp-block{color:var(--bad-deep);border-color:var(--bad);background:var(--bad-tint)}
+  .stamp-warn{color:var(--warn);border-color:var(--warn);background:var(--warn-tint)}
+
+  .callout{display:flex;gap:12px;align-items:flex-start;border:1px solid;border-radius:8px;padding:12px 15px;margin-bottom:20px}
+  .callout .ttl{font-weight:600;margin-bottom:2px}
+  .callout-moss{background:var(--moss-tint);border-color:var(--moss-line)}
+  .callout-warn{background:var(--warn-tint);border-color:var(--warn-line)}
+
+  pre.code{margin:0;padding:12px 14px;background:var(--panel);border-radius:6px;overflow-x:auto;
+    font-family:var(--mono);font-size:12px;line-height:1.6;color:var(--ink)}
+  pre.code em{font-style:normal;background:var(--moss-tint);border-radius:3px;padding:0 2px;color:var(--moss-deep)}
+  pre.code s{text-decoration:none;background:var(--bad-tint);border-radius:3px;padding:0 2px;color:var(--bad-deep)}
+
+  .meter{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;margin-bottom:12px}
+  .meter .lbl{font-weight:500}
+  .meter .val{font-variant-numeric:tabular-nums;color:var(--ink-2);font-size:12px}
+  .meter .track{grid-column:1/-1;height:5px;border-radius:3px;background:var(--line);overflow:hidden}
+  .meter .fill{height:100%;background:var(--moss);border-radius:3px}
+
+  .cols{display:grid;gap:18px}
+  .cols-2{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+  .cols-half{grid-template-columns:1fr 1fr}
+  @media (max-width:1080px){.cols-2,.cols-half{grid-template-columns:1fr}}
+
+  /* ---------- overview ---------- */
+  .pipeline{display:flex;align-items:stretch;gap:0;border:1px solid var(--line);border-radius:8px;overflow-x:auto;margin-bottom:20px}
+  .stage{flex:1;min-width:150px;padding:13px 16px;position:relative}
+  .stage + .stage{border-left:1px solid var(--line)}
+  .stage .s-name{display:flex;align-items:center;gap:7px;font-weight:600;margin-bottom:2px}
+  .stage .s-stat{color:var(--ink-3);font-size:12px}
+  .stage .s-link{font-size:12px;margin-top:6px;display:inline-block}
+  .stage::after{content:"›";position:absolute;right:-6px;top:14px;color:var(--line-2);font-size:15px;z-index:1;background:var(--bg);line-height:1}
+  .stage:last-child::after{content:none}
+
+  .ledgeritem{display:flex;gap:10px;align-items:baseline;padding:9px 14px;border-bottom:1px solid var(--line)}
+  .ledgeritem:last-child{border-bottom:none}
+  .ledgeritem time{color:var(--ink-3);font-size:11.5px;font-variant-numeric:tabular-nums;flex:none;width:52px}
+  .ledgeritem .q{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+
+  .minichart{padding:12px 14px 6px}
+  .minichart .bars{display:flex;align-items:flex-end;gap:5px;height:64px}
+  .minichart .day{flex:1;display:flex;flex-direction:column-reverse;gap:2px;min-width:8px}
+  .minichart .seg{border-radius:2px 2px 0 0}
+  .minichart .seg.p{background:var(--chart-pass)}
+  .minichart .seg.b{background:var(--chart-block);border-radius:2px}
+  .minichart .legend{display:flex;gap:14px;padding:9px 0 6px;font-size:11.5px;color:var(--ink-2)}
+  .minichart .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+
+  /* ---------- schema browser ---------- */
+  .schema{display:grid;grid-template-columns:210px minmax(0,1fr);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .schema .tables{border-right:1px solid var(--line);background:var(--panel);padding:6px}
+  .schema .t-item{display:flex;width:100%;text-align:left;gap:8px;padding:6px 10px;border-radius:5px;font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+  .schema .t-item .n{margin-left:auto;color:var(--ink-3);font-size:11px;font-variant-numeric:tabular-nums}
+  .schema .t-item:hover{background:rgba(62,82,38,.06)}
+  .schema .t-item.sel{background:var(--moss-tint);color:var(--moss-deep);font-weight:600}
+  .keytag{font-family:var(--mono);font-size:10px;font-weight:700;border-radius:3px;padding:0 4px;border:1px solid}
+  .keytag.pk{color:var(--moss-deep);border-color:var(--moss-line);background:var(--moss-tint)}
+  .keytag.fk{color:var(--doc);border-color:var(--doc-line);background:var(--doc-tint)}
+
+  /* ---------- tabs ---------- */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:18px}
+  .tab{padding:7px 14px;font-weight:500;color:var(--ink-3);border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--ink)}
+  .tab[aria-selected="true"]{color:var(--moss-deep);border-bottom-color:var(--moss);font-weight:600}
+  .tabpane{display:none}
+  .tabpane.active{display:block}
+
+  /* ---------- drawer ---------- */
+  .drawer{position:fixed;top:52px;right:0;bottom:0;width:390px;max-width:92vw;background:var(--bg);
+    border-left:1px solid var(--line);box-shadow:-8px 0 8px -8px rgba(29,33,26,.12);z-index:var(--z-drawer);
+    transform:translateX(102%);transition:transform .2s cubic-bezier(.22,.9,.34,1);overflow-y:auto}
+  .drawer.open{transform:none}
+  .drawer-h{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg)}
+  .drawer-h h2{font-size:15px}
+  .drawer-h .x{margin-left:auto;color:var(--ink-3);font-size:16px;padding:2px 6px}
+  .drawer-b{padding:16px 18px 40px}
+  .field{margin-bottom:14px}
+  .field .k{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px}
+  .field .v{color:var(--ink)}
+  .fchips{display:flex;flex-wrap:wrap;gap:6px}
+
+  /* ---------- ER map ---------- */
+  .ermap svg{display:block;width:100%;height:auto}
+  .ermap .ebox{fill:var(--bg);stroke:var(--line-2)}
+  .ermap text{font-family:var(--mono);font-size:11px;fill:var(--ink)}
+  .ermap .rel{stroke:var(--line-2);stroke-width:1.5}
+  .ermap .rlbl{fill:var(--ink-3);font-size:9.5px;font-family:var(--sans)}
+
+  /* ---------- trace ---------- */
+  .agent-grid{display:grid;grid-template-columns:180px minmax(0,1fr) 350px;gap:18px}
+  @media (max-width:1180px){.agent-grid{grid-template-columns:minmax(0,1fr) 340px}.sessions{display:none}}
+  @media (max-width:860px){.agent-grid{grid-template-columns:1fr}}
+  .sessions .s-item{display:block;width:100%;text-align:left;padding:8px 10px;border-radius:6px;margin-bottom:2px}
+  .sessions .s-item .t{font-weight:500;display:block}
+  .sessions .s-item .m{color:var(--ink-3);font-size:11.5px}
+  .sessions .s-item.sel{background:var(--moss-tint)}
+  .sessions .s-item:hover{background:var(--panel)}
+  .chat{display:flex;flex-direction:column;gap:14px}
+  .msg{max-width:62ch}
+  .msg .who{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
+  .msg-user .bubble{background:var(--panel);border-radius:8px;padding:10px 14px;display:inline-block}
+  .msg-agent{max-width:none}
+  .ground-line{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:2px 0 10px}
+  .composer{display:flex;gap:8px;margin-top:18px;border:1px solid var(--line-2);border-radius:8px;padding:8px 8px 8px 14px;align-items:center}
+  .composer input{flex:1;border:none;outline:none;font:inherit;background:none;min-width:0}
+  .composer-note{color:var(--ink-3);font-size:11.5px;margin-top:6px}
+
+  .trace{border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+  .trace ol{list-style:none;margin:0;padding:6px 0}
+  .step{position:relative;padding:9px 16px 9px 40px}
+  .step::before{content:"";position:absolute;left:21px;top:0;bottom:0;width:1px;background:var(--line)}
+  .step:first-child::before{top:14px}
+  .step:last-child::before{bottom:auto;height:14px}
+  .step .pin{position:absolute;left:15px;top:13px;width:13px;height:13px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--line-2);z-index:1}
+  .step.neural .pin{border-color:var(--neural)}
+  .step.tool .pin{border-color:var(--ink-3)}
+  .step.pass .pin{border-color:var(--good);background:var(--good)}
+  .step.block .pin{border-color:var(--bad);background:var(--bad)}
+  .step .s-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .step .s-t{font-weight:600;font-size:12.5px}
+  .step .s-src{font-size:10.5px;color:var(--ink-3)}
+  .step .s-b{color:var(--ink-2);font-size:12px;margin-top:2px}
+  .step details{margin-top:6px}
+  .step summary{cursor:pointer;font-size:11.5px;color:var(--moss);font-weight:500;list-style:none}
+  .step summary::before{content:"▸ "}
+  .step details[open] summary::before{content:"▾ "}
+  .step .rule-echo{border:1px solid var(--bad-line);background:var(--bad-tint);border-radius:6px;padding:8px 11px;margin-top:6px;font-size:12px;color:var(--bad-deep)}
+
+  /* ---------- validator ---------- */
+  .seg{display:inline-flex;border:1px solid var(--line-2);border-radius:6px;overflow:hidden}
+  .seg button{padding:5px 14px;font-weight:500;color:var(--ink-2);background:var(--bg)}
+  .seg button + button{border-left:1px solid var(--line-2)}
+  .seg button[aria-pressed="true"]{background:var(--moss-tint);color:var(--moss-deep);font-weight:600}
+  .verdict-row{display:flex;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line);align-items:flex-start}
+  .verdict-row:last-child{border-bottom:none}
+  .verdict-row .detail{min-width:0}
+  .verdict-row .r-name{font-weight:600}
+  .verdict-row .r-why{color:var(--ink-2);font-size:12px;margin-top:1px}
+  .vcase{display:none}
+  .vcase.active{display:block}
+
+  /* ---------- graph ---------- */
+  .graphwrap{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:18px}
+  @media (max-width:1080px){.graphwrap{grid-template-columns:1fr}}
+  .gcanvas svg{display:block;width:100%;height:auto;background:
+    radial-gradient(circle at 1px 1px, var(--line) 1px, transparent 0) 0 0/22px 22px}
+  .gnode{stroke:#fff;stroke-width:2}
+  .gsel{fill:none;stroke:var(--moss);stroke-width:1.5;stroke-dasharray:3 3}
+  .gedge{stroke:var(--line-2);stroke-width:1.2}
+  .glabel{font-family:var(--sans);font-size:10.5px;fill:var(--ink-2)}
+  .gelabel{font-family:var(--sans);font-size:9px;fill:var(--ink-3)}
+  .glegend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-2)}
+  .glegend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+
+  /* ---------- docs ---------- */
+  .docflow{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+  .docflow .fstep{font-size:11px;color:var(--ink-2);border:1px solid var(--line);border-radius:4px;padding:1px 7px;background:var(--panel)}
+  .docflow .fstep.done{border-color:var(--good-line);background:var(--good-tint);color:var(--good)}
+  .docflow .fstep.fail{border-color:var(--bad-line);background:var(--bad-tint);color:var(--bad-deep)}
+  .docflow .farrow{color:var(--line-2);font-size:10px}
+  .excerpt{padding:16px 18px;font-size:13.5px;line-height:1.75;max-width:72ch;color:var(--ink)}
+  .excerpt mark{background:var(--neural-tint);border-bottom:1.5px solid var(--neural);border-radius:2px;padding:0 2px;color:inherit;cursor:default}
+  .excerpt mark.unres{background:var(--warn-tint);border-bottom-color:var(--warn)}
+
+  /* ---------- command palette ---------- */
+  dialog#cmdk{border:1px solid var(--line-2);border-radius:10px;padding:0;width:540px;max-width:92vw;
+    box-shadow:0 8px 24px rgba(29,33,26,.18);z-index:var(--z-dialog);margin-top:12vh}
+  dialog#cmdk::backdrop{background:rgba(29,33,26,.25)}
+  #cmdk input{width:100%;border:none;outline:none;font:14px var(--sans);padding:14px 16px;border-bottom:1px solid var(--line)}
+  #cmdk ul{list-style:none;margin:0;padding:6px;max-height:300px;overflow-y:auto}
+  #cmdk li button{display:flex;width:100%;gap:10px;align-items:center;text-align:left;padding:8px 10px;border-radius:6px}
+  #cmdk li button:hover,#cmdk li button:focus-visible{background:var(--moss-tint)}
+  #cmdk .k{color:var(--ink-3);font-size:11px;margin-left:auto}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(6px);opacity:0;
+    background:var(--ink);color:#fff;border-radius:7px;padding:8px 16px;font-size:12.5px;z-index:var(--z-toast);
+    transition:opacity .18s,transform .18s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+
+  /* ---------- alerts popover ---------- */
+  .bellwrap{position:relative}
+  .bell .badge{position:absolute;top:-5px;right:-5px;background:var(--bad);color:#fff;font-size:9.5px;
+    border-radius:999px;padding:0 4px;font-weight:700;line-height:1.5}
+  .alerts{position:fixed;top:56px;right:18px;width:360px;max-width:92vw;background:var(--bg);
+    border:1px solid var(--line-2);border-radius:8px;box-shadow:0 8px 24px rgba(29,33,26,.14);
+    z-index:40;display:none}
+  .alerts.open{display:block}
+  .alerts .a-h{padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600;font-size:12.5px}
+  .alert-item{display:flex;gap:10px;width:100%;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);align-items:flex-start}
+  .alert-item:last-child{border-bottom:none}
+  .alert-item:hover{background:var(--panel)}
+  .alert-item .a-t{font-weight:600;font-size:12.5px}
+  .alert-item .a-m{color:var(--ink-3);font-size:11.5px}
+
+  /* ---------- diff / changes ---------- */
+  .diff-item{display:flex;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);align-items:baseline}
+  .diff-item:last-child{border-bottom:none}
+  .dmark{font-family:var(--mono);font-weight:700;width:15px;flex:none;text-align:center;font-size:12px}
+  .dmark.add{color:var(--good)} .dmark.mod{color:var(--warn)} .dmark.del{color:var(--bad)}
+  .vnode{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);align-items:flex-start}
+  .vnode:last-child{border-bottom:none}
+  .vnode.current{background:var(--moss-tint)}
+  .vnode .v-id{font-family:var(--mono);font-weight:700;font-size:12px;width:34px;flex:none}
+  .vnode .v-m{color:var(--ink-3);font-size:11.5px}
+
+  /* ---------- filter chips ---------- */
+  .filterrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .fchip{border:1px solid var(--line-2);border-radius:999px;padding:3px 12px;font-size:12px;color:var(--ink-2);background:var(--bg)}
+  .fchip[aria-pressed="true"]{background:var(--moss-tint);border-color:var(--moss-line);color:var(--moss-deep);font-weight:600}
+
+  /* ---------- topology ---------- */
+  .topo svg{display:block;width:100%;height:auto}
+  .topo .tnode{fill:var(--bg);stroke:var(--line-2);stroke-dasharray:3 3}
+  .topo .tnode.live{stroke:var(--moss);stroke-dasharray:none}
+  .topo text{font-family:var(--sans);font-size:10.5px;fill:var(--ink-2)}
+  .topo .tedge{stroke:var(--line-2);stroke-width:1.2;stroke-dasharray:3 3}
+
+  .lineage{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:11.5px}
+  .lineage .larrow{color:var(--line-2)}
+
+  /* ---------- narrow ---------- */
+  @media (max-width:900px){
+    .app{grid-template-columns:1fr}
+    .sidebar{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:4px;padding:10px 12px}
+    .nav-group{margin:0 2px;padding:0 4px}
+    .nav-item{width:auto}
+    .nav-item .count,.sidebar .foot,.wordmark span{display:none}
+    .drawer{top:0}
+    .topbar{flex-wrap:wrap;height:auto;padding:8px 14px;gap:8px}
+  }
+</style>
+
+<div class="app">
+  <!-- ======================= SIDEBAR ======================= -->
+  <aside class="sidebar">
+    <div class="wordmark"><span class="mark"></span><b>Polanyi&nbsp;Works</b><span>Studio</span></div>
+
+    <button class="nav-item" data-go="overview" aria-current="page">Overview</button>
+
+    <div class="nav-group">Ground</div>
+    <button class="nav-item" data-go="sources">Data Sources<span class="count">2</span></button>
+    <button class="nav-item" data-go="model">Semantic Model<span class="count">32</span></button>
+    <button class="nav-item" data-go="documents">Documents<span class="count">3</span></button>
+
+    <div class="nav-group">Govern</div>
+    <button class="nav-item" data-go="rules">Business Rules<span class="count">4</span></button>
+    <button class="nav-item" data-go="ontology">Ontology · FIBO</button>
+    <button class="nav-item" data-go="validator">Validator</button>
+    <button class="nav-item" data-go="changes">Changes<span class="count">2</span></button>
+
+    <div class="nav-group">Operate</div>
+    <button class="nav-item" data-go="agent">Agent Workspace</button>
+    <button class="nav-item" data-go="evals">Evaluations<span class="count">3</span></button>
+    <button class="nav-item" data-go="graph">Knowledge Graph</button>
+    <button class="nav-item" data-go="console">Query Console</button>
+    <button class="nav-item" data-go="activity">Activity</button>
+
+    <div class="nav-group">Platform</div>
+    <button class="nav-item" data-go="capabilities">Registry &amp; Extensions</button>
+    <button class="nav-item" data-go="settings">Settings</button>
+
+    <div class="foot">v0.1 · context <span class="mono">v14</span><br>“We know more than we can tell.”</div>
+  </aside>
+
+  <!-- ======================= MAIN ======================= -->
+  <div class="main">
+    <header class="topbar">
+      <button class="ctx-switch demo" title="Switch semantic context">
+        <span class="db">demo.db</span><span>· financial-demo</span><span class="mono" style="color:var(--ink-3)">v14</span><span class="caret">▾</span>
+      </button>
+      <div class="spacer"></div>
+      <div class="beacons">
+        <span class="beacon"><span class="dot on"></span>GraphDB <span class="mono">fibo</span></span>
+        <span class="beacon"><span class="dot on"></span>Neo4j</span>
+        <span class="beacon"><span class="dot on"></span>LLM · NIM</span>
+      </div>
+      <span class="bellwrap">
+        <button class="kbtn bell" id="bell" aria-label="Notifications, 3 unread">⚑<span class="badge">3</span></button>
+      </span>
+      <button class="kbtn" id="cmdk-open">Search &amp; jump<kbd>⌘K</kbd></button>
+    </header>
+
+    <div class="alerts" id="alerts" aria-label="Notifications">
+      <div class="a-h">Needs your attention</div>
+      <button class="alert-item" data-go="sources">
+        <span>⚠</span>
+        <span><span class="a-t">Schema drift — <code>trades.settlement_venue</code></span><br>
+        <span class="a-m">New column since context v14. Regenerate to re-map.</span></span>
+      </button>
+      <button class="alert-item" data-go="documents">
+        <span>✕</span>
+        <span><span class="a-t">Document held at the SHACL gate</span><br>
+        <span class="a-m">trading-desk-runbook.md — 1 mention missing provenance.</span></span>
+      </button>
+      <button class="alert-item" data-go="changes">
+        <span>§</span>
+        <span><span class="a-t">2 changes awaiting steward review</span><br>
+        <span class="a-m">Revenue definition edit · Trade → TradingActivity alignment.</span></span>
+      </button>
+    </div>
+
+    <!-- ================= OVERVIEW ================= -->
+    <section class="view active" id="view-overview">
+      <div class="view-head">
+        <div>
+          <h1>Overview</h1>
+          <p class="sub">Context <b>financial-demo v14</b> · generated 2 h ago from <code>demo.db</code> · LLM-enriched (NIM · llama-3.3-70b) · deterministic engine ✓</p>
+        </div>
+        <div class="actions"><button class="btn demo">Export context</button><button class="btn btn-primary demo">Regenerate</button></div>
+      </div>
+
+      <div class="callout callout-warn">
+        <div>⚠</div>
+        <div>
+          <div class="ttl">Schema drift detected</div>
+          <div><code>trades</code> gained column <code>settlement_venue</code> after context v14 was generated. Regenerate to keep the glossary and rules in step with the schema.</div>
+        </div>
+        <div style="margin-left:auto"><button class="btn btn-sm demo">Review drift</button></div>
+      </div>
+
+      <div class="pipeline" role="list" aria-label="Runtime pipeline">
+        <div class="stage" role="listitem">
+          <div class="s-name"><span class="dot on"></span>Sources</div>
+          <div class="s-stat">1 connected · 5 tables introspected</div>
+          <a class="s-link" href="#sources">Data Sources →</a>
+        </div>
+        <div class="stage" role="listitem">
+          <div class="s-name"><span class="dot on"></span>Semantic context</div>
+          <div class="s-stat">32 terms · 12 relationships · 4 rules</div>
+          <a class="s-link" href="#model">Semantic Model →</a>
+        </div>
+        <div class="stage" role="listitem">
+          <div class="s-name"><span class="dot on"></span>Ontology</div>
+          <div class="s-stat">24 / 32 aligned to FIBO · 3 to review</div>
+          <a class="s-link" href="#ontology">Alignment queue →</a>
+        </div>
+        <div class="stage" role="listitem">
+          <div class="s-name"><span class="dot on"></span>Knowledge graph</div>
+          <div class="s-stat">148 nodes · 212 rels · synced 2 h ago</div>
+          <a class="s-link" href="#graph">Explore →</a>
+        </div>
+        <div class="stage" role="listitem">
+          <div class="s-name"><span class="dot on"></span>Agent</div>
+          <div class="s-stat">Grounded · SQL gated by 4 rules</div>
+          <a class="s-link" href="#agent">Workspace →</a>
+        </div>
+      </div>
+
+      <div class="cols cols-2">
+        <div class="panel">
+          <div class="panel-h"><h2>Recent verdicts</h2><span class="hint">symbolic validator · live</span>
+            <div class="actions"><a href="#validator" style="font-size:12px">Open validator</a></div></div>
+          <div class="ledgeritem"><time>14:22</time><span class="q">SELECT c.name, SUM(t.notional_usd) FROM trades t JOIN counterparties c…</span><span class="stamp stamp-pass">✓ PASS</span></div>
+          <div class="ledgeritem"><time>14:21</time><span class="q">SELECT c.name, SUM(t.notional_usd) FROM trades t JOIN counterparties c…</span><span class="stamp stamp-block">✕ BR-001</span></div>
+          <div class="ledgeritem"><time>13:58</time><span class="q">SELECT SUM(amount) AS revenue FROM trades WHERE trade_date &gt;= '2026-04-01'</span><span class="stamp stamp-block">✕ BR-002</span></div>
+          <div class="ledgeritem"><time>13:59</time><span class="q">SELECT SUM(amount) AS revenue FROM trades WHERE status != 'CANCELLED' AND…</span><span class="stamp stamp-pass">✓ PASS</span></div>
+          <div class="ledgeritem"><time>11:36</time><span class="q">SELECT country, COUNT(*) FROM counterparties GROUP BY country</span><span class="stamp stamp-warn">! BR-003</span></div>
+          <div class="ledgeritem"><time>10:04</time><span class="q">SELECT * FROM risk_metrics WHERE metric_date = CURRENT_DATE</span><span class="stamp stamp-pass">✓ PASS</span></div>
+
+          <div class="minichart">
+            <div class="bars" role="img" aria-label="Validations per day, last 14 days: 214 passed, 23 blocked">
+              <div class="day"><div class="seg b" style="height:4px"></div><div class="seg p" style="height:22px"></div></div>
+              <div class="day"><div class="seg p" style="height:30px"></div></div>
+              <div class="day"><div class="seg b" style="height:7px"></div><div class="seg p" style="height:34px"></div></div>
+              <div class="day"><div class="seg b" style="height:3px"></div><div class="seg p" style="height:18px"></div></div>
+              <div class="day"><div class="seg p" style="height:26px"></div></div>
+              <div class="day"><div class="seg p" style="height:10px"></div></div>
+              <div class="day"><div class="seg b" style="height:5px"></div><div class="seg p" style="height:40px"></div></div>
+              <div class="day"><div class="seg b" style="height:9px"></div><div class="seg p" style="height:47px"></div></div>
+              <div class="day"><div class="seg p" style="height:33px"></div></div>
+              <div class="day"><div class="seg b" style="height:4px"></div><div class="seg p" style="height:27px"></div></div>
+              <div class="day"><div class="seg p" style="height:15px"></div></div>
+              <div class="day"><div class="seg b" style="height:6px"></div><div class="seg p" style="height:38px"></div></div>
+              <div class="day"><div class="seg b" style="height:5px"></div><div class="seg p" style="height:44px"></div></div>
+              <div class="day"><div class="seg b" style="height:3px"></div><div class="seg p" style="height:29px"></div></div>
+            </div>
+            <div class="legend"><span><i style="background:var(--chart-pass)"></i>Passed · 214</span><span><i style="background:var(--chart-block)"></i>Blocked · 23</span><span style="margin-left:auto;color:var(--ink-3)">last 14 days</span></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel" style="margin-bottom:18px">
+            <div class="panel-h"><h2>Coverage</h2></div>
+            <div style="padding:14px 14px 4px">
+              <div class="meter"><span class="lbl">Term definitions</span><span class="val">32 / 32</span><span class="track"><span class="fill" style="width:100%"></span></span></div>
+              <div class="meter"><span class="lbl">FIBO alignment</span><span class="val">24 / 32</span><span class="track"><span class="fill" style="width:75%"></span></span></div>
+              <div class="meter"><span class="lbl">Tables under rules</span><span class="val">3 / 5</span><span class="track"><span class="fill" style="width:60%"></span></span></div>
+              <div class="meter"><span class="lbl">Documents published</span><span class="val">2 / 3</span><span class="track"><span class="fill" style="width:66%"></span></span></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Runtime health</h2></div>
+            <div class="tblwrap"><table class="tbl">
+              <tbody>
+                <tr><td>GraphDB <span class="dim">:7200 · repo <code>fibo</code></span></td><td class="num"><span class="chip chip-good">connected</span></td></tr>
+                <tr><td>Neo4j <span class="dim">:7687 · n10s ✓</span></td><td class="num"><span class="chip chip-good">connected</span></td></tr>
+                <tr><td>LLM <span class="dim">NVIDIA NIM · llama-3.3-70b</span></td><td class="num"><span class="chip chip-good">key detected</span></td></tr>
+                <tr><td>SHACL gate <span class="dim">last publish</span></td><td class="num"><span class="chip chip-good">conformant</span></td></tr>
+                <tr><td>OWL reasoner <span class="dim">HermiT · Java 21</span></td><td class="num"><span class="chip chip-good">available</span></td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= DATA SOURCES ================= -->
+    <section class="view" id="view-sources">
+      <div class="view-head">
+        <div>
+          <h1>Data Sources</h1>
+          <p class="sub">Connect any SQLAlchemy URI. Introspection derives entities, relationships and a first-pass glossary deterministically — an LLM key only enriches definitions.</p>
+        </div>
+        <div class="actions"><button class="btn demo">Connect source</button><button class="btn btn-primary demo">Generate context</button></div>
+      </div>
+
+      <div class="panel" style="margin-bottom:20px">
+        <div class="panel-h"><h2>Connections</h2></div>
+        <div class="tblwrap"><table class="tbl">
+          <thead><tr><th>Source</th><th>Kind</th><th>Status</th><th>Objects</th><th>Last introspected</th><th></th></tr></thead>
+          <tbody>
+            <tr>
+              <td><code>demo.db</code><div class="dim" style="font-size:12px">sqlite:///semantics/knowledge/demo.db</div></td>
+              <td>SQLite</td>
+              <td><span class="chip chip-good">● connected</span></td>
+              <td class="num">5 tables</td>
+              <td class="dim">2 h ago</td>
+              <td class="num"><button class="btn btn-sm demo">Re-introspect</button></td>
+            </tr>
+            <tr>
+              <td><code>workspace</code><div class="dim" style="font-size:12px">databricks://…/sql/1.0/warehouses/a1b2</div></td>
+              <td>Databricks · Unity Catalog</td>
+              <td><span class="chip">configured</span></td>
+              <td class="num">catalogs: system · samples · workspace</td>
+              <td class="dim">—</td>
+              <td class="num"><button class="btn btn-sm demo">Introspect</button></td>
+            </tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h2>Schema browser</h2><span class="hint">demo.db · foreign keys become relationships</span></div>
+        <div class="schema">
+          <div class="tables">
+            <button class="t-item sel">trades<span class="n">1 204</span></button>
+            <button class="t-item">counterparties<span class="n">87</span></button>
+            <button class="t-item">risk_metrics<span class="n">348</span></button>
+            <button class="t-item">instruments<span class="n">156</span></button>
+            <button class="t-item">fx_rates<span class="n">2 410</span></button>
+          </div>
+          <div class="tblwrap"><table class="tbl">
+            <thead><tr><th>Column</th><th>Type</th><th>Keys</th><th>Semantic term</th><th>Nullable</th></tr></thead>
+            <tbody>
+              <tr><td><code>trade_id</code></td><td class="dim">INTEGER</td><td><span class="keytag pk">PK</span></td><td><span class="chip chip-moss">Trade</span></td><td class="dim">no</td></tr>
+              <tr><td><code>counterparty_id</code></td><td class="dim">INTEGER</td><td><span class="keytag fk">FK → counterparties</span></td><td><span class="chip chip-moss">Counterparty</span></td><td class="dim">no</td></tr>
+              <tr><td><code>instrument_id</code></td><td class="dim">INTEGER</td><td><span class="keytag fk">FK → instruments</span></td><td><span class="chip chip-moss">Instrument</span></td><td class="dim">no</td></tr>
+              <tr><td><code>notional_amount</code></td><td class="dim">DECIMAL(18,2)</td><td></td><td><span class="chip chip-moss">Notional Amount</span></td><td class="dim">no</td></tr>
+              <tr><td><code>currency</code></td><td class="dim">TEXT</td><td></td><td><span class="chip chip-moss">Currency</span></td><td class="dim">no</td></tr>
+              <tr><td><code>status</code></td><td class="dim">TEXT</td><td></td><td><span class="chip chip-moss">Trade Status</span></td><td class="dim">no</td></tr>
+              <tr><td><code>trade_date</code></td><td class="dim">DATE</td><td></td><td class="dim">—</td><td class="dim">no</td></tr>
+              <tr><td><code>settlement_date</code></td><td class="dim">DATE</td><td></td><td><span class="chip chip-moss">Settlement Date</span></td><td class="dim">yes</td></tr>
+              <tr><td><code>settlement_venue</code></td><td class="dim">TEXT</td><td></td><td><span class="chip chip-warn">unmapped · drift</span></td><td class="dim">yes</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SEMANTIC MODEL ================= -->
+    <section class="view" id="view-model">
+      <div class="view-head">
+        <div>
+          <h1>Semantic Model</h1>
+          <p class="sub">The governed context every agent is grounded with — glossary, entities, relationships. Published as SKOS/RDF to <code>urn:polanyi:context</code>, SHACL-gated.</p>
+        </div>
+        <div class="actions"><button class="btn demo">Publish RDF</button><button class="btn demo">SPARQL console</button></div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="glossary">Glossary · 32</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="entities">Entities &amp; relationships · 5 / 12</button>
+      </div>
+
+      <div class="tabpane active" id="tab-glossary">
+        <div class="panel">
+          <div class="tblwrap"><table class="tbl">
+            <thead><tr><th>Term</th><th>Definition</th><th>Provenance</th><th>FIBO</th><th>Rules</th></tr></thead>
+            <tbody>
+              <tr class="rowlink" data-drawer="term-counterparty">
+                <td><b>Counterparty</b><div class="dim" style="font-size:11.5px">alt: cpty, legal counterparty</div></td>
+                <td style="max-width:34ch">The legal entity on the other side of a trade, carrying credit and sanctions exposure…</td>
+                <td><span class="chip chip-neural"><span class="g">✦</span> LLM-enriched</span></td>
+                <td><span class="chip chip-good">exactMatch</span></td>
+                <td><span class="chip chip-bad">BR-001</span></td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>Trade</b></td>
+                <td style="max-width:34ch">A transaction in a financial instrument between the firm and a counterparty…</td>
+                <td><span class="chip chip-moss"><span class="g">⬢</span> Schema</span></td>
+                <td><span class="chip chip-warn">review · 0.72</span></td>
+                <td><span class="chip chip-bad">BR-002</span></td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>Notional Amount</b></td>
+                <td style="max-width:34ch">Face value of a trade used to compute payments; not the same as market value…</td>
+                <td><span class="chip chip-neural"><span class="g">✦</span> LLM-enriched</span></td>
+                <td><span class="chip chip-good">exactMatch</span></td>
+                <td><span class="chip chip-warn">BR-004</span></td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>Revenue</b></td>
+                <td style="max-width:34ch">Recognized income from completed trades; excludes cancelled trades per policy…</td>
+                <td><span class="chip"><span class="g">§</span> Curated</span></td>
+                <td><span class="chip">unaligned</span></td>
+                <td><span class="chip chip-bad">BR-002</span></td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>Sanctioned Counterparty</b></td>
+                <td style="max-width:34ch">A counterparty flagged <code>is_sanctioned = TRUE</code>; must be excluded from exposure and revenue analytics…</td>
+                <td><span class="chip"><span class="g">§</span> Declared · BR-001</span></td>
+                <td><span class="chip">—</span></td>
+                <td><span class="chip chip-bad">BR-001</span></td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>Currency</b></td>
+                <td style="max-width:34ch">ISO-4217 denomination of monetary columns; analytics normalize to USD…</td>
+                <td><span class="chip chip-moss"><span class="g">⬢</span> Schema</span></td>
+                <td><span class="chip chip-good">exactMatch</span></td>
+                <td><span class="chip chip-warn">BR-004</span></td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>High-Risk Country</b></td>
+                <td style="max-width:34ch">Jurisdiction with <code>country_risk_rating ≥ 8</code>; exposure must be flagged…</td>
+                <td><span class="chip"><span class="g">§</span> Declared · BR-003</span></td>
+                <td><span class="chip">—</span></td>
+                <td><span class="chip chip-warn">BR-003</span></td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>Risk Score</b></td>
+                <td style="max-width:34ch">Composite daily risk metric per counterparty from <code>risk_metrics</code>…</td>
+                <td><span class="chip chip-moss"><span class="g">⬢</span> Schema</span></td>
+                <td><span class="chip chip-warn">review · 0.64</span></td>
+                <td class="dim">—</td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>Mark-to-Market Value</b></td>
+                <td style="max-width:34ch">Current market value of an open position, revalued daily…</td>
+                <td><span class="chip chip-neural"><span class="g">✦</span> LLM-enriched</span></td>
+                <td><span class="chip chip-good">exactMatch</span></td>
+                <td class="dim">—</td>
+              </tr>
+            </tbody>
+          </table></div>
+          <div style="padding:9px 14px;border-top:1px solid var(--line);color:var(--ink-3);font-size:12px">Showing 9 of 32 · provenance: <span class="chip chip-moss"><span class="g">⬢</span> Schema</span> deterministic from metadata · <span class="chip chip-neural"><span class="g">✦</span> LLM-enriched</span> model-drafted, human-reviewable · <span class="chip"><span class="g">§</span> Declared / curated</span> authoritative</div>
+        </div>
+      </div>
+
+      <div class="tabpane" id="tab-entities">
+        <div class="cols cols-2">
+          <div class="panel ermap">
+            <div class="panel-h"><h2>Entity map</h2><span class="hint">relationships derived from foreign keys — deterministic</span></div>
+            <svg viewBox="0 0 640 330" role="img" aria-label="Entity relationship map of five tables">
+              <line class="rel" x1="180" y1="96"  x2="300" y2="60"/>
+              <line class="rel" x1="180" y1="120" x2="300" y2="160"/>
+              <line class="rel" x1="440" y1="60"  x2="470" y2="130"/>
+              <line class="rel" x1="180" y1="130" x2="150" y2="230"/>
+              <line class="rel" x1="440" y1="170" x2="470" y2="240"/>
+              <text class="rlbl" x="220" y="70">counterparty_id</text>
+              <text class="rlbl" x="215" y="150">instrument_id</text>
+              <text class="rlbl" x="452" y="100">cpty</text>
+              <text class="rlbl" x="120" y="185">currency</text>
+              <text class="rlbl" x="455" y="212">cpty</text>
+              <rect class="ebox" x="60"  y="88"  width="120" height="44" rx="6"/><text x="120" y="108" text-anchor="middle">trades</text><text x="120" y="123" text-anchor="middle" style="font-size:9.5px;fill:var(--ink-3)">1 204 rows</text>
+              <rect class="ebox" x="300" y="38"  width="140" height="44" rx="6"/><text x="370" y="58" text-anchor="middle">counterparties</text><text x="370" y="73" text-anchor="middle" style="font-size:9.5px;fill:var(--ink-3)">87 rows</text>
+              <rect class="ebox" x="300" y="138" width="140" height="44" rx="6"/><text x="370" y="158" text-anchor="middle">instruments</text><text x="370" y="173" text-anchor="middle" style="font-size:9.5px;fill:var(--ink-3)">156 rows</text>
+              <rect class="ebox" x="90"  y="230" width="120" height="44" rx="6"/><text x="150" y="250" text-anchor="middle">fx_rates</text><text x="150" y="265" text-anchor="middle" style="font-size:9.5px;fill:var(--ink-3)">2 410 rows</text>
+              <rect class="ebox" x="410" y="240" width="130" height="44" rx="6"/><text x="475" y="260" text-anchor="middle">risk_metrics</text><text x="475" y="275" text-anchor="middle" style="font-size:9.5px;fill:var(--ink-3)">348 rows</text>
+            </svg>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Relationships · 12</h2></div>
+            <div class="tblwrap"><table class="tbl">
+              <thead><tr><th>From</th><th>To</th><th>Via</th><th>Origin</th></tr></thead>
+              <tbody>
+                <tr><td><code>trades</code></td><td><code>counterparties</code></td><td class="dim mono">counterparty_id</td><td><span class="chip chip-moss"><span class="g">⬢</span> FK</span></td></tr>
+                <tr><td><code>trades</code></td><td><code>instruments</code></td><td class="dim mono">instrument_id</td><td><span class="chip chip-moss"><span class="g">⬢</span> FK</span></td></tr>
+                <tr><td><code>risk_metrics</code></td><td><code>counterparties</code></td><td class="dim mono">counterparty_id</td><td><span class="chip chip-moss"><span class="g">⬢</span> FK</span></td></tr>
+                <tr><td><code>trades</code></td><td><code>fx_rates</code></td><td class="dim mono">currency, trade_date</td><td><span class="chip chip-neural"><span class="g">✦</span> inferred</span></td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= BUSINESS RULES ================= -->
+    <section class="view" id="view-rules">
+      <div class="view-head">
+        <div>
+          <h1>Business Rules</h1>
+          <p class="sub">Declared once, enforced twice: injected into the agent’s context as guidance, and checked symbolically against every SQL statement before it runs.</p>
+        </div>
+        <div class="actions"><button class="btn demo">Import rules JSON</button><button class="btn btn-primary demo">New rule</button></div>
+      </div>
+
+      <div class="callout callout-moss">
+        <div>§</div>
+        <div>
+          <div class="ttl">Declared rules are authoritative</div>
+          <div>The LLM may rephrase a rule’s prose while generating context. It can never weaken the predicate — enforcement runs in code, in <code>validate_sql</code>, on every query.</div>
+        </div>
+      </div>
+
+      <div class="cols cols-2">
+        <div class="panel">
+          <div class="tblwrap"><table class="tbl">
+            <thead><tr><th>Rule</th><th>Severity</th><th>Predicate</th><th>Tables</th><th class="num">30 d</th></tr></thead>
+            <tbody>
+              <tr class="rowlink">
+                <td><b>BR-001</b> Sanctioned Counterparty Check</td>
+                <td><span class="stamp stamp-block">BLOCKER</span></td>
+                <td><code>is_sanctioned = TRUE ⇒ exclude</code></td>
+                <td class="dim">trades, counterparties</td>
+                <td class="num">14×</td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>BR-002</b> Cancelled Trades Excluded from Revenue</td>
+                <td><span class="stamp stamp-block">BLOCKER</span></td>
+                <td><code>status != 'CANCELLED'</code></td>
+                <td class="dim">trades</td>
+                <td class="num">6×</td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>BR-003</b> High-Risk Country Exposure Flag</td>
+                <td><span class="stamp stamp-warn">WARNING</span></td>
+                <td><code>country_risk_rating &gt;= 8 ⇒ flag</code></td>
+                <td class="dim">counterparties</td>
+                <td class="num">9×</td>
+              </tr>
+              <tr class="rowlink">
+                <td><b>BR-004</b> USD Normalization</td>
+                <td><span class="chip">ADVISORY</span></td>
+                <td><code>currency != 'USD' ⇒ convert</code></td>
+                <td class="dim">trades, fx_rates</td>
+                <td class="num">22×</td>
+              </tr>
+            </tbody>
+          </table></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h"><h2>BR-001 · Sanctioned Counterparty Check</h2></div>
+          <div style="padding:14px">
+            <div class="field"><div class="k">Description</div>
+              <div class="v">Any query joining <code>trades</code> to <code>counterparties</code> must exclude sanctioned entities (<code>is_sanctioned = TRUE</code>) or explicitly select them for compliance review.</div></div>
+            <div class="field"><div class="k">Declared in</div><div class="v mono">rules/financial.json · § Declared</div></div>
+            <div class="field"><div class="k">Enforcement path</div>
+              <div class="v fchips">
+                <span class="chip chip-neural"><span class="g">✦</span> context → agent guidance</span>
+                <span class="chip chip-moss"><span class="g">⬢</span> validate_sql → hard gate</span>
+              </div></div>
+            <div class="field"><div class="k">Recent enforcement</div>
+              <div class="v" style="font-size:12px">
+                <div class="ledgeritem" style="padding:7px 0"><time>14:21</time><span class="q">…JOIN counterparties c ON t.counterparty_id = c.counterparty_id</span><span class="stamp stamp-block">✕</span></div>
+                <div class="ledgeritem" style="padding:7px 0"><time>14:22</time><span class="q">…AND c.is_sanctioned = FALSE — agent self-corrected</span><span class="stamp stamp-pass">✓</span></div>
+              </div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ONTOLOGY ================= -->
+    <section class="view" id="view-ontology">
+      <div class="view-head">
+        <div>
+          <h1>Ontology · FIBO</h1>
+          <p class="sub">GraphDB repo <code>fibo</code> · 1 842 classes indexed. Alignment is precision-first: only exact or inflection matches (≥ 0.90) attach automatically; the LLM ranks the ambiguous band, a human decides.</p>
+        </div>
+        <div class="actions"><button class="btn demo">Search FIBO</button><button class="btn btn-primary demo">Run alignment</button></div>
+      </div>
+
+      <div class="cols cols-2">
+        <div>
+          <div class="panel" style="margin-bottom:18px">
+            <div class="panel-h"><h2>Needs review · 3</h2><span class="hint">score 0.50 – 0.89 · LLM-ranked, retrieval-constrained</span></div>
+            <div class="tblwrap"><table class="tbl">
+              <thead><tr><th>Term</th><th>Candidate class</th><th class="num">Score</th><th></th></tr></thead>
+              <tbody>
+                <tr>
+                  <td><b>Trade</b></td>
+                  <td><code>fibo-fbc-pas-fpas:TradingActivity</code><div class="dim" style="font-size:12px"><span class="chip chip-neural" style="font-size:10.5px"><span class="g">✦</span> LLM pick #1</span> “an act of buying or selling a financial instrument”</div></td>
+                  <td class="num">0.72</td>
+                  <td class="num" style="white-space:nowrap"><button class="btn btn-sm demo">Accept</button> <button class="btn btn-sm demo">Reject</button></td>
+                </tr>
+                <tr>
+                  <td><b>Risk Score</b></td>
+                  <td><code>fibo-fnd-utl-alx:RatingScore</code><div class="dim" style="font-size:12px"><span class="chip chip-neural" style="font-size:10.5px"><span class="g">✦</span> LLM pick #1</span> of 2 retrieved candidates</div></td>
+                  <td class="num">0.64</td>
+                  <td class="num" style="white-space:nowrap"><button class="btn btn-sm demo">Accept</button> <button class="btn btn-sm demo">Reject</button></td>
+                </tr>
+                <tr>
+                  <td><b>Mark-to-Market Value</b></td>
+                  <td><code>fibo-fnd-acc-cur:MonetaryPrice</code><div class="dim" style="font-size:12px">LLM declined to rank — candidates too distant</div></td>
+                  <td class="num">0.55</td>
+                  <td class="num" style="white-space:nowrap"><button class="btn btn-sm demo">Accept</button> <button class="btn btn-sm demo">Reject</button></td>
+                </tr>
+              </tbody>
+            </table></div>
+          </div>
+
+          <div class="panel" style="margin-bottom:18px">
+            <div class="panel-h"><h2>Auto-aligned · 24</h2><span class="hint">≥ 0.90 · skos:exactMatch published</span></div>
+            <div class="tblwrap"><table class="tbl">
+              <tbody>
+                <tr><td><b>Counterparty</b></td><td><code>fibo-fbc-pas-fpas:Counterparty</code></td><td class="num">0.97</td><td class="num"><span class="chip chip-good">exactMatch</span></td></tr>
+                <tr><td><b>Currency</b></td><td><code>fibo-fnd-acc-cur:Currency</code></td><td class="num">1.00</td><td class="num"><span class="chip chip-good">exactMatch</span></td></tr>
+                <tr><td><b>Notional Amount</b></td><td><code>fibo-der-drc-bsc:NotionalAmount</code></td><td class="num">0.95</td><td class="num"><span class="chip chip-good">exactMatch</span></td></tr>
+                <tr><td colspan="4" class="dim">… 21 more</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h"><h2>Rejected · precision-first</h2></div>
+            <div class="tblwrap"><table class="tbl">
+              <tbody>
+                <tr>
+                  <td><b>Revenue</b></td>
+                  <td><code>fibo-sec-dbt-bnd:RevenueBond</code><div class="dim" style="font-size:12px">Prefix match only — “Revenue” must not silently become “revenue bond”.</div></td>
+                  <td class="num">0.61</td>
+                  <td class="num"><span class="chip chip-bad">rejected</span></td>
+                </tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h"><h2>Hierarchy &amp; reasoning</h2><span class="hint">OWL · HermiT</span></div>
+          <div style="padding:14px">
+            <div class="field"><div class="k">Focus class</div><div class="v mono">fibo-fbc-pas-fpas:Counterparty</div></div>
+            <div class="field"><div class="k">Ancestors (rdfs:subClassOf*)</div>
+              <div class="v" style="line-height:2">
+                <code>Counterparty</code> ⊂ <code>PartyInRole</code> ⊂ <code>AutonomousAgent</code> ⊂ <code>owl:Thing</code>
+              </div></div>
+            <div class="field"><div class="k">Inference</div>
+              <div class="v">Structural walk always available · HermiT consistency: <span class="chip chip-good">consistent</span><div class="dim" style="font-size:12px;margin-top:3px">Java 21 (Homebrew keg) detected · last run 2 h ago</div></div></div>
+            <div class="field"><div class="k">Definition source</div>
+              <div class="v dim" style="font-size:12px">FIBO in this repo carries definitions in <code>rdfs:comment</code>, not <code>skos:definition</code>.</div></div>
+            <button class="btn demo">Run consistency check</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= DOCUMENTS ================= -->
+    <section class="view" id="view-documents">
+      <div class="view-head">
+        <div>
+          <h1>Documents</h1>
+          <p class="sub">Unstructured sources feed the same semantic layer: parse → extract mentions → resolve to glossary → SHACL gate → publish to <code>urn:polanyi:documents</code>, projected into Neo4j for Graph&nbsp;RAG.</p>
+        </div>
+        <div class="actions">
+          <span class="chip">extractor: <b>&nbsp;LLM (NIM)</b>&nbsp;· heuristic fallback</span>
+          <button class="btn btn-primary demo">Ingest document</button>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:20px">
+        <div class="tblwrap"><table class="tbl">
+          <thead><tr><th>Document</th><th>Pipeline</th><th class="num">Mentions</th><th class="num">Resolved</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr class="rowlink">
+              <td><b>q2-counterparty-risk-policy.md</b><div class="dim" style="font-size:12px">markdown · 6.2 KB · ingested 2 d ago</div></td>
+              <td><div class="docflow"><span class="fstep done">parse</span><span class="farrow">→</span><span class="fstep done">extract</span><span class="farrow">→</span><span class="fstep done">resolve</span><span class="farrow">→</span><span class="fstep done">SHACL</span><span class="farrow">→</span><span class="fstep done">publish</span></div></td>
+              <td class="num">8</td><td class="num">6</td>
+              <td><span class="chip chip-good">published</span></td>
+            </tr>
+            <tr class="rowlink">
+              <td><b>isda-master-agreement-excerpt.txt</b><div class="dim" style="font-size:12px">text · 18 KB · ingested 5 d ago</div></td>
+              <td><div class="docflow"><span class="fstep done">parse</span><span class="farrow">→</span><span class="fstep done">extract</span><span class="farrow">→</span><span class="fstep done">resolve</span><span class="farrow">→</span><span class="fstep done">SHACL</span><span class="farrow">→</span><span class="fstep done">publish</span></div></td>
+              <td class="num">12</td><td class="num">9</td>
+              <td><span class="chip chip-good">published</span></td>
+            </tr>
+            <tr class="rowlink">
+              <td><b>trading-desk-runbook.md</b><div class="dim" style="font-size:12px">markdown · 3.4 KB · ingested 1 h ago</div></td>
+              <td><div class="docflow"><span class="fstep done">parse</span><span class="farrow">→</span><span class="fstep done">extract</span><span class="farrow">→</span><span class="fstep done">resolve</span><span class="farrow">→</span><span class="fstep fail">SHACL ✕</span></div></td>
+              <td class="num">5</td><td class="num">4</td>
+              <td><span class="chip chip-bad">held · 1 violation</span></td>
+            </tr>
+          </tbody>
+        </table></div>
+        <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">SHACL gates persistence the same way <code>validate_sql</code> gates execution — a mention without provenance never reaches the graph.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h2>q2-counterparty-risk-policy.md</h2><span class="hint">mentions highlighted · deterministic glossary scan guarantees term links</span></div>
+        <div class="excerpt">
+          <p>§4.2 — Desks must review aggregate exposure to any <mark title="→ Counterparty">counterparty</mark> domiciled in a <mark title="→ High-Risk Country">high-risk country</mark> on a weekly basis. Positions with a combined <mark title="→ Notional Amount">notional amount</mark> above <mark title="→ Notional Amount">EUR 25m</mark> require sign-off from the regional risk officer.</p>
+          <p style="margin-top:10px">Under no circumstances may new positions be opened against a <mark title="→ Sanctioned Counterparty">sanctioned entity</mark>; existing positions are to be unwound per the compliance schedule. Desks should additionally monitor <mark class="unres" title="unresolved — no glossary term">wrong-way risk</mark> when collateral is issued by the counterparty itself.</p>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;padding:12px 18px;border-top:1px solid var(--line);align-items:center">
+          <span class="chip chip-neural"><span class="g">✦</span> 6 resolved mentions</span>
+          <span class="chip chip-warn">1 unresolved · “wrong-way risk”</span>
+          <button class="btn btn-sm demo">Add as glossary term</button>
+          <span style="margin-left:auto;font-size:11.5px;color:var(--ink-3)" class="mono">urn:polanyi:documents · appended 2026-07-15</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VALIDATOR ================= -->
+    <section class="view" id="view-validator">
+      <div class="view-head">
+        <div>
+          <h1>Validator</h1>
+          <p class="sub">Check any SQL against the declared rules. Deterministic verdict — no model involved. The same gate runs on every query the agent writes.</p>
+        </div>
+        <div class="actions"><span class="chip chip-moss"><span class="g">⬢</span> symbolic · no LLM</span></div>
+      </div>
+
+      <div class="seg" role="group" aria-label="Example queries" style="margin-bottom:14px">
+        <button data-vcase="bad" aria-pressed="true">Violating query</button>
+        <button data-vcase="fixed" aria-pressed="false">Corrected query</button>
+      </div>
+
+      <div class="vcase active" id="vcase-bad">
+        <div class="cols cols-2">
+          <div class="panel">
+            <div class="panel-h"><h2>SQL</h2><div class="actions"><button class="btn btn-sm btn-primary demo">Validate</button></div></div>
+            <pre class="code">SELECT c.name, SUM(t.notional_amount) AS exposure
+FROM trades t
+<s>JOIN counterparties c
+  ON t.counterparty_id = c.counterparty_id</s>
+WHERE c.country_risk_rating &gt;= 8
+GROUP BY c.name
+ORDER BY exposure DESC</pre>
+            <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">CLI equivalent: <code>polanyi validate "SELECT …"</code></div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Verdict</h2><span class="stamp stamp-block">✕ BLOCKED</span></div>
+            <div class="verdict-row">
+              <span class="stamp stamp-block">✕ BR-001</span>
+              <div class="detail">
+                <div class="r-name">Sanctioned Counterparty Check</div>
+                <div class="r-why">Query joins <code>trades</code> → <code>counterparties</code> but never references <code>is_sanctioned</code>. Add <code>AND c.is_sanctioned = FALSE</code>, or select sanctioned rows explicitly for compliance review.</div>
+              </div>
+            </div>
+            <div class="verdict-row">
+              <span class="stamp stamp-warn">! BR-004</span>
+              <div class="detail">
+                <div class="r-name">USD Normalization</div>
+                <div class="r-why"><code>notional_amount</code> is summed across currencies. Join <code>fx_rates</code> and convert, or use <code>notional_usd</code>.</div>
+              </div>
+            </div>
+            <div class="verdict-row">
+              <span class="stamp stamp-pass">✓ BR-002</span>
+              <div class="detail"><div class="r-name">Cancelled Trades Excluded from Revenue</div><div class="r-why">Not a revenue aggregation — rule not applicable.</div></div>
+            </div>
+            <div class="verdict-row">
+              <span class="stamp stamp-pass">✓ BR-003</span>
+              <div class="detail"><div class="r-name">High-Risk Country Exposure Flag</div><div class="r-why">Query filters on <code>country_risk_rating</code> — flag requirement satisfied.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="vcase" id="vcase-fixed">
+        <div class="cols cols-2">
+          <div class="panel">
+            <div class="panel-h"><h2>SQL</h2><div class="actions"><button class="btn btn-sm btn-primary demo">Validate</button></div></div>
+            <pre class="code">SELECT c.name, SUM(t.notional_amount * fx.rate_to_usd) AS exposure_usd
+FROM trades t
+JOIN counterparties c
+  ON t.counterparty_id = c.counterparty_id
+ <em>AND c.is_sanctioned = FALSE</em>
+JOIN fx_rates fx
+  ON fx.currency = t.currency AND fx.rate_date = t.trade_date
+WHERE c.country_risk_rating &gt;= 8
+GROUP BY c.name
+ORDER BY exposure_usd DESC</pre>
+            <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">CLI equivalent: <code>polanyi validate "SELECT …"</code></div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Verdict</h2><span class="stamp stamp-pass">✓ PASS</span></div>
+            <div class="verdict-row"><span class="stamp stamp-pass">✓ BR-001</span><div class="detail"><div class="r-name">Sanctioned Counterparty Check</div><div class="r-why">Sanctioned counterparties excluded in the join predicate.</div></div></div>
+            <div class="verdict-row"><span class="stamp stamp-pass">✓ BR-002</span><div class="detail"><div class="r-name">Cancelled Trades Excluded from Revenue</div><div class="r-why">Not applicable.</div></div></div>
+            <div class="verdict-row"><span class="stamp stamp-pass">✓ BR-003</span><div class="detail"><div class="r-name">High-Risk Country Exposure Flag</div><div class="r-why">Filter present.</div></div></div>
+            <div class="verdict-row"><span class="stamp stamp-pass">✓ BR-004</span><div class="detail"><div class="r-name">USD Normalization</div><div class="r-why">Converted via <code>fx_rates.rate_to_usd</code>.</div></div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= AGENT WORKSPACE ================= -->
+    <section class="view" id="view-agent">
+      <div class="view-head">
+        <div>
+          <h1>Agent Workspace</h1>
+          <p class="sub">Every answer is grounded in the semantic context, and every query the agent writes passes the symbolic gate. The trace shows both — including what was blocked.</p>
+        </div>
+        <div class="actions"><span class="chip">session memory · durable</span><button class="btn demo">New session</button></div>
+      </div>
+
+      <div class="agent-grid">
+        <div class="sessions">
+          <button class="s-item sel"><span class="t">desk-risk-review</span><span class="m">6 turns · 2 h ago</span></button>
+          <button class="s-item"><span class="t">counterparty-exposure</span><span class="m">3 turns · yesterday</span></button>
+          <button class="s-item"><span class="t">q2-revenue-recon</span><span class="m">9 turns · 3 d ago</span></button>
+        </div>
+
+        <div>
+          <div class="chat">
+            <div class="msg msg-user">
+              <div class="who">You</div>
+              <div class="bubble">Which counterparties are in high-risk countries, and what’s our total exposure to them in USD?</div>
+            </div>
+            <div class="msg msg-agent">
+              <div class="who">Agent · grounded</div>
+              <div class="ground-line">
+                <span class="chip chip-moss"><span class="g">⬢</span> context v14 · 4 terms · 2 rules</span>
+                <span class="chip chip-bad">1 query blocked → self-corrected</span>
+              </div>
+              <p style="max-width:62ch">Five counterparties are domiciled in high-risk jurisdictions (risk rating ≥ 8). Sanctioned entities are excluded per <b>BR-001</b>; amounts converted to USD per <b>BR-004</b>. Total exposure: <b>$412.6M</b>.</p>
+              <div class="panel" style="margin-top:10px;max-width:520px">
+                <div class="tblwrap"><table class="tbl">
+                  <thead><tr><th>Counterparty</th><th>Country</th><th class="num">Exposure (USD)</th></tr></thead>
+                  <tbody>
+                    <tr><td>Meridian Global Trading</td><td class="dim">VE</td><td class="num">148 220 000</td></tr>
+                    <tr><td>Volga Commodities JSC</td><td class="dim">BY</td><td class="num">112 400 000</td></tr>
+                    <tr><td>Sahel Resources Ltd</td><td class="dim">ML</td><td class="num">76 830 000</td></tr>
+                    <tr><td>Antares Shipping SA</td><td class="dim">SY</td><td class="num">51 900 000</td></tr>
+                    <tr><td>Kestrel Energy Holdings</td><td class="dim">MM</td><td class="num">23 250 000</td></tr>
+                  </tbody>
+                </table></div>
+              </div>
+              <div class="ground-line" style="margin-top:10px">
+                <span class="chip">grounded by: Counterparty · High-Risk Country · Notional Amount · Currency</span>
+                <span class="chip">7 903 tokens · $0.011 · 3.8 s</span>
+                <span style="display:inline-flex;gap:2px;margin-left:auto">
+                  <button class="btn btn-sm demo" aria-label="Good answer" title="Good answer">👍</button>
+                  <button class="btn btn-sm demo" aria-label="Bad answer" title="Bad answer">👎</button>
+                  <button class="btn btn-sm demo">Save as eval case</button>
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="composer">
+            <input type="text" placeholder="Ask about your data — answers are grounded in context v14" aria-label="Ask the agent">
+            <button class="btn btn-primary demo">Ask</button>
+          </div>
+          <p class="composer-note">SQL is gated by 4 declared rules before execution · session <code>desk-risk-review</code> remembers this conversation.</p>
+        </div>
+
+        <div class="trace">
+          <div class="panel-h"><h2>Reasoning trace</h2><span class="hint">9 steps · 3.8 s</span></div>
+          <ol>
+            <li class="step"><span class="pin"></span>
+              <div class="s-h"><span class="s-t">Ground</span><span class="s-src">semantic runtime</span></div>
+              <div class="s-b">Injected context v14 — 4 terms, 2 rules, schema for 3 tables.</div>
+            </li>
+            <li class="step neural"><span class="pin"></span>
+              <div class="s-h"><span class="s-t">Plan</span><span class="chip chip-neural" style="font-size:10px"><span class="g">✦</span> LLM</span></div>
+              <div class="s-b">Join trades → counterparties, filter risk rating ≥ 8, aggregate notional in USD.</div>
+            </li>
+            <li class="step tool"><span class="pin"></span>
+              <div class="s-h"><span class="s-t mono">InspectSchema</span><span class="s-src">tool</span><span class="stamp stamp-pass" style="margin-left:auto">✓</span></div>
+              <div class="s-b">Read columns for <code>trades</code>, <code>counterparties</code>, <code>fx_rates</code>.</div>
+            </li>
+            <li class="step neural"><span class="pin"></span>
+              <div class="s-h"><span class="s-t">Draft SQL</span><span class="chip chip-neural" style="font-size:10px"><span class="g">✦</span> LLM</span></div>
+              <details><summary>Show SQL</summary>
+                <pre class="code">SELECT c.name, SUM(t.notional_amount) …
+JOIN counterparties c ON t.counterparty_id = c.counterparty_id
+WHERE c.country_risk_rating &gt;= 8 …</pre>
+              </details>
+            </li>
+            <li class="step block"><span class="pin"></span>
+              <div class="s-h"><span class="s-t mono">ValidateSQL</span><span class="s-src">symbolic gate</span><span class="stamp stamp-block" style="margin-left:auto">✕ BLOCKED</span></div>
+              <div class="rule-echo"><b>BR-001 Sanctioned Counterparty Check</b> — query does not handle <code>is_sanctioned</code>. Rule text returned to the agent for self-correction.</div>
+            </li>
+            <li class="step neural"><span class="pin"></span>
+              <div class="s-h"><span class="s-t">Revise</span><span class="chip chip-neural" style="font-size:10px"><span class="g">✦</span> LLM</span></div>
+              <div class="s-b">Added <code>AND c.is_sanctioned = FALSE</code> and USD conversion via <code>fx_rates</code>.</div>
+            </li>
+            <li class="step pass"><span class="pin"></span>
+              <div class="s-h"><span class="s-t mono">ValidateSQL</span><span class="s-src">symbolic gate</span><span class="stamp stamp-pass" style="margin-left:auto">✓ PASS</span></div>
+              <div class="s-b">4 / 4 rules satisfied.</div>
+            </li>
+            <li class="step tool"><span class="pin"></span>
+              <div class="s-h"><span class="s-t mono">ExecuteSQL</span><span class="s-src">guarded tool</span><span class="stamp stamp-pass" style="margin-left:auto">✓</span></div>
+              <div class="s-b">5 rows · 240 ms.</div>
+            </li>
+            <li class="step"><span class="pin"></span>
+              <div class="s-h"><span class="s-t">Compose answer</span></div>
+              <div class="s-b">Citations attached: BR-001, BR-004, 4 glossary terms.</div>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= KNOWLEDGE GRAPH ================= -->
+    <section class="view" id="view-graph">
+      <div class="view-head">
+        <div>
+          <h1>Knowledge Graph</h1>
+          <p class="sub">The context and documents projected into Neo4j: 148 nodes · 212 relationships. One traversal connects a source document to the glossary, FIBO and the entities it talks about.</p>
+        </div>
+        <div class="actions"><button class="btn demo">Sync RDF (n10s)</button><button class="btn btn-primary demo">Re-materialize</button></div>
+      </div>
+
+      <div class="graphwrap">
+        <div class="panel gcanvas">
+          <svg viewBox="0 0 720 400" role="img" aria-label="Knowledge graph neighborhood of the term Counterparty">
+            <line class="gedge" x1="252" y1="196" x2="140" y2="130"/>
+            <line class="gedge" x1="252" y1="196" x2="150" y2="280"/>
+            <line class="gedge" x1="140" y1="130" x2="330" y2="72"/>
+            <line class="gedge" x1="420" y1="180" x2="252" y2="196"/>
+            <line class="gedge" x1="560" y1="120" x2="420" y2="180"/>
+            <line class="gedge" x1="600" y1="270" x2="490" y2="256"/>
+            <line class="gedge" x1="490" y1="256" x2="420" y2="180"/>
+            <line class="gedge" x1="330" y1="72" x2="420" y2="180"/>
+            <line class="gedge" x1="150" y1="280" x2="340" y2="330"/>
+            <line class="gedge" x1="340" y1="330" x2="490" y2="256"/>
+            <text class="gelabel" x="180" y="152">RELATES_TO</text>
+            <text class="gelabel" x="320" y="196">DESCRIBES</text>
+            <text class="gelabel" x="472" y="142">MENTIONS</text>
+            <text class="gelabel" x="440" y="230">REFERS_TO</text>
+            <text class="gelabel" x="530" y="276">MENTIONS</text>
+            <text class="gelabel" x="228" y="318">DESCRIBES</text>
+
+            <circle class="gnode" cx="140" cy="130" r="14" fill="var(--g-entity)"/><text class="glabel" x="140" y="158" text-anchor="middle">trades</text>
+            <circle class="gnode" cx="252" cy="196" r="14" fill="var(--g-entity)"/><text class="glabel" x="252" y="224" text-anchor="middle">counterparties</text>
+            <circle class="gnode" cx="150" cy="280" r="14" fill="var(--g-entity)"/><text class="glabel" x="150" y="308" text-anchor="middle">risk_metrics</text>
+            <circle class="gnode" cx="330" cy="72" r="12" fill="var(--g-term)"/><text class="glabel" x="330" y="48" text-anchor="middle">Trade</text>
+            <g>
+              <circle class="gsel" cx="420" cy="180" r="21"/>
+              <circle class="gnode" cx="420" cy="180" r="14" fill="var(--g-term)"/><text class="glabel" x="420" y="152" text-anchor="middle" style="font-weight:600">Counterparty</text>
+            </g>
+            <circle class="gnode" cx="340" cy="330" r="12" fill="var(--g-term)"/><text class="glabel" x="340" y="358" text-anchor="middle">Risk Score</text>
+            <circle class="gnode" cx="560" cy="120" r="13" fill="var(--g-doc)"/><text class="glabel" x="560" y="94" text-anchor="middle">isda-excerpt</text>
+            <circle class="gnode" cx="600" cy="270" r="13" fill="var(--g-doc)"/><text class="glabel" x="600" y="298" text-anchor="middle">q2-risk-policy</text>
+            <circle class="gnode" cx="490" cy="256" r="9" fill="var(--g-mention)"/><text class="glabel" x="490" y="280" text-anchor="middle">“counterparty”</text>
+          </svg>
+          <div class="glegend">
+            <span><i style="background:var(--g-entity)"></i>Entity</span>
+            <span><i style="background:var(--g-term)"></i>Term</span>
+            <span><i style="background:var(--g-doc)"></i>Document</span>
+            <span><i style="background:var(--g-mention)"></i>Mention</span>
+            <span style="margin-left:auto;color:var(--ink-3)">synced 2 h ago · context v14 + 2 documents</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel" style="margin-bottom:18px">
+            <div class="panel-h"><h2>Inspector</h2><span class="chip chip-neural" style="font-size:10.5px">:Term</span></div>
+            <div style="padding:14px">
+              <div class="field"><div class="k">name</div><div class="v">Counterparty</div></div>
+              <div class="field"><div class="k">definition</div><div class="v" style="font-size:12.5px">The legal entity on the other side of a trade…</div></div>
+              <div class="field"><div class="k">fibo_uri</div><div class="v mono" style="font-size:11.5px">…/FBC/…/Counterparty</div></div>
+              <div class="field"><div class="k">connected</div>
+                <div class="v fchips"><span class="chip">DESCRIBES → counterparties</span><span class="chip">← REFERS_TO · 2 mentions</span></div></div>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Cypher console</h2><span class="chip chip-moss" style="font-size:10.5px">read-only · guarded</span></div>
+            <pre class="code">MATCH (d:Document)-[:MENTIONS]-&gt;(m)
+      -[:REFERS_TO]-&gt;(t:Term {name:'Counterparty'})
+RETURN d.title, m.text LIMIT 5</pre>
+            <div class="tblwrap"><table class="tbl">
+              <thead><tr><th>d.title</th><th>m.text</th></tr></thead>
+              <tbody>
+                <tr><td class="dim">q2-risk-policy</td><td class="mono" style="font-size:11.5px">“counterparty domiciled in a high-risk country”</td></tr>
+                <tr><td class="dim">isda-excerpt</td><td class="mono" style="font-size:11.5px">“obligations of each counterparty hereunder”</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CHANGES ================= -->
+    <section class="view" id="view-changes">
+      <div class="view-head">
+        <div>
+          <h1>Changes</h1>
+          <p class="sub">The semantic layer is code: every generation is a version, every curation is reviewed, every enforcement is auditable. Diffs are semantic — terms, rules, alignments — not text.</p>
+        </div>
+        <div class="actions"><button class="btn demo">Compare versions</button><button class="btn btn-primary demo">Publish v14 to RDF</button></div>
+      </div>
+
+      <div class="cols cols-2">
+        <div>
+          <div class="panel" style="margin-bottom:18px">
+            <div class="panel-h"><h2>Diff · v13 → v14</h2><span class="hint">+2 terms · 1 edited · +1 rule · 1 drift</span></div>
+            <div class="diff-item"><span class="dmark add">+</span><div><b>Mark-to-Market Value</b> — new term <span class="chip chip-neural" style="font-size:10.5px"><span class="g">✦</span> LLM</span><div class="dim" style="font-size:12px">drafted from <code>risk_metrics.mtm_value</code> · aligned to FIBO 0.95</div></div></div>
+            <div class="diff-item"><span class="dmark add">+</span><div><b>Trade Status</b> — new term <span class="chip chip-moss" style="font-size:10.5px"><span class="g">⬢</span> Schema</span><div class="dim" style="font-size:12px">from <code>trades.status</code> enum values</div></div></div>
+            <div class="diff-item"><span class="dmark mod">~</span><div><b>Counterparty</b> — definition edited <span class="chip" style="font-size:10.5px"><span class="g">§</span> Curated</span><div class="dim" style="font-size:12px">“carrying credit <em>and sanctions</em> exposure” · steward-approved</div></div></div>
+            <div class="diff-item"><span class="dmark add">+</span><div><b>BR-004 USD Normalization</b> — new advisory rule<div class="dim" style="font-size:12px">predicate <code>currency != 'USD' ⇒ convert</code> · enforced from v14</div></div></div>
+            <div class="diff-item"><span class="dmark mod">~</span><div><b>Drift</b> — <code>trades.settlement_venue</code> unmapped<div class="dim" style="font-size:12px">column appeared after generation · carried as open drift into v14</div></div></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h"><h2>Audit ledger</h2><span class="hint">who changed what · immutable</span></div>
+            <div class="ledgeritem"><time>2 h</time><span class="q">generate v14 · LLM-enriched · triggered by akash via CLI</span><span class="chip chip-good">✓</span></div>
+            <div class="ledgeritem"><time>2 h</time><span class="q">publish RDF · SHACL conformant · urn:polanyi:context</span><span class="chip chip-good">✓</span></div>
+            <div class="ledgeritem"><time>1 d</time><span class="q">akash approved BR-004 (advisory) · rules/financial.json</span><span class="chip chip-good">✓</span></div>
+            <div class="ledgeritem"><time>2 d</time><span class="q">akash edited definition: Counterparty · provenance → curated</span><span class="chip chip-good">✓</span></div>
+            <div class="ledgeritem"><time>2 d</time><span class="q">alignment accepted: Notional Amount → fibo-der NotionalAmount</span><span class="chip chip-good">✓</span></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel" style="margin-bottom:18px">
+            <div class="panel-h"><h2>Versions</h2></div>
+            <div class="vnode current"><span class="v-id">v14</span><div><b>current</b> · 32 terms · 4 rules<div class="v-m">2 h ago · LLM-enriched · published to RDF ✓</div></div></div>
+            <div class="vnode"><span class="v-id">v13</span><div>30 terms · 3 rules<div class="v-m">2 d ago · LLM-enriched · published</div></div></div>
+            <div class="vnode"><span class="v-id">v12</span><div>30 terms · 3 rules<div class="v-m">5 d ago · deterministic only (no key)</div></div></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-h"><h2>Awaiting review · 2</h2><span class="hint">LLM proposes · steward decides</span></div>
+            <div style="padding:12px 14px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;gap:8px;align-items:baseline"><b>Revenue</b><span class="chip chip-neural" style="font-size:10.5px"><span class="g">✦</span> re-enriched definition</span></div>
+              <div class="dim" style="font-size:12px;margin:4px 0 8px">“Recognized income from settled, non-cancelled trades, normalized to USD…”</div>
+              <button class="btn btn-sm demo">Approve</button> <button class="btn btn-sm demo">Request changes</button>
+            </div>
+            <div style="padding:12px 14px">
+              <div style="display:flex;gap:8px;align-items:baseline"><b>Trade</b><span class="chip chip-warn" style="font-size:10.5px">alignment · 0.72</span></div>
+              <div class="dim" style="font-size:12px;margin:4px 0 8px">→ <code>fibo-fbc-pas-fpas:TradingActivity</code> · LLM pick #1 of 3 candidates</div>
+              <button class="btn btn-sm demo">Approve</button> <button class="btn btn-sm demo">Reject</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= EVALUATIONS ================= -->
+    <section class="view" id="view-evals">
+      <div class="view-head">
+        <div>
+          <h1>Evaluations</h1>
+          <p class="sub">Golden questions run against the grounded agent on every context change — a context version that answers worse never ships silently. Deterministic checks first; LLM-as-judge only where judgment is required.</p>
+        </div>
+        <div class="actions"><button class="btn demo">New suite</button><button class="btn btn-primary demo">Run all on v14</button></div>
+      </div>
+
+      <div class="panel" style="margin-bottom:18px">
+        <div class="tblwrap"><table class="tbl">
+          <thead><tr><th>Suite</th><th>Checks</th><th class="num">Cases</th><th>Last run</th><th class="num">v13</th><th class="num">v14</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr class="rowlink">
+              <td><b>rule-enforcement</b><div class="dim" style="font-size:12px">adversarial SQL that MUST be blocked</div></td>
+              <td><span class="chip chip-moss"><span class="g">⬢</span> deterministic</span></td>
+              <td class="num">12</td><td class="dim">2 h ago</td>
+              <td class="num">12/12</td><td class="num"><b>12/12</b></td>
+              <td><span class="stamp stamp-pass">✓ PASS</span></td>
+            </tr>
+            <tr class="rowlink">
+              <td><b>grounding-regression</b><div class="dim" style="font-size:12px">business questions with expected answers</div></td>
+              <td><span class="chip chip-moss"><span class="g">⬢</span> checks</span> <span class="chip chip-neural"><span class="g">✦</span> judge</span></td>
+              <td class="num">24</td><td class="dim">2 h ago</td>
+              <td class="num">20/24</td><td class="num"><b>22/24</b></td>
+              <td><span class="stamp stamp-pass">✓ PASS</span></td>
+            </tr>
+            <tr class="rowlink">
+              <td><b>fibo-alignment-spotcheck</b><div class="dim" style="font-size:12px">terms must resolve to the right FIBO class</div></td>
+              <td><span class="chip chip-moss"><span class="g">⬢</span> deterministic</span></td>
+              <td class="num">8</td><td class="dim">2 h ago</td>
+              <td class="num">7/8</td><td class="num">7/8</td>
+              <td><span class="stamp stamp-warn">! 1 open</span></td>
+            </tr>
+          </tbody>
+        </table></div>
+        <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">CI gate: <code>polanyi eval --suite grounding-regression --fail-under 0.9</code> — wire into the pipeline so a regressing context fails the build.</div>
+      </div>
+
+      <div class="cols cols-2">
+        <div class="panel">
+          <div class="panel-h"><h2>Case · grounding-regression #7</h2><span class="stamp stamp-pass">✓ fixed in v14</span></div>
+          <div style="padding:14px">
+            <div class="field"><div class="k">Question</div><div class="v">“What is our total exposure to sanctioned counterparties?”</div></div>
+            <div class="field"><div class="k">Expected behavior</div><div class="v">Exclude from analytics; route to an explicit compliance view with BR-001 cited.</div></div>
+            <div class="field"><div class="k">v13 run</div>
+              <div class="v"><span class="stamp stamp-block">✕ FAIL</span> <span style="font-size:12px">answered with aggregated data — BR-001 cited but not applied to the framing</span></div></div>
+            <div class="field"><div class="k">v14 run</div>
+              <div class="v"><span class="stamp stamp-pass">✓ PASS</span> <span style="font-size:12px">excluded + flagged for compliance · deterministic check: BR-001 respected · judge 5/5</span></div></div>
+            <div class="field"><div class="k">Why it improved</div><div class="v" style="font-size:12px">v14’s curated <b>Counterparty</b> definition names sanctions exposure explicitly — the grounding, not the model, changed.</div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h"><h2>v13 → v14 comparison</h2><span class="hint">same 44 cases · same model</span></div>
+          <div class="tblwrap"><table class="tbl">
+            <tbody>
+              <tr><td>Correct answers</td><td class="num">20 → <b>22</b></td><td class="num"><span class="chip chip-good">+2</span></td></tr>
+              <tr><td>Avg judge score</td><td class="num">4.1 → <b>4.4</b></td><td class="num"><span class="chip chip-good">+0.3</span></td></tr>
+              <tr><td>Blocked → self-corrected loops</td><td class="num">3 → <b>2</b></td><td class="num"><span class="chip chip-good">−1</span></td></tr>
+              <tr><td>Wrongly blocked (false positives)</td><td class="num">0 → <b>0</b></td><td class="num"><span class="chip">=</span></td></tr>
+              <tr><td>Tokens per answer (avg)</td><td class="num">8 412 → <b>7 903</b></td><td class="num"><span class="chip chip-good">−6%</span></td></tr>
+            </tbody>
+          </table></div>
+          <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">Baseline: v13. Feedback (👍/👎) from the Agent Workspace lands here as new eval cases.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= QUERY CONSOLE ================= -->
+    <section class="view" id="view-console">
+      <div class="view-head">
+        <div>
+          <h1>Query Console</h1>
+          <p class="sub">One workbench, three query surfaces — the same stores and the same guards the agent uses. Nothing here bypasses a gate.</p>
+        </div>
+        <div class="actions"><span class="chip">history · saved queries</span></div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="sparql">SPARQL</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="cypher">Cypher</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="sql">SQL</button>
+      </div>
+
+      <div class="tabpane active" id="tab-sparql">
+        <div class="cols cols-2">
+          <div class="panel">
+            <div class="panel-h"><h2>Query</h2>
+              <div class="actions"><span class="chip chip-moss">engine: GraphDB · fibo</span><span class="chip">fallback: pyoxigraph (local)</span><button class="btn btn-sm btn-primary demo">Run</button></div></div>
+            <pre class="code">PREFIX skos: &lt;http://www.w3.org/2004/02/skos/core#&gt;
+PREFIX rdfs: &lt;http://www.w3.org/2000/01/rdf-schema#&gt;
+
+SELECT ?term ?fiboClass ?fiboDef WHERE {
+  GRAPH &lt;urn:polanyi:context&gt; {
+    ?t skos:prefLabel ?term ;
+       skos:exactMatch ?fiboClass .
+  }
+  ?fiboClass rdfs:comment ?fiboDef .
+}
+LIMIT 3</pre>
+            <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">Your glossary and FIBO live in the same store — one query joins them. (FIBO keeps definitions in <code>rdfs:comment</code>.)</div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Results · 3 rows · 41 ms</h2></div>
+            <div class="tblwrap"><table class="tbl">
+              <thead><tr><th>term</th><th>fiboClass</th><th>fiboDef</th></tr></thead>
+              <tbody>
+                <tr><td>Counterparty</td><td class="mono dim" style="font-size:11px">…fpas:Counterparty</td><td style="font-size:12px">“a party to a transaction…”</td></tr>
+                <tr><td>Currency</td><td class="mono dim" style="font-size:11px">…cur:Currency</td><td style="font-size:12px">“medium of exchange value…”</td></tr>
+                <tr><td>Notional Amount</td><td class="mono dim" style="font-size:11px">…bsc:NotionalAmount</td><td style="font-size:12px">“nominal or face amount…”</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabpane" id="tab-cypher">
+        <div class="cols cols-2">
+          <div class="panel">
+            <div class="panel-h"><h2>Query</h2>
+              <div class="actions"><span class="chip chip-moss"><span class="g">⬢</span> read-only guard</span><button class="btn btn-sm btn-primary demo">Run</button></div></div>
+            <pre class="code">MATCH (d:Document)-[:MENTIONS]-&gt;(m)
+      -[:REFERS_TO]-&gt;(t:Term)
+      -[:DESCRIBES]-&gt;(e:Entity)
+RETURN d.title, t.name, e.name
+LIMIT 3</pre>
+            <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">Graph RAG in one traversal: document → mention → term → entity. Writes are rejected by the guard.</div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Results · 3 rows · 12 ms</h2></div>
+            <div class="tblwrap"><table class="tbl">
+              <thead><tr><th>d.title</th><th>t.name</th><th>e.name</th></tr></thead>
+              <tbody>
+                <tr><td class="dim">q2-risk-policy</td><td>Counterparty</td><td class="mono" style="font-size:11.5px">counterparties</td></tr>
+                <tr><td class="dim">q2-risk-policy</td><td>Notional Amount</td><td class="mono" style="font-size:11.5px">trades</td></tr>
+                <tr><td class="dim">isda-excerpt</td><td>Counterparty</td><td class="mono" style="font-size:11.5px">counterparties</td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabpane" id="tab-sql">
+        <div class="cols cols-2">
+          <div class="panel">
+            <div class="panel-h"><h2>Query</h2>
+              <div class="actions"><span class="chip chip-moss"><span class="g">⬢</span> gated by validate_sql</span><button class="btn btn-sm btn-primary demo">Run</button></div></div>
+            <pre class="code">SELECT c.name, SUM(t.notional_amount)
+FROM trades t
+JOIN counterparties c
+  ON t.counterparty_id = c.counterparty_id
+GROUP BY c.name</pre>
+            <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">The console runs through the same symbolic gate as the agent — rules apply to humans too.</div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Verdict</h2><span class="stamp stamp-block">✕ BLOCKED</span></div>
+            <div class="verdict-row">
+              <span class="stamp stamp-block">✕ BR-001</span>
+              <div class="detail"><div class="r-name">Sanctioned Counterparty Check</div>
+                <div class="r-why">Join does not handle <code>is_sanctioned</code>. Add <code>AND c.is_sanctioned = FALSE</code> — or open the query in the <a href="#validator">Validator</a> for the rule-by-rule view.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= ACTIVITY ================= -->
+    <section class="view" id="view-activity">
+      <div class="view-head">
+        <div>
+          <h1>Activity</h1>
+          <p class="sub">Every run in one ledger — agent asks, pipeline jobs, scheduled sweeps — with duration, tokens and cost from the observability runtime.</p>
+        </div>
+        <div class="actions"><span class="chip">retention: 90 d</span></div>
+      </div>
+
+      <div class="filterrow" role="group" aria-label="Filter runs">
+        <button class="fchip" aria-pressed="true">All</button>
+        <button class="fchip" aria-pressed="false">Asks</button>
+        <button class="fchip" aria-pressed="false">Jobs</button>
+        <button class="fchip" aria-pressed="false">Scheduled</button>
+        <button class="fchip" aria-pressed="false">Failed / held</button>
+      </div>
+
+      <div class="cols cols-2">
+        <div class="panel">
+          <div class="tblwrap"><table class="tbl">
+            <thead><tr><th>Time</th><th>Run</th><th>Trigger</th><th class="num">Duration</th><th class="num">Tokens</th><th class="num">Cost</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr class="rowlink"><td class="dim">14:22</td><td><b>ask</b> · desk-risk-review<div class="dim" style="font-size:11.5px">1 blocked → self-corrected</div></td><td class="dim">user</td><td class="num">3.8 s</td><td class="num">7 903</td><td class="num">$0.011</td><td><span class="chip chip-good">✓</span></td></tr>
+              <tr class="rowlink" style="background:var(--panel)"><td class="dim">13:40</td><td><b>generate</b> · context v14<div class="dim" style="font-size:11.5px">deterministic + LLM enrichment</div></td><td class="dim">user · CLI</td><td class="num">41 s</td><td class="num">22 418</td><td class="num">$0.031</td><td><span class="chip chip-good">✓</span></td></tr>
+              <tr class="rowlink"><td class="dim">13:41</td><td><b>eval</b> · 3 suites on v14</td><td class="dim">auto · on generate</td><td class="num">2.6 m</td><td class="num">96 210</td><td class="num">$0.13</td><td><span class="chip chip-good">41/44</span></td></tr>
+              <tr class="rowlink"><td class="dim">13:44</td><td><b>publish</b> · RDF → GraphDB<div class="dim" style="font-size:11.5px">SHACL conformant</div></td><td class="dim">auto · on generate</td><td class="num">2.1 s</td><td class="num dim">—</td><td class="num dim">—</td><td><span class="chip chip-good">✓</span></td></tr>
+              <tr class="rowlink"><td class="dim">13:45</td><td><b>materialize</b> · Neo4j projection</td><td class="dim">auto · on publish</td><td class="num">4.0 s</td><td class="num dim">—</td><td class="num dim">—</td><td><span class="chip chip-good">✓</span></td></tr>
+              <tr class="rowlink"><td class="dim">13:02</td><td><b>ingest-document</b> · trading-desk-runbook.md</td><td class="dim">user</td><td class="num">6.3 s</td><td class="num">1 984</td><td class="num">$0.003</td><td><span class="chip chip-bad">held · SHACL</span></td></tr>
+              <tr class="rowlink"><td class="dim">02:00</td><td><b>drift sweep</b> · schema vs context v13<div class="dim" style="font-size:11.5px">found: trades.settlement_venue</div></td><td class="dim">scheduler · nightly</td><td class="num">1.2 s</td><td class="num dim">—</td><td class="num dim">—</td><td><span class="chip chip-warn">1 drift</span></td></tr>
+              <tr class="rowlink"><td class="dim">yest.</td><td><b>align</b> · 32 terms vs FIBO</td><td class="dim">user</td><td class="num">8.4 s</td><td class="num">3 112</td><td class="num">$0.004</td><td><span class="chip chip-good">24 + 3 review</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-h"><h2>Run · generate v14</h2><span class="chip chip-good">✓ 41 s</span></div>
+          <pre class="code" style="border-radius:0">13:40:02  introspect demo.db · 5 tables, 9 FKs
+13:40:03  deterministic context · 30 terms,
+          12 relationships, 4 rules
+13:40:05  llm enrichment · 9 definitions drafted
+          (NIM · llama-3.3-70b · 22.4k tokens)
+13:40:41  rule authority check · predicates
+          unchanged by LLM rewrite ✓
+13:40:41  wrote semantic-models/
+          semantic_context.json · v14
+13:40:41  → triggered: eval, publish</pre>
+          <div style="padding:10px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">Cost by stage this month: enrichment $0.94 · asks $2.10 · evals $3.87 · alignment $0.31. Scheduled jobs run from <code>apps/scheduler</code> (reserved).</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CAPABILITIES ================= -->
+    <section class="view" id="view-capabilities">
+      <div class="view-head">
+        <div>
+          <h1>Registry &amp; Extensions</h1>
+          <p class="sub">Agents request capabilities, not implementations. The registry resolves each one to a provider; the platform surfaces — skills, agents, workflows, connectors, prompts — are where the runtime grows without code changes.</p>
+        </div>
+        <div class="actions"><span class="chip mono" style="font-size:11px">GET /api/capabilities</span></div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="registry">Capabilities · 10</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="skills">Skills</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="agents">Agents &amp; Workflows</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="connectors">Connectors · 15</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="prompts">Prompts · 4</button>
+      </div>
+
+      <div class="tabpane active" id="tab-registry">
+      <div class="panel" style="margin-bottom:20px">
+        <div class="tblwrap"><table class="tbl">
+          <thead><tr><th>Capability</th><th>Kind</th><th>Provider</th><th>Agent tool</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><b>DiscoverMetadata</b></td><td><span class="chip">function</span></td><td class="mono dim">polanyi.semantic.introspect</td><td class="dim">—</td><td class="dim">schema → entities</td></tr>
+            <tr><td><b>InspectSchema</b></td><td><span class="chip">tool</span></td><td class="mono dim">polanyi.agents.tools</td><td><span class="chip chip-good">exposed</span></td><td class="dim">—</td></tr>
+            <tr><td><b>ListTables</b></td><td><span class="chip">tool</span></td><td class="mono dim">polanyi.agents.tools</td><td><span class="chip chip-good">exposed</span></td><td class="dim">—</td></tr>
+            <tr><td><b>ExecuteSQL</b></td><td><span class="chip">tool</span></td><td class="mono dim">polanyi.execution.sql</td><td><span class="chip chip-good">exposed</span></td><td><span class="chip chip-moss"><span class="g">⬢</span> symbolic guard</span></td></tr>
+            <tr><td><b>ValidateSQL</b></td><td><span class="chip">function</span></td><td class="mono dim">polanyi.semantic.validate</td><td class="dim">—</td><td class="dim">the gate itself</td></tr>
+            <tr><td><b>SearchOntology</b></td><td><span class="chip">function</span></td><td class="mono dim">polanyi.semantic.ontology</td><td class="dim">—</td><td class="dim">FIBO via SPARQL</td></tr>
+            <tr><td><b>ExpandOntology</b></td><td><span class="chip">function</span></td><td class="mono dim">polanyi.semantic.ontology</td><td class="dim">—</td><td class="dim">subClassOf* walk</td></tr>
+            <tr><td><b>ReasonOWL</b></td><td><span class="chip">function</span></td><td class="mono dim">polanyi.semantic.owl</td><td class="dim">—</td><td class="dim">HermiT when Java present</td></tr>
+            <tr><td><b>RunCypher</b></td><td><span class="chip">tool</span></td><td class="mono dim">polanyi.execution.knowledge_graph</td><td><span class="chip chip-good">exposed</span></td><td><span class="chip chip-moss"><span class="g">⬢</span> read-only guard</span></td></tr>
+            <tr><td><b>ConvertCurrency</b></td><td><span class="chip chip-doc">skill</span></td><td class="mono dim">platform/skills/finance/fx-conversion</td><td><span class="chip chip-good">exposed</span></td><td class="dim">drop-in plugin</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><h2>Roadmap providers</h2></div>
+        <div class="tblwrap"><table class="tbl">
+          <tbody>
+            <tr><td><b>GraphDB MCP server</b><div class="dim" style="font-size:12px">platform/mcp/servers/graphdb</div></td><td><span class="chip">mcp</span></td><td class="num"><span class="chip chip-warn">vendored · not wired</span></td></tr>
+            <tr><td><b>ValidateSHACL</b><div class="dim" style="font-size:12px">expose the publish gate as a capability</div></td><td><span class="chip">function</span></td><td class="num"><span class="chip">planned</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      </div><!-- /tab-registry -->
+
+      <div class="tabpane" id="tab-skills">
+        <div class="cols cols-half">
+          <div class="panel">
+            <div class="panel-h"><h2>Skill categories</h2><span class="hint">drop a folder into platform/skills/&lt;category&gt;/ — loaded at startup</span></div>
+            <div class="tblwrap"><table class="tbl">
+              <thead><tr><th>Category</th><th class="num">Skills</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td><b>finance</b><div class="dim" style="font-size:12px">fx-conversion</div></td><td class="num">1</td><td><span class="chip chip-good">loaded</span></td></tr>
+                <tr><td><b>validation</b></td><td class="num">0</td><td><span class="chip">awaiting skills</span></td></tr>
+                <tr><td><b>retrieval</b></td><td class="num">0</td><td><span class="chip">awaiting skills</span></td></tr>
+                <tr><td><b>ontology</b></td><td class="num">0</td><td><span class="chip">awaiting skills</span></td></tr>
+                <tr><td><b>reasoning</b></td><td class="num">0</td><td><span class="chip">awaiting skills</span></td></tr>
+                <tr><td><b>analytics · generation · graph · ingestion · llm</b></td><td class="num">0</td><td><span class="chip">awaiting skills</span></td></tr>
+              </tbody>
+            </table></div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>fx-conversion</h2><span class="chip chip-good">loaded</span><span class="chip chip-doc">agent_tool: true</span></div>
+            <div style="padding:14px">
+              <pre class="code"># platform/skills/finance/fx-conversion/skill.yaml
+name: fx-conversion
+capability: ConvertCurrency
+description: Convert monetary amounts between currencies
+handler: handler.py:convert_currency
+agent_tool: true</pre>
+              <p style="margin-top:10px;font-size:12px;color:var(--ink-3)">Registers <code>ConvertCurrency</code> and becomes a tool the agent can call mid-conversation (“what is that notional in EUR?”). Skills execute local code — trust them like installed packages. Override the directory with <code>POLANYI_SKILLS_DIR</code>.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabpane" id="tab-agents">
+        <div class="cols cols-2">
+          <div class="panel topo">
+            <div class="panel-h"><h2>Agent topology</h2><span class="hint">supervisor pattern · reserved by the target architecture</span></div>
+            <svg viewBox="0 0 640 300" role="img" aria-label="Agent topology: one live grounded agent today; a reserved supervisor coordinating nine specialist agents">
+              <line class="tedge" x1="320" y1="96" x2="140" y2="196"/>
+              <line class="tedge" x1="320" y1="96" x2="240" y2="196"/>
+              <line class="tedge" x1="320" y1="96" x2="330" y2="196"/>
+              <line class="tedge" x1="320" y1="96" x2="420" y2="196"/>
+              <line class="tedge" x1="320" y1="96" x2="510" y2="196"/>
+              <rect class="tnode" x="264" y="66" width="112" height="34" rx="7"/><text x="320" y="87" text-anchor="middle">supervisor</text>
+              <rect class="tnode" x="96"  y="196" width="88" height="30" rx="7"/><text x="140" y="215" text-anchor="middle">researcher</text>
+              <rect class="tnode" x="200" y="196" width="80" height="30" rx="7"/><text x="240" y="215" text-anchor="middle">retrieval</text>
+              <rect class="tnode" x="290" y="196" width="84" height="30" rx="7"/><text x="332" y="215" text-anchor="middle">reasoning</text>
+              <rect class="tnode" x="382" y="196" width="80" height="30" rx="7"/><text x="422" y="215" text-anchor="middle">validator</text>
+              <rect class="tnode" x="472" y="196" width="78" height="30" rx="7"/><text x="511" y="215" text-anchor="middle">reporter</text>
+              <text x="320" y="256" text-anchor="middle" style="fill:var(--ink-3);font-size:10px">+ ontology · planner · synthesis · coding — platform/agents/</text>
+              <rect class="tnode live" x="60" y="24" width="150" height="34" rx="7"/><text x="135" y="45" text-anchor="middle" style="font-weight:600">semantic-agent · live</text>
+              <text x="135" y="14" text-anchor="middle" style="fill:var(--ink-3);font-size:9.5px">today: one grounded ReAct agent</text>
+            </svg>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Workflows</h2><span class="hint">platform/workflows/ · composable pipelines</span></div>
+            <div class="tblwrap"><table class="tbl">
+              <tbody>
+                <tr><td><b>graph-rag</b><div class="dim" style="font-size:12px">document → mention → term → entity retrieval</div></td><td class="num"><span class="chip chip-good">live via Neo4j projection</span></td></tr>
+                <tr><td><b>ingestion</b><div class="dim" style="font-size:12px">bulk document pipelines (apps/worker)</div></td><td class="num"><span class="chip">reserved</span></td></tr>
+                <tr><td><b>ontology</b><div class="dim" style="font-size:12px">align → review → publish loops</div></td><td class="num"><span class="chip">reserved</span></td></tr>
+                <tr><td><b>finance · analysis · research · reporting</b></td><td class="num"><span class="chip">reserved</span></td></tr>
+              </tbody>
+            </table></div>
+            <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">Rendered from the LangGraph graph definition when multi-agent lands — the topology view is the trace rail’s static twin.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabpane" id="tab-connectors">
+        <div class="panel">
+          <div class="tblwrap"><table class="tbl">
+            <thead><tr><th>Connector</th><th>Class</th><th>Status</th><th>Used by</th></tr></thead>
+            <tbody>
+              <tr><td><b>databricks</b></td><td class="dim">warehouse</td><td><span class="chip chip-good">configured</span></td><td class="dim">sources · ingest-databricks</td></tr>
+              <tr><td><b>graphdb</b></td><td class="dim">graph / RDF</td><td><span class="chip chip-good">active</span></td><td class="dim">ontology · publish · SPARQL</td></tr>
+              <tr><td><b>neo4j</b></td><td class="dim">graph</td><td><span class="chip chip-good">active</span></td><td class="dim">knowledge graph · Graph RAG</td></tr>
+              <tr><td><b>files</b></td><td class="dim">storage</td><td><span class="chip chip-good">active</span></td><td class="dim">document ingestion</td></tr>
+              <tr><td><b>postgres · mysql · sqlserver · snowflake</b></td><td class="dim">database / warehouse</td><td><span class="chip">available</span></td><td class="dim">any SQLAlchemy URI</td></tr>
+              <tr><td><b>s3 · azure</b></td><td class="dim">storage</td><td><span class="chip">reserved</span></td><td class="dim">bulk document sources</td></tr>
+              <tr><td><b>sharepoint · confluence · jira · github</b></td><td class="dim">SaaS</td><td><span class="chip">reserved</span></td><td class="dim">document &amp; metadata sources</td></tr>
+              <tr><td><b>rest</b></td><td class="dim">API</td><td><span class="chip">reserved</span></td><td class="dim">generic ingestion</td></tr>
+            </tbody>
+          </table></div>
+          <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">platform/connectors/ — each connector declares source kind, auth, and which pipeline stages it feeds (introspection, documents, or both).</div>
+        </div>
+      </div>
+
+      <div class="tabpane" id="tab-prompts">
+        <div class="cols cols-2">
+          <div class="panel">
+            <div class="panel-h"><h2>Prompt registry</h2><span class="hint">in code today → extraction target platform/prompts/</span></div>
+            <div class="tblwrap"><table class="tbl">
+              <thead><tr><th>Prompt</th><th>Used by</th><th>Pinned</th></tr></thead>
+              <tbody>
+                <tr class="rowlink"><td><b>agent-preamble</b><div class="dim mono" style="font-size:11px">agents._AGENT_PREAMBLE</div></td><td class="dim">grounded agent</td><td><span class="chip chip-moss">v14</span></td></tr>
+                <tr class="rowlink"><td><b>context-builder</b><div class="dim mono" style="font-size:11px">generate._SYSTEM_PROMPT</div></td><td class="dim">context generation</td><td><span class="chip chip-moss">v14</span></td></tr>
+                <tr class="rowlink"><td><b>alignment-ranking</b><div class="dim mono" style="font-size:11px">ontology._RANKING_PROMPT</div></td><td class="dim">FIBO candidate ranking</td><td><span class="chip chip-moss">v14</span></td></tr>
+                <tr class="rowlink"><td><b>mention-extraction</b><div class="dim mono" style="font-size:11px">documents._EXTRACTION_PROMPT</div></td><td class="dim">document ingestion</td><td><span class="chip chip-moss">v14</span></td></tr>
+              </tbody>
+            </table></div>
+            <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">Prompt edits become versioned changes (see <a href="#changes">Changes</a>) and re-run the eval suites before pinning.</div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>What the agent sees</h2><span class="chip chip-neural" style="font-size:10.5px">agent-preamble · rendered</span></div>
+            <pre class="code">You are a financial data analyst grounded in the
+organization's semantic context.
+
+<em>{glossary}</em>          ← 32 terms, v14
+<em>{relationships}</em>     ← 12 FK-derived joins
+<em>{business_rules}</em>    ← prose may be LLM-phrased;
+                     predicates enforced in code
+
+Always validate SQL before executing it. When a
+query is blocked, read the rule text and revise.</pre>
+            <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">The exact system prompt assembled at ask time — the single most-asked trust question, answered verbatim.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SETTINGS ================= -->
+    <section class="view" id="view-settings">
+      <div class="view-head">
+        <div>
+          <h1>Settings</h1>
+          <p class="sub">Everything is optional except the schema: without an LLM key the deterministic engine still generates context, and validation always runs.</p>
+        </div>
+      </div>
+      <div class="cols cols-half">
+        <div class="panel">
+          <div class="panel-h"><h2>LLM</h2><span class="chip chip-good">NVIDIA NIM · key detected</span></div>
+          <div class="tblwrap"><table class="tbl">
+            <tbody>
+              <tr><td>Pipeline model</td><td class="mono dim">meta/llama-3.3-70b-instruct</td><td class="num mono dim">POLANYI_PIPELINE_MODEL</td></tr>
+              <tr><td>Agent model</td><td class="mono dim">meta/llama-3.3-70b-instruct</td><td class="num mono dim">POLANYI_AGENT_MODEL</td></tr>
+              <tr><td>Extractor</td><td class="mono dim">llm · heuristic fallback</td><td class="num mono dim">POLANYI_EXTRACTOR</td></tr>
+              <tr><td>Without a key</td><td class="dim" colspan="2">context generation → deterministic mode · /api/ask disabled</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h"><h2>Backends</h2></div>
+          <div class="tblwrap"><table class="tbl">
+            <tbody>
+              <tr><td>GraphDB</td><td class="mono dim">http://localhost:7200 · repo fibo</td><td class="num"><span class="chip chip-good">●</span></td></tr>
+              <tr><td>Neo4j</td><td class="mono dim">bolt://localhost:7687 · n10s ✓</td><td class="num"><span class="chip chip-good">●</span></td></tr>
+              <tr><td>Artifact store</td><td class="mono dim">semantics/knowledge/</td><td class="num"><span class="chip chip-good">●</span></td></tr>
+              <tr><td>Skills directory</td><td class="mono dim">platform/skills/ · POLANYI_SKILLS_DIR</td><td class="num"><span class="chip chip-good">1 loaded</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<!-- ================= TERM DRAWER ================= -->
+<aside class="drawer" id="drawer" aria-label="Term detail">
+  <div class="drawer-h">
+    <h2>Counterparty</h2>
+    <span class="chip chip-neural"><span class="g">✦</span> LLM-enriched</span>
+    <button class="x" data-close-drawer aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-b">
+    <div class="field"><div class="k">skos:prefLabel</div><div class="v">Counterparty</div></div>
+    <div class="field"><div class="k">skos:altLabel</div><div class="v fchips"><span class="chip">cpty</span><span class="chip">legal counterparty</span></div></div>
+    <div class="field"><div class="k">Definition</div>
+      <div class="v">The legal entity on the other side of a trade, carrying credit and sanctions exposure. Every trade references exactly one counterparty.</div>
+      <div style="font-size:11.5px;color:var(--ink-3);margin-top:4px">Drafted by LLM from schema context · reviewable, never authoritative for enforcement</div></div>
+    <div class="field"><div class="k">skos:exactMatch</div>
+      <div class="v mono" style="font-size:11.5px">fibo-fbc-pas-fpas:Counterparty</div>
+      <div class="v fchips" style="margin-top:5px"><span class="chip chip-good">aligned · 0.97</span><span class="chip">FIBO def via rdfs:comment</span></div></div>
+    <div class="field"><div class="k">Maps to</div><div class="v mono" style="font-size:11.5px">counterparties.* · trades.counterparty_id</div></div>
+    <div class="field"><div class="k">Related</div>
+      <div class="v fchips"><span class="chip">Trade · via FK</span><span class="chip">Risk Score</span><span class="chip chip-bad">governed by BR-001</span></div></div>
+    <div class="field"><div class="k">Appears in</div>
+      <div class="v fchips"><span class="chip chip-doc">q2-risk-policy · 1 mention</span><span class="chip chip-doc">isda-excerpt · 1 mention</span></div></div>
+    <div class="field"><div class="k">Governance</div>
+      <div class="v fchips"><span class="chip chip-good">approved</span><span class="chip">steward: akash</span><span class="chip">edited in v14</span></div></div>
+    <div class="field"><div class="k">Lineage</div>
+      <div class="v lineage">
+        <span class="chip mono" style="font-size:10.5px">counterparties.*</span><span class="larrow">→</span>
+        <span class="chip chip-moss">Counterparty</span><span class="larrow">→</span>
+        <span class="chip chip-good">fibo:Counterparty</span><span class="larrow">→</span>
+        <span class="chip chip-bad">BR-001</span><span class="larrow">→</span>
+        <span class="chip">14 queries · 30 d</span>
+      </div></div>
+    <div class="field"><div class="k">RDF identity</div>
+      <div class="v mono" style="font-size:11.5px">https://polanyi.dev/term/counterparty<br>graph: urn:polanyi:context</div></div>
+    <div style="display:flex;gap:8px;margin-top:18px"><button class="btn btn-sm demo">Edit definition</button><button class="btn btn-sm demo">View in graph</button></div>
+  </div>
+</aside>
+
+<!-- ================= COMMAND PALETTE ================= -->
+<dialog id="cmdk">
+  <input type="text" id="cmdk-input" placeholder="Jump to a page, term, rule, or capability…" aria-label="Command palette">
+  <ul id="cmdk-list"></ul>
+</dialog>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+  var VIEWS = ["overview","sources","model","documents","rules","ontology","validator","changes","agent","evals","graph","console","activity","capabilities","settings"];
+
+  function go(id){
+    if(VIEWS.indexOf(id) < 0) id = "overview";
+    document.querySelectorAll(".view").forEach(function(v){ v.classList.toggle("active", v.id === "view-"+id); });
+    document.querySelectorAll(".nav-item[data-go]").forEach(function(b){
+      if(b.dataset.go === id) b.setAttribute("aria-current","page");
+      else b.removeAttribute("aria-current");
+    });
+    closeDrawer();
+    if(location.hash !== "#"+id) history.replaceState(null,"","#"+id);
+    window.scrollTo(0,0);
+  }
+  document.querySelectorAll("[data-go]").forEach(function(b){
+    b.addEventListener("click", function(){ go(b.dataset.go); });
+  });
+  window.addEventListener("hashchange", function(){ go(location.hash.slice(1)); });
+  document.querySelectorAll('a[href^="#"]').forEach(function(a){
+    a.addEventListener("click", function(e){ e.preventDefault(); go(a.getAttribute("href").slice(1)); });
+  });
+
+  // tabs — scoped per view section, so the three tab groups don't fight
+  document.querySelectorAll(".tabs").forEach(function(group){
+    var scope = group.closest(".view");
+    group.querySelectorAll(".tab").forEach(function(t){
+      t.addEventListener("click", function(){
+        group.querySelectorAll(".tab").forEach(function(x){ x.setAttribute("aria-selected", x===t ? "true":"false"); });
+        scope.querySelectorAll(".tabpane").forEach(function(p){ p.classList.toggle("active", p.id === "tab-"+t.dataset.tab); });
+      });
+    });
+  });
+
+  // alerts popover
+  var bell = document.getElementById("bell"), alertsEl = document.getElementById("alerts");
+  bell.addEventListener("click", function(e){ e.stopPropagation(); alertsEl.classList.toggle("open"); });
+  document.addEventListener("click", function(e){
+    if(alertsEl.classList.contains("open") && !alertsEl.contains(e.target)) alertsEl.classList.remove("open");
+  });
+  alertsEl.querySelectorAll("[data-go]").forEach(function(b){
+    b.addEventListener("click", function(){ alertsEl.classList.remove("open"); });
+  });
+
+  // activity filter chips (visual state only in the prototype)
+  document.querySelectorAll(".fchip").forEach(function(c){
+    c.addEventListener("click", function(){
+      document.querySelectorAll(".fchip").forEach(function(x){ x.setAttribute("aria-pressed", x===c ? "true":"false"); });
+    });
+  });
+
+  // drawer
+  var drawer = document.getElementById("drawer");
+  function closeDrawer(){ drawer.classList.remove("open"); }
+  document.querySelectorAll("[data-drawer]").forEach(function(r){
+    r.addEventListener("click", function(){ drawer.classList.add("open"); });
+  });
+  document.querySelector("[data-close-drawer]").addEventListener("click", closeDrawer);
+
+  // validator cases
+  document.querySelectorAll("[data-vcase]").forEach(function(b){
+    b.addEventListener("click", function(){
+      document.querySelectorAll("[data-vcase]").forEach(function(x){ x.setAttribute("aria-pressed", x===b ? "true":"false"); });
+      document.querySelectorAll(".vcase").forEach(function(c){ c.classList.toggle("active", c.id === "vcase-"+b.dataset.vcase); });
+    });
+  });
+
+  // command palette
+  var dlg = document.getElementById("cmdk"), input = document.getElementById("cmdk-input"), list = document.getElementById("cmdk-list");
+  var ITEMS = [
+    {t:"Overview", k:"page", go:"overview"},
+    {t:"Data Sources", k:"page", go:"sources"},
+    {t:"Semantic Model — Glossary", k:"page", go:"model"},
+    {t:"Documents", k:"page", go:"documents"},
+    {t:"Business Rules", k:"page", go:"rules"},
+    {t:"Ontology · FIBO", k:"page", go:"ontology"},
+    {t:"Validator", k:"page", go:"validator"},
+    {t:"Changes — versions & review", k:"page", go:"changes"},
+    {t:"Agent Workspace", k:"page", go:"agent"},
+    {t:"Evaluations", k:"page", go:"evals"},
+    {t:"Knowledge Graph", k:"page", go:"graph"},
+    {t:"Query Console — SPARQL · Cypher · SQL", k:"page", go:"console"},
+    {t:"Activity — runs & jobs", k:"page", go:"activity"},
+    {t:"Registry & Extensions", k:"page", go:"capabilities"},
+    {t:"Settings", k:"page", go:"settings"},
+    {t:"Counterparty", k:"term", go:"model"},
+    {t:"BR-001 Sanctioned Counterparty Check", k:"rule", go:"rules"},
+    {t:"ExecuteSQL (guarded)", k:"capability", go:"capabilities"},
+    {t:"agent-preamble", k:"prompt", go:"capabilities"},
+    {t:"grounding-regression", k:"eval suite", go:"evals"}
+  ];
+  function render(q){
+    q = (q||"").toLowerCase();
+    list.innerHTML = "";
+    ITEMS.filter(function(i){ return i.t.toLowerCase().indexOf(q) >= 0; }).forEach(function(i){
+      var li = document.createElement("li"), b = document.createElement("button");
+      b.innerHTML = "<span>"+i.t+"</span><span class='k'>"+i.k+"</span>";
+      b.addEventListener("click", function(){ dlg.close(); go(i.go); });
+      li.appendChild(b); list.appendChild(li);
+    });
+  }
+  function openCmdk(){ render(""); input.value=""; dlg.showModal(); input.focus(); }
+  document.getElementById("cmdk-open").addEventListener("click", openCmdk);
+  input.addEventListener("input", function(){ render(input.value); });
+  input.addEventListener("keydown", function(e){
+    if(e.key === "Enter"){ var f = list.querySelector("button"); if(f) f.click(); }
+  });
+  dlg.addEventListener("click", function(e){ if(e.target === dlg) dlg.close(); });
+  document.addEventListener("keydown", function(e){
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k"){ e.preventDefault(); dlg.open ? dlg.close() : openCmdk(); }
+  });
+
+  // stubbed actions → toast
+  var toast = document.getElementById("toast"), tt;
+  document.querySelectorAll(".demo").forEach(function(b){
+    b.addEventListener("click", function(e){
+      e.stopPropagation();
+      toast.textContent = "Prototype — this action is wired to the API in the implementation spec.";
+      toast.classList.add("show");
+      clearTimeout(tt); tt = setTimeout(function(){ toast.classList.remove("show"); }, 2200);
+    });
+  });
+
+  // deep link
+  go(location.hash.slice(1) || "overview");
+})();
+</script>

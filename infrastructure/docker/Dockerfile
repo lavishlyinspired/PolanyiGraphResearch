@@ -1,4 +1,4 @@
-# GraphOS — API + Studio in one image (multi-stage: UI build, then Python)
+# Polanyi Works — API + Studio in one image (multi-stage: UI build, then Python)
 
 FROM node:22-slim AS studio
 WORKDIR /studio
@@ -11,8 +11,8 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY packages/ packages/
-COPY apps/server/graphos apps/server/graphos
-COPY apps/cli/graphos apps/cli/graphos
+COPY apps/server/polanyi apps/server/polanyi
+COPY apps/cli/polanyi apps/cli/polanyi
 RUN pip install --no-cache-dir ".[semantic,graph]"
 COPY --from=studio /studio/dist apps/studio/dist
 COPY infrastructure/docker/entrypoint.sh /entrypoint.sh

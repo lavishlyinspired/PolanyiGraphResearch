@@ -1,9 +1,9 @@
 import pytest
 
-from graphos.demo import DEMO_BUSINESS_RULES, seed_demo_db
-from graphos.semantic.generate import deterministic_context, generate_context
-from graphos.semantic.introspect import introspect
-from graphos.models import SemanticContext
+from polanyi.demo import DEMO_BUSINESS_RULES, seed_demo_db
+from polanyi.semantic.generate import deterministic_context, generate_context
+from polanyi.semantic.introspect import introspect
+from polanyi.models import SemanticContext
 
 
 @pytest.fixture()
@@ -66,7 +66,7 @@ def test_generate_context_with_broken_llm_falls_back_to_deterministic(snapshot):
 def test_llm_rewritten_rules_never_weaken_enforcement(snapshot):
     """Declared rules stay authoritative: LLM prose must not replace the
     predicate hints that symbolic validation depends on."""
-    from graphos.models import BusinessRuleContext, SemanticContext
+    from polanyi.models import BusinessRuleContext, SemanticContext
 
     llm_output = SemanticContext(
         domain="Financial Services",

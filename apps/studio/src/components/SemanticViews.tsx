@@ -337,7 +337,7 @@ export function SemanticView() {
             <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-slate-700 mb-2">No semantic context found</h3>
             <p className="text-slate-500 mb-4">
-              Run <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">graphos generate</code> to create
+              Run <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">polanyi generate</code> to create
               a semantic context from your database.
             </p>
           </CardContent>
@@ -628,7 +628,7 @@ export function KnowledgeView() {
             <Network className="w-12 h-12 text-slate-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-slate-700 mb-2">No entities found</h3>
             <p className="text-slate-500">
-              Run <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">graphos generate</code> to create
+              Run <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">polanyi generate</code> to create
               a semantic context with key entities.
             </p>
           </CardContent>
@@ -695,8 +695,8 @@ function liveGraphFromContext(ctx: ApiContext) {
       tables: [name],
       sampleData: [],
       sparql:
-        `PREFIX gos: <https://graphos.dev/ontology#>\n` +
-        `SELECT ?p ?o WHERE {\n  <https://graphos.dev/entity/${slugify(name)}> ?p ?o .\n}`,
+        `PREFIX gos: <https://polanyi.dev/ontology#>\n` +
+        `SELECT ?p ?o WHERE {\n  <https://polanyi.dev/entity/${slugify(name)}> ?p ?o .\n}`,
       cypher: `MATCH (e:Entity {name: '${name}'})-[r:RELATES_TO]-(other)\nRETURN e, r, other`,
       definition:
         terms[0]?.definition ??
@@ -924,7 +924,7 @@ export function KnowledgeGraphView() {
         <p className="text-slate-500">
           {ctx
             ? "The live enterprise knowledge graph from your semantic context — click any node for its ontology class, source table, and query definitions."
-            : "No semantic context available. Run `graphos generate` first."}
+            : "No semantic context available. Run `polanyi generate` first."}
         </p>
       </div>
       {nodes.length === 0 ? (

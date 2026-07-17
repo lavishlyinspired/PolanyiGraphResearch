@@ -1,6 +1,6 @@
 import sqlite3
 
-from graphos.demo import DEMO_BUSINESS_RULES, seed_demo_db
+from polanyi.demo import DEMO_BUSINESS_RULES, seed_demo_db
 
 
 def test_seed_demo_db_creates_financial_tables(tmp_path):

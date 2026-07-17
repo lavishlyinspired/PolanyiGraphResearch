@@ -1,5 +1,5 @@
-from graphos.models import GlossaryEntry, SemanticContext
-from graphos.semantic.ontology import (
+from polanyi.models import GlossaryEntry, SemanticContext
+from polanyi.semantic.ontology import (
     OntologyCandidate,
     align_glossary,
     score_label,

@@ -12,10 +12,10 @@ ui:
 	cd apps/studio && npm run build
 
 serve:
-	.venv/bin/graphos serve
+	.venv/bin/polanyi serve
 
 demo:
-	.venv/bin/graphos init-demo && .venv/bin/graphos generate
+	.venv/bin/polanyi init-demo && .venv/bin/polanyi generate
 
 up:
 	$(COMPOSE) up --build -d

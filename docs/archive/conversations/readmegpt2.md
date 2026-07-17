@@ -12,13 +12,13 @@ What is the difference
 
 Whats wrong
 
-Generated image: GraphOS Studio enterprise dashboard overview
+Generated image: Polanyi Works Studio enterprise dashboard overview
 
 
 Edit
 
 
-This is already a strong UI, but if your goal is to build a GraphOS Studio that enterprise architects, data engineers, ontology engineers, and AI agents will use daily, I'd add features that expose the why behind the graph—not just the graph itself.
+This is already a strong UI, but if your goal is to build a Polanyi Works Studio that enterprise architects, data engineers, ontology engineers, and AI agents will use daily, I'd add features that expose the why behind the graph—not just the graph itself.
 
 1. Semantic Provenance ⭐⭐⭐⭐⭐
 Every concept should answer:
@@ -113,7 +113,7 @@ Trust Score 96%
 8. AI Query Examples
 Based on the selected concept:
 
-Ask GraphOS
+Ask Polanyi Works
 
 "What are all Apple trades?"
 
@@ -163,7 +163,7 @@ Mappings
 
 AI Suggested 41
 12. AI Reasoning Trace ⭐⭐⭐⭐⭐
-One of the most valuable additions for GraphOS:
+One of the most valuable additions for Polanyi Works:
 
 AI Reasoning
 
@@ -196,7 +196,7 @@ Confidence 97%
 This makes AI decisions transparent.
 
 My favorite enhancement
-Since you're building an Agentic GraphOS, I'd dedicate the right panel to a Semantic Intelligence Panel with tabs like:
+Since you're building an Agentic Polanyi Works, I'd dedicate the right panel to a Semantic Intelligence Panel with tabs like:
 
 Overview (description, ontology, mappings)
 
@@ -212,7 +212,7 @@ Query (sample Cypher, SPARQL, SQL, and natural-language prompts)
 
 History (who changed mappings, when, and why)
 
-That transforms the screen from a static graph browser into an interactive semantic engineering workspace, which aligns well with the broader vision you've described for GraphOS.
+That transforms the screen from a static graph browser into an interactive semantic engineering workspace, which aligns well with the broader vision you've described for Polanyi Works.
 
 
 Mapping table in the inage you provided is misleading as trade is mapped to finance.trades, trading.orders. trading.executions. what to do as they are just staying and not used i guess
@@ -316,7 +316,7 @@ trading.orders
 ⚠ Partial mapping
 This keeps the default screen clean.
 
-What I would build for GraphOS
+What I would build for Polanyi Works
 I would keep the Knowledge Layer completely semantic.
 
 Trade
@@ -447,9 +447,9 @@ Trade
  ├── execution_time
  ├── quantity
  ├── ...
-For GraphOS, this is probably too much for the default user experience.
+For Polanyi Works, this is probably too much for the default user experience.
 
-What I'd recommend for GraphOS
+What I'd recommend for Polanyi Works
 I think you should actually maintain two graphs in Neo4j.
 
 1. Enterprise Knowledge Graph

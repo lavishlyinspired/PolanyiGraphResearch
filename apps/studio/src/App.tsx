@@ -46,7 +46,7 @@ export default function App() {
             </div>
             <div>
               <h1 className="font-serif text-2xl font-bold tracking-tight leading-none">
-                GraphOS <span className="text-emerald-300">Studio</span>
+                Polanyi Works <span className="text-emerald-300">Studio</span>
               </h1>
               <p className="text-xs text-teal-200 mt-0.5">
                 Semantic operating system for enterprise data

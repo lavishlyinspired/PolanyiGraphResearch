@@ -1,6 +1,6 @@
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from graphos.agents.semantic_agent import trace_from_messages
+from polanyi.agents.semantic_agent import trace_from_messages
 
 
 def two_turn_conversation():

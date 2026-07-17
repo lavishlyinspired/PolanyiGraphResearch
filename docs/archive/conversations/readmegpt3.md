@@ -2,9 +2,9 @@
 
 
 
-Given everything we've discussed over the past few days, I would organize GraphOS Studio as a semantic IDE rather than a database explorer. Here's a comprehensive component tree.
+Given everything we've discussed over the past few days, I would organize Polanyi Works Studio as a semantic IDE rather than a database explorer. Here's a comprehensive component tree.
 
-GraphOS Studio
+Polanyi Works Studio
 │
 ├── Home
 │   ├── Dashboard
@@ -167,7 +167,7 @@ Reason
 Explain
       ↓
 Take Action
-That sequence is what differentiates GraphOS from:
+That sequence is what differentiates Polanyi Works from:
 
 Databricks (data platform)
 
@@ -179,12 +179,12 @@ Microsoft Purview (data catalog)
 
 Palantir Foundry (operational platform)
 
-GraphOS becomes the layer that understands enterprise data semantically and orchestrates intelligent reasoning across those systems. Based on your architecture discussions, this "semantic operating system" perspective is the core idea to preserve throughout the UI.
+Polanyi Works becomes the layer that understands enterprise data semantically and orchestrates intelligent reasoning across those systems. Based on your architecture discussions, this "semantic operating system" perspective is the core idea to preserve throughout the UI.
 
 
 But each lauer from planner to  final
 
-If you're referring to the GraphOS execution pipeline (from a user's question to the final answer), then I would make every stage visible. This is much closer to an AI IDE than a chat application.
+If you're referring to the Polanyi Works execution pipeline (from a user's question to the final answer), then I would make every stage visible. This is much closer to an AI IDE than a chat application.
 
 Here's the execution tree I'd use:
 
@@ -320,12 +320,12 @@ Reflection → validation results, retries, unresolved ambiguities.
 
 Explanation → evidence trail and provenance.
 
-This gives users transparency into how GraphOS reached an answer without exposing the model's private internal reasoning. It also makes debugging agent workflows much easier.
+This gives users transparency into how Polanyi Works reached an answer without exposing the model's private internal reasoning. It also makes debugging agent workflows much easier.
 
 
 How are skills invoked
 
-This is one of the most important architectural decisions for GraphOS.
+This is one of the most important architectural decisions for Polanyi Works.
 
 Skills should not be invoked directly by the LLM. Instead, they should be selected and orchestrated by the planner (or an execution engine) based on the plan.
 
@@ -452,9 +452,9 @@ Best Matching Skill
     │
     ▼
 Execution
-This means GraphOS doesn't care whether the implementation is a Databricks skill, an MCP tool, a Python function, or a REST API. As long as it advertises the required capability, the orchestrator can invoke it.
+This means Polanyi Works doesn't care whether the implementation is a Databricks skill, an MCP tool, a Python function, or a REST API. As long as it advertises the required capability, the orchestrator can invoke it.
 
-For GraphOS, I'd define three core components:
+For Polanyi Works, I'd define three core components:
 
 Planner — decides what needs to be done.
 

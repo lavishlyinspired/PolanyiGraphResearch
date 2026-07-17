@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "polanyi-gnn"
+version = "0.1.0"
+description = "Graph neural network layer for Polanyi — link prediction, drift detection, embeddings"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "polanyi-works[graph]",
+    "torch>=2.0",
+    "torch-geometric>=2.5",
+    "node2vec>=0.6",
+    "scikit-learn>=1.4",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.4"]

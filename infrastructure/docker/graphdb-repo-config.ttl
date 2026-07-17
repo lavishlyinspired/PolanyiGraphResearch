@@ -12,7 +12,7 @@
         sr:sailImpl [
             sail:sailType "graphdb:Sail" ;
             graphdb:ruleset "rdfsplus-optimized" ;
-            graphdb:base-URL "http://example.org/graphos#" ;
+            graphdb:base-URL "http://example.org/polanyi#" ;
             graphdb:repository-type "file-repository" ;
         ]
     ] .

@@ -1,4 +1,4 @@
-# GraphOS Studio UI
+# Polanyi Works Studio UI
 
 A React + TypeScript + Tailwind CSS front-end for exploring an enterprise semantic
 layer: data source discovery, FIBO ontology browsing, a Neo4j-style knowledge view,

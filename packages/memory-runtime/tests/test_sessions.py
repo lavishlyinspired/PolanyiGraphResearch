@@ -1,4 +1,4 @@
-from graphos.memory import build_checkpointer
+from polanyi.memory import build_checkpointer
 
 
 def test_sqlite_checkpointer_is_created_at_configured_path(tmp_path):
@@ -9,14 +9,14 @@ def test_sqlite_checkpointer_is_created_at_configured_path(tmp_path):
 
 
 def test_memory_sentinel_forces_in_memory_sessions(monkeypatch):
-    monkeypatch.setenv("GRAPHOS_SESSIONS_DB", ":memory:")
+    monkeypatch.setenv("POLANYI_SESSIONS_DB", ":memory:")
     checkpointer = build_checkpointer()
     assert type(checkpointer).__name__ == "InMemorySaver"
 
 
 def test_env_var_sets_session_db_location(tmp_path, monkeypatch):
     db_path = tmp_path / "custom.db"
-    monkeypatch.setenv("GRAPHOS_SESSIONS_DB", str(db_path))
+    monkeypatch.setenv("POLANYI_SESSIONS_DB", str(db_path))
     checkpointer = build_checkpointer()
     assert type(checkpointer).__name__ == "SqliteSaver"
 

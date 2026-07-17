@@ -1,6 +1,6 @@
-from graphos.demo import DEMO_BUSINESS_RULES
-from graphos.semantic.generate import build_rule_contexts
-from graphos.execution.validate import validate_sql
+from polanyi.demo import DEMO_BUSINESS_RULES
+from polanyi.semantic.generate import build_rule_contexts
+from polanyi.execution.validate import validate_sql
 
 RULES = build_rule_contexts(DEMO_BUSINESS_RULES)
 

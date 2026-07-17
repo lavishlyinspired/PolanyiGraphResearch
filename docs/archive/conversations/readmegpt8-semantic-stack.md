@@ -1,9 +1,9 @@
-# Python semantic/ontology stack for the GraphOS pipeline
+# Python semantic/ontology stack for the Polanyi Works pipeline
 
 *(Conversation excerpt shared 2026-07-17; distilled into the "Python semantic
-stack" section of `docs/architecture.md` and implemented in `graphos/rdf.py`.)*
+stack" section of `docs/architecture.md` and implemented in `polanyi/rdf.py`.)*
 
-Consider the Python semantic/ontology stack for the GraphOS pipeline, especially
+Consider the Python semantic/ontology stack for the Polanyi Works pipeline, especially
 how each library fits into an ontology-driven ingestion and reasoning workflow:
 
 | Tool | Purpose |
@@ -57,7 +57,7 @@ GraphDB (persistent semantic layer)
     └── Neo4j (Graph RAG & analytics)
 ```
 
-Conclusion — the core GraphOS stack:
+Conclusion — the core Polanyi Works stack:
 
 ✅ RDFLib · ✅ pySHACL · ✅ Owlready2 · ✅ pyoxigraph · ✅ GraphDB · ✅ Neo4j (with n10s)
 

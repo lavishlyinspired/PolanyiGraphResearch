@@ -749,7 +749,7 @@ function HistoryTab({ concept }: { concept: SemanticConcept }) {
             )}
             <div className={cn(
               "w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10",
-              entry.user === "GraphOS Agent" ? "bg-violet-100" : "bg-teal-100"
+              entry.user === "Polanyi Works Agent" ? "bg-violet-100" : "bg-teal-100"
             )}>
               <span className="text-xs font-bold text-slate-700">
                 {entry.user.charAt(0)}
@@ -758,7 +758,7 @@ function HistoryTab({ concept }: { concept: SemanticConcept }) {
             <div className="flex-1 pb-1">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold text-slate-800">{entry.user}</span>
-                {entry.user === "GraphOS Agent" && (
+                {entry.user === "Polanyi Works Agent" && (
                   <Badge className="bg-violet-100 text-violet-700 border border-violet-200 text-xs">
                     <Sparkles className="w-2.5 h-2.5 mr-1" />
                     AI

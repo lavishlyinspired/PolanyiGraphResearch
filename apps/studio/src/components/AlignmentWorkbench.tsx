@@ -168,7 +168,7 @@ export function AlignmentWorkbench() {
             <Table2 className="w-12 h-12 text-slate-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-slate-700 mb-2">No schema data</h3>
             <p className="text-slate-500">
-              Run <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">graphos generate</code> to
+              Run <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">polanyi generate</code> to
               introspect your database schema first.
             </p>
           </CardContent>

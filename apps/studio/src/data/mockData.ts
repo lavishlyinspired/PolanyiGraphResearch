@@ -369,7 +369,7 @@ export const semanticConcepts: SemanticConcept[] = [
     coverage: 96,
     provenance: {
       origin: "AI Semantic Alignment v2",
-      createdBy: "GraphOS Agent",
+      createdBy: "Polanyi Works Agent",
       approvedBy: "John Smith (Ontology Team)",
       confidence: 97,
       lastSynced: "2 hours ago",
@@ -424,10 +424,10 @@ export const semanticConcepts: SemanticConcept[] = [
       { source: "Neo4j", step: "Knowledge Graph", detail: "Created 14.2M Trade nodes with 5 relationship types" },
     ],
     history: [
-      { user: "GraphOS Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
+      { user: "Polanyi Works Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
       { user: "John Smith", action: "Approved mapping (confidence 97%)", timestamp: "2024-01-15 11:15 AM" },
       { user: "Sarah Chen", action: "Added HAS_BROKER relationship suggestion", timestamp: "2024-01-16 2:30 PM" },
-      { user: "GraphOS Agent", action: "Synced 15,000 new instances from Databricks", timestamp: "2 hours ago" },
+      { user: "Polanyi Works Agent", action: "Synced 15,000 new instances from Databricks", timestamp: "2 hours ago" },
     ],
   },
   {
@@ -454,7 +454,7 @@ export const semanticConcepts: SemanticConcept[] = [
     coverage: 94,
     provenance: {
       origin: "AI Semantic Alignment v2",
-      createdBy: "GraphOS Agent",
+      createdBy: "Polanyi Works Agent",
       approvedBy: "John Smith (Ontology Team)",
       confidence: 94,
       lastSynced: "2 hours ago",
@@ -498,7 +498,7 @@ export const semanticConcepts: SemanticConcept[] = [
       { source: "Neo4j", step: "Knowledge Graph", detail: "Created 847K Instrument nodes" },
     ],
     history: [
-      { user: "GraphOS Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
+      { user: "Polanyi Works Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
       { user: "John Smith", action: "Approved mapping (confidence 94%)", timestamp: "2024-01-15 11:20 AM" },
     ],
   },
@@ -523,7 +523,7 @@ export const semanticConcepts: SemanticConcept[] = [
     coverage: 91,
     provenance: {
       origin: "AI Semantic Alignment v2",
-      createdBy: "GraphOS Agent",
+      createdBy: "Polanyi Works Agent",
       approvedBy: "Sarah Chen (Data Engineering)",
       confidence: 91,
       lastSynced: "5 hours ago",
@@ -563,7 +563,7 @@ export const semanticConcepts: SemanticConcept[] = [
       { source: "Neo4j", step: "Knowledge Graph", detail: "Created 12.4K Counterparty nodes" },
     ],
     history: [
-      { user: "GraphOS Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
+      { user: "Polanyi Works Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
       { user: "Sarah Chen", action: "Approved mapping (confidence 91%)", timestamp: "2024-01-15 3:45 PM" },
     ],
   },
@@ -587,7 +587,7 @@ export const semanticConcepts: SemanticConcept[] = [
     coverage: 88,
     provenance: {
       origin: "AI Semantic Alignment v2",
-      createdBy: "GraphOS Agent",
+      createdBy: "Polanyi Works Agent",
       approvedBy: "Sarah Chen (Data Engineering)",
       confidence: 88,
       lastSynced: "5 hours ago",
@@ -627,7 +627,7 @@ export const semanticConcepts: SemanticConcept[] = [
       { source: "Neo4j", step: "Knowledge Graph", detail: "Created 3.1M Customer nodes" },
     ],
     history: [
-      { user: "GraphOS Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
+      { user: "Polanyi Works Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
       { user: "Sarah Chen", action: "Approved as LegalEntity subclass", timestamp: "2024-01-15 4:10 PM" },
     ],
   },
@@ -652,7 +652,7 @@ export const semanticConcepts: SemanticConcept[] = [
     coverage: 90,
     provenance: {
       origin: "AI Semantic Alignment v2",
-      createdBy: "GraphOS Agent",
+      createdBy: "Polanyi Works Agent",
       approvedBy: "John Smith (Ontology Team)",
       confidence: 90,
       lastSynced: "2 hours ago",
@@ -692,7 +692,7 @@ export const semanticConcepts: SemanticConcept[] = [
       { source: "Neo4j", step: "Knowledge Graph", detail: "Created 5.8M Account nodes" },
     ],
     history: [
-      { user: "GraphOS Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
+      { user: "Polanyi Works Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
       { user: "John Smith", action: "Approved mapping (confidence 90%)", timestamp: "2024-01-15 11:30 AM" },
     ],
   },
@@ -718,7 +718,7 @@ export const semanticConcepts: SemanticConcept[] = [
     coverage: 95,
     provenance: {
       origin: "AI Semantic Alignment v2",
-      createdBy: "GraphOS Agent",
+      createdBy: "Polanyi Works Agent",
       approvedBy: "John Smith (Ontology Team)",
       confidence: 95,
       lastSynced: "1 hour ago",
@@ -761,9 +761,9 @@ export const semanticConcepts: SemanticConcept[] = [
       { source: "Neo4j", step: "Knowledge Graph", detail: "Created 42.7M Position nodes" },
     ],
     history: [
-      { user: "GraphOS Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
+      { user: "Polanyi Works Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
       { user: "John Smith", action: "Approved mapping (confidence 95%)", timestamp: "2024-01-15 11:35 AM" },
-      { user: "GraphOS Agent", action: "Synced 2.1M new positions", timestamp: "1 hour ago" },
+      { user: "Polanyi Works Agent", action: "Synced 2.1M new positions", timestamp: "1 hour ago" },
     ],
   },
   {
@@ -785,7 +785,7 @@ export const semanticConcepts: SemanticConcept[] = [
     coverage: 89,
     provenance: {
       origin: "AI Semantic Alignment v2",
-      createdBy: "GraphOS Agent",
+      createdBy: "Polanyi Works Agent",
       approvedBy: "John Smith (Ontology Team)",
       confidence: 89,
       lastSynced: "2 hours ago",
@@ -825,7 +825,7 @@ export const semanticConcepts: SemanticConcept[] = [
       { source: "Neo4j", step: "Knowledge Graph", detail: "Created 8.9K Issuer nodes" },
     ],
     history: [
-      { user: "GraphOS Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
+      { user: "Polanyi Works Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
       { user: "John Smith", action: "Approved as LegalEntity subclass", timestamp: "2024-01-15 11:40 AM" },
     ],
   },
@@ -848,7 +848,7 @@ export const semanticConcepts: SemanticConcept[] = [
     coverage: 87,
     provenance: {
       origin: "AI Semantic Alignment v2",
-      createdBy: "GraphOS Agent",
+      createdBy: "Polanyi Works Agent",
       approvedBy: "Sarah Chen (Data Engineering)",
       confidence: 87,
       lastSynced: "3 hours ago",
@@ -888,7 +888,7 @@ export const semanticConcepts: SemanticConcept[] = [
       { source: "Neo4j", step: "Knowledge Graph", detail: "Created 13.8M Settlement nodes" },
     ],
     history: [
-      { user: "GraphOS Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
+      { user: "Polanyi Works Agent", action: "Created concept from AI alignment", timestamp: "2024-01-15 10:42 AM" },
       { user: "Sarah Chen", action: "Approved mapping (confidence 87%)", timestamp: "2024-01-15 4:20 PM" },
     ],
   },

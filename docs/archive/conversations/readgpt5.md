@@ -2,7 +2,7 @@
 
 
 
-Yes—I checked the latest Neo4j Agent Skills repository and documentation. What Neo4j calls Agent Skills is not the same as LangChain agents or LangGraph nodes. It's actually a very interesting pattern, and I think it's highly relevant for GraphOS. 
+Yes—I checked the latest Neo4j Agent Skills repository and documentation. What Neo4j calls Agent Skills is not the same as LangChain agents or LangGraph nodes. It's actually a very interesting pattern, and I think it's highly relevant for Polanyi Works. 
 
 What is a Neo4j Agent Skill?
 A skill is essentially a package of domain expertise.
@@ -37,7 +37,7 @@ Validation logic
 
 The agent loads the skill only when needed, using a progressive disclosure model to reduce context usage. 
 
-This is exactly what GraphOS needs
+This is exactly what Polanyi Works needs
 Instead of only having:
 
 Entity Extraction Agent
@@ -106,7 +106,7 @@ GDS Skill
 Answer
 The planner decides which skills are needed; LangGraph executes them.
 
-I think GraphOS can go much further than Neo4j
+I think Polanyi Works can go much further than Neo4j
 Neo4j skills are database-specific:
 
 neo4j-cypher-skill
@@ -114,7 +114,7 @@ neo4j-cypher-skill
 neo4j-gds-skill
 
 neo4j-driver-python-skill
-GraphOS could introduce graph-agnostic semantic skills.
+Polanyi Works could introduce graph-agnostic semantic skills.
 
 For example:
 
@@ -178,12 +178,12 @@ Available Skills:
 ↓
 
 Choose one
-This makes GraphOS portable across graph technologies.
+This makes Polanyi Works portable across graph technologies.
 
 My recommendation
 I would absolutely adopt the Agent Skills concept, but not copy Neo4j's skills directly.
 
-I'd create a GraphOS Skill SDK where every skill follows a common structure, for example:
+I'd create a Polanyi Works Skill SDK where every skill follows a common structure, for example:
 
 semantic-materialization-skill/
 │
@@ -198,7 +198,7 @@ semantic-materialization-skill/
 ├── scripts/
 ├── validators/
 └── adapters/
-Then the GraphOS planner can discover skills by capability rather than by product.
+Then the Polanyi Works planner can discover skills by capability rather than by product.
 
 For example:
 
@@ -220,7 +220,7 @@ graph-rag
 
 shacl-validation
 
-This would be significantly broader than the Neo4j approach because it turns GraphOS into a semantic skill platform rather than a Neo4j skill library, while still allowing Neo4j-specific skills to plug into the same framework. I think that's a much stronger long-term architecture for the SaaS platform you're designing.
+This would be significantly broader than the Neo4j approach because it turns Polanyi Works into a semantic skill platform rather than a Neo4j skill library, while still allowing Neo4j-specific skills to plug into the same framework. I think that's a much stronger long-term architecture for the SaaS platform you're designing.
 
 
 But then planner is dependent on llm to decide which skill to choose. Isnt it
@@ -255,7 +255,7 @@ The first stage is deterministic:
 
 Intent:
 INGEST_DOCUMENT
-Now your GraphOS knows the required capabilities:
+Now your Polanyi Works knows the required capabilities:
 
 INGEST_DOCUMENT
 
@@ -331,7 +331,7 @@ LLM
 Invent any ontology class
 The first is much safer.
 
-Think of GraphOS like a compiler
+Think of Polanyi Works like a compiler
 A compiler doesn't ask an LLM which optimization pass to run.
 
 It already knows the pipeline:
@@ -349,7 +349,7 @@ Optimization
 ↓
 
 Code Generation
-GraphOS should work similarly.
+Polanyi Works should work similarly.
 
 For an ingestion workflow:
 
@@ -399,14 +399,14 @@ Those are deterministic nodes.
 
 Only the "Ground" node might invoke an LLM if deterministic entity linking can't resolve an ambiguity.
 
-For GraphOS, I'd actually recommend three layers of decision making:
+For Polanyi Works, I'd actually recommend three layers of decision making:
 Workflow selection (deterministic): Based on the user's intent (INGEST_DOCUMENT, ANSWER_QUERY, RUN_ANALYTICS, etc.), select a predefined workflow.
 
 Capability resolution (deterministic): Map each required capability to the configured skill implementation (e.g., RDFLib for RDF generation, GraphDB for semantic storage).
 
 Semantic reasoning (LLM only when needed): Resolve ambiguities, rank ontology candidates, interpret complex natural language, or generate explanations.
 
-That architecture keeps the LLM where it adds value—reasoning under uncertainty—while ensuring the overall execution remains predictable, auditable, and reproducible. For a platform like GraphOS, I believe this is a stronger foundation than an agent that freely decides both the workflow and the tools at every step.
+That architecture keeps the LLM where it adds value—reasoning under uncertainty—while ensuring the overall execution remains predictable, auditable, and reproducible. For a platform like Polanyi Works, I believe this is a stronger foundation than an agent that freely decides both the workflow and the tools at every step.
 
 
 Yes but skills would execute using llm only right. Meaning you give skill.md to llm and then it takes of the rest. Is that correct understanding?
@@ -437,7 +437,7 @@ LLM decides what to do
 Calls tools / executes code
 The SKILL.md is primarily prompt engineering plus reference material. The LLM follows those instructions and may execute scripts or tools provided by the skill.
 
-But I don't think GraphOS should stop there
+But I don't think Polanyi Works should stop there
 This is where I think you can innovate.
 
 Today, most agent skills are:
@@ -449,7 +449,7 @@ LLM
 Execution
 In other words, the LLM is the execution engine.
 
-For GraphOS, I would flip this around.
+For Polanyi Works, I would flip this around.
 
 SKILL
 │
@@ -471,7 +471,7 @@ Today (LLM-centric):
 
 Prompt:
 Convert this article into RDF.
-GraphOS:
+Polanyi Works:
 
 materialize(article):
 
@@ -491,7 +491,7 @@ Neo4j-style:
 
 LLM:
 Please validate this RDF using SHACL.
-GraphOS:
+Polanyi Works:
 
 pyshacl.validate(graph, shapes)
 100% deterministic.
@@ -566,12 +566,12 @@ SHACL Skill
 GraphDB Skill
 Now skills can call other skills, forming a directed acyclic graph (DAG) of capabilities rather than a single prompt.
 
-This is where I think GraphOS can differentiate
+This is where I think Polanyi Works can differentiate
 Neo4j's Agent Skills are an excellent idea, but they are still fundamentally LLM-first.
 
-I think GraphOS should be Capability-first.
+I think Polanyi Works should be Capability-first.
 
-A GraphOS skill would declare:
+A Polanyi Works skill would declare:
 
 name: rdf-materialization
 
@@ -598,6 +598,6 @@ Is there ambiguity? Yes → invoke the LLM with the skill's prompt and constrain
 
 Validate the result before continuing.
 
-That gives you the benefits of Neo4j's skill packaging while making GraphOS far more reliable and auditable, because the LLM is used as a specialized reasoning component rather than the default execution engine. I think that's a stronger architecture for the kind of semantic operating system you're building.
+That gives you the benefits of Neo4j's skill packaging while making Polanyi Works far more reliable and auditable, because the LLM is used as a specialized reasoning component rather than the default execution engine. I think that's a stronger architecture for the kind of semantic operating system you're building.
 
 

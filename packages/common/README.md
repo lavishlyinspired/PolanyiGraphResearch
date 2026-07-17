@@ -1,6 +1,6 @@
-# graphos (common)
+# polanyi (common)
 
 Shared domain models and the demo dataset.
 
-Code: `graphos/models.py`, `graphos/demo.py`, package `__init__` — part of the single `graphos` distribution
+Code: `polanyi/models.py`, `polanyi/demo.py`, package `__init__` — part of the single `polanyi` distribution
 (mapped in the root `pyproject.toml`).

@@ -14,7 +14,7 @@ The codebase today is one Python package (~15 modules, 97 tests) and one React
 app. Splitting that across 20+ workspace packages plus pnpm/turbo tooling
 would add import ceremony, version plumbing, and CI overhead without adding a
 single capability. Directory structure is not architecture: the boundaries
-that matter already exist as module seams inside `graphos`, which is exactly
+that matter already exist as module seams inside `polanyi`, which is exactly
 where they're cheapest to maintain and to refactor.
 
 ## The runtime split is now the filesystem (implemented 2026-07-17)
@@ -25,18 +25,18 @@ structure is a `git mv` from here:
 
 | Proposed | Implemented as |
 |---|---|
-| `packages/kernel/` | `src/graphos/kernel/` — `capabilities.py`, `llm.py`, `env.py` |
-| `packages/semantic-runtime/` | `src/graphos/semantic/` — introspect, generate, prompt, ontology, rdf, owl, documents, `shapes/` |
-| `packages/agent-runtime/` | `src/graphos/agents/` — `semantic_agent.py` (capability + workflow concerns folded in, as amended) |
-| `packages/execution-runtime/` | `src/graphos/execution/` — validate, knowledge_graph, ingest, `connectors/databricks/` |
+| `packages/kernel/` | `src/polanyi/kernel/` — `capabilities.py`, `llm.py`, `env.py` |
+| `packages/semantic-runtime/` | `src/polanyi/semantic/` — introspect, generate, prompt, ontology, rdf, owl, documents, `shapes/` |
+| `packages/agent-runtime/` | `src/polanyi/agents/` — `semantic_agent.py` (capability + workflow concerns folded in, as amended) |
+| `packages/execution-runtime/` | `src/polanyi/execution/` — validate, knowledge_graph, ingest, `connectors/databricks/` |
 | `packages/memory-runtime/` | LangGraph sessions inside `agents/` (thin — extracts when durable checkpointers land) |
 | `packages/observability-runtime/` | `AskResult` traces (thin — extracts when tracing/cost accounting lands) |
 | `apps/studio/` | ✅ moved from `ui/` |
-| `apps/server/`, `apps/cli/` | `graphos/api.py`, `graphos/cli.py` — single files by design at this size |
+| `apps/server/`, `apps/cli/` | `polanyi/api.py`, `polanyi/cli.py` — single files by design at this size |
 | root `docker-compose.yml` | ✅ thin include of `infrastructure/docker/docker-compose.yml` |
-| `common/`/`shared/` | `graphos/models.py` |
+| `common/`/`shared/` | `polanyi/models.py` |
 
-Still intentionally one installable distribution (`pip install graphos`) —
+Still intentionally one installable distribution (`pip install polanyi`) —
 the split into separately versioned packages waits for a real second consumer.
 
 ## Full target skeleton materialized (2026-07-17, on request)
@@ -59,21 +59,21 @@ GraphDB MCP server → `platform/mcp/servers/graphdb`, thin app entry points in
 
 ## src/ dissolved into packages/ and apps/ (2026-07-17)
 
-`src/graphos` no longer exists — the code physically lives where the target
+`src/polanyi` no longer exists — the code physically lives where the target
 structure says it belongs, while remaining **one installable distribution**
 via `package-dir` mapping in the root `pyproject.toml`:
 
 | Import path | Physical location |
 |---|---|
-| `graphos` (models, demo) | `packages/common/graphos/` |
-| `graphos.kernel` | `packages/kernel/graphos/kernel/` |
-| `graphos.semantic` (+ SHACL shapes) | `packages/semantic-runtime/graphos/semantic/` |
-| `graphos.agents` | `packages/agent-runtime/graphos/agents/` |
-| `graphos.execution` (+ connectors) | `packages/execution-runtime/graphos/execution/` |
-| `graphos.api` | `apps/server/graphos/api/` |
-| `graphos.cli` (console script) | `apps/cli/graphos/cli/` |
+| `polanyi` (models, demo) | `packages/common/polanyi/` |
+| `polanyi.kernel` | `packages/kernel/polanyi/kernel/` |
+| `polanyi.semantic` (+ SHACL shapes) | `packages/semantic-runtime/polanyi/semantic/` |
+| `polanyi.agents` | `packages/agent-runtime/polanyi/agents/` |
+| `polanyi.execution` (+ connectors) | `packages/execution-runtime/polanyi/execution/` |
+| `polanyi.api` | `apps/server/polanyi/api/` |
+| `polanyi.cli` (console script) | `apps/cli/polanyi/cli/` |
 
-Imports, the `graphos` command, `pip install -e .`, Docker, and all 97 tests
+Imports, the `polanyi` command, `pip install -e .`, Docker, and all 97 tests
 are unchanged/verified. The folded-in runtime placeholders
 (capability/workflow/prompt/context/reasoning/policy/security/event/
 knowledge/plugin/connector/graph/sdk/shared) were removed per the
@@ -115,9 +115,9 @@ plus root files. pytest discovers the co-located suites via
 
 ## Evolution triggers — split when it hurts, not before
 
-1. **`src/graphos/semantic/` subpackage** — when the semantic modules pass
+1. **`src/polanyi/semantic/` subpackage** — when the semantic modules pass
    ~10 files (they are 8 now). A rename inside one distribution, no packaging
-   change. Same later for `graphos/execution/`.
+   change. Same later for `polanyi/execution/`.
 2. **`packages/semantic-runtime` as a separate distribution** — only when an
    external consumer wants the semantic runtime without FastAPI/uvicorn (e.g.
    a LangGraph app embedding it). The signal is a real second consumer, not
@@ -135,7 +135,7 @@ plus root files. pytest discovers the co-located suites via
 ## Worth adopting soon (cheap, real value)
 
 - **`infrastructure/docker/docker-compose.yml`** — GraphDB (+FIBO load),
-  Neo4j (+n10s), and `graphos serve` in one `docker compose up`. Onboarding
+  Neo4j (+n10s), and `polanyi serve` in one `docker compose up`. Onboarding
   currently assumes both stores exist; this is the single highest-leverage
   structural addition. *(Next concrete step.)*
 - **`ontologies/mappings/`** — as custom/enterprise ontology mappings appear
@@ -156,6 +156,6 @@ plus root files. pytest discovers the co-located suites via
 
 ## Principle
 
-The GraphOS design rule applies to the repository itself: **deterministic
+The Polanyi Works design rule applies to the repository itself: **deterministic
 first, structure under demonstrated pressure**. Every split above has a named
 trigger; when a trigger fires, the seam is already in place.

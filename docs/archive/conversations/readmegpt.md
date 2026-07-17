@@ -260,7 +260,7 @@ Customers rarely buy "everything."
 
 They buy solutions to one pressing problem.
 
-If I were building GraphOS
+If I were building Polanyi Works
 
 I would not market it as
 
@@ -311,7 +311,7 @@ Edit
 
 Yes. In fact, I think this is where your thinking should evolve.
 
-You've been mixing GraphOS, LangGraph, Claude Code, MCP, ontologies, and agents into one product. They're actually different layers of a stack.
+You've been mixing Polanyi Works, LangGraph, Claude Code, MCP, ontologies, and agents into one product. They're actually different layers of a stack.
 
 Let's start with the Agent Runtime.
 
@@ -655,7 +655,7 @@ AutoGen
 
 Very few are building a reusable Semantic Runtime that any of those runtimes can plug into.
 
-A possible future GraphOS architecture
+A possible future Polanyi Works architecture
                     User
                       │
                       ▼

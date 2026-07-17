@@ -1,0 +1,39 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix gos: <https://polanyi.dev/ontology#> .
+@prefix gosh: <https://polanyi.dev/shapes#> .
+
+gosh:DocumentShape
+    a sh:NodeShape ;
+    sh:targetClass gos:Document ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:message "Every document needs an rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path gos:source ;
+        sh:minCount 1 ;
+        sh:message "Every document needs a gos:source for provenance." ;
+    ] .
+
+gosh:MentionShape
+    a sh:NodeShape ;
+    sh:targetClass gos:Mention ;
+    sh:property [
+        sh:path gos:mentionText ;
+        sh:minCount 1 ;
+        sh:minLength 1 ;
+        sh:message "Every mention needs its surface text." ;
+    ] ;
+    sh:property [
+        sh:path gos:entityType ;
+        sh:minCount 1 ;
+        sh:message "Every mention needs an entity type." ;
+    ] ;
+    sh:property [
+        sh:path gos:inDocument ;
+        sh:minCount 1 ;
+        sh:class gos:Document ;
+        sh:message "Every mention must keep provenance to its document." ;
+    ] .

@@ -1,12 +1,12 @@
 from rdflib import RDF, SKOS, URIRef
 
-from graphos.models import (
+from polanyi.models import (
     BusinessRuleContext,
     EntityRelationship,
     GlossaryEntry,
     SemanticContext,
 )
-from graphos.semantic.rdf import GOS, context_to_rdf, local_sparql, validate_rdf
+from polanyi.semantic.rdf import GOS, context_to_rdf, local_sparql, validate_rdf
 
 
 def make_context() -> SemanticContext:

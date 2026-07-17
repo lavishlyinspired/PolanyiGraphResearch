@@ -1,4 +1,4 @@
-# GraphOS development stack: GraphDB (FIBO) + Neo4j (n10s) + API/Studio.
+# Polanyi Works development stack: GraphDB (FIBO) + Neo4j (n10s) + API/Studio.
 #
 #   docker compose -f infrastructure/docker/docker-compose.yml up
 #   (or: make up)
@@ -66,11 +66,11 @@ services:
       NEO4J_PASSWORD: "${NEO4J_PASSWORD:-12345678}"
       NVIDIA_API_KEY: "${NVIDIA_API_KEY:-}"
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
-      GRAPHOS_LLM_PROVIDER: "${GRAPHOS_LLM_PROVIDER:-}"
+      POLANYI_LLM_PROVIDER: "${POLANYI_LLM_PROVIDER:-}"
     volumes:
-      - graphos-data:/app/semantics/knowledge
+      - polanyi-data:/app/semantics/knowledge
 
 volumes:
   graphdb-data:
   neo4j-data:
-  graphos-data:
+  polanyi-data:
