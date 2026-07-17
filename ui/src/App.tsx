@@ -4,10 +4,18 @@ import { DataSourcesView } from "@/components/DataSourcesView";
 import { AlignmentWorkbench } from "@/components/AlignmentWorkbench";
 import { ReasoningTraceView } from "@/components/ReasoningTraceView";
 import { SemanticView, KnowledgeView, KnowledgeGraphView } from "@/components/SemanticViews";
-import { Database, BookOpen, Network, GitBranch, Share2, BrainCircuit } from "lucide-react";
+import { SemanticOpsView } from "@/components/SemanticOpsView";
+import { Database, BookOpen, Network, GitBranch, Share2, BrainCircuit, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type TabId = "sources" | "semantic" | "knowledge" | "mapping" | "graph" | "reasoning";
+type TabId =
+  | "sources"
+  | "semantic"
+  | "knowledge"
+  | "mapping"
+  | "graph"
+  | "reasoning"
+  | "ops";
 
 const tabs: { id: TabId; label: string; icon: typeof Database }[] = [
   { id: "sources", label: "Data Sources", icon: Database },
@@ -16,6 +24,7 @@ const tabs: { id: TabId; label: string; icon: typeof Database }[] = [
   { id: "mapping", label: "Mapping", icon: GitBranch },
   { id: "graph", label: "Knowledge Graph", icon: Share2 },
   { id: "reasoning", label: "Agent Workspace", icon: BrainCircuit },
+  { id: "ops", label: "Semantic Ops", icon: FlaskConical },
 ];
 
 export default function App() {
@@ -104,6 +113,7 @@ export default function App() {
         {activeTab === "mapping" && <AlignmentWorkbench />}
         {activeTab === "graph" && <KnowledgeGraphView />}
         {activeTab === "reasoning" && <ReasoningTraceView />}
+        {activeTab === "ops" && <SemanticOpsView />}
       </main>
     </div>
   );

@@ -104,6 +104,65 @@ export const getSources = () => getJson<ApiSource[]>("/api/sources");
 export const getSchema = () => getJson<ApiSchema>("/api/schema");
 export const getContext = () => getJson<ApiContext>("/api/context");
 
+export type ApiCapability = {
+  capability: string;
+  name: string;
+  kind: string;
+  description: string;
+  metadata: Record<string, unknown>;
+};
+
+export type ApiOntologyCandidate = {
+  uri: string;
+  label: string;
+  definition: string;
+  score: number;
+};
+
+export type ApiReasoning = {
+  class: string;
+  ancestors: { iri: string; label: string }[];
+  descendants: { iri: string; label: string }[];
+  reasoner: { ran: boolean; consistent: boolean | null; detail: string };
+};
+
+export type ApiMention = {
+  text: string;
+  entity_type: string;
+  context: string;
+  resolved_term: string | null;
+};
+
+export type ApiIngestResult = {
+  mentions: ApiMention[];
+  triples: number;
+};
+
+export const getCapabilities = () => getJson<ApiCapability[]>("/api/capabilities");
+
+export const searchOntology = (q: string) =>
+  getJson<ApiOntologyCandidate[]>(`/api/ontology/search?q=${encodeURIComponent(q)}`);
+
+export const reasonOntology = (uri: string) =>
+  getJson<ApiReasoning>(`/api/ontology/reason?uri=${encodeURIComponent(uri)}`);
+
+export async function ingestDocumentText(
+  text: string,
+  title: string
+): Promise<ApiIngestResult | null> {
+  try {
+    const res = await fetch("/api/documents/ingest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, title }),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as ApiIngestResult;
+  } catch {
+    return null;
+  }
+}
+
 export class AskError extends Error {}
 
 export async function ask(question: string, sessionId?: string): Promise<ApiAskResult> {

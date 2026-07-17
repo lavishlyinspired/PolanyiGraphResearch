@@ -203,6 +203,38 @@ class Neo4jGraphStore:
             ).single()
         return {"mentions": counts["mentions"], "linked_terms": counts["terms"]}
 
+    def import_rdf(self, turtle: str) -> dict[str, Any]:
+        """Import RDF into Neo4j via the neosemantics (n10s) plugin.
+
+        Gives the property graph an RDF view of the same semantic context —
+        (:Resource {uri}) nodes with ontology URIs, connected by the original
+        predicates. Requires n10s installed in the Neo4j instance.
+        """
+        with self._driver.session() as session:
+            has_n10s = session.run(
+                "SHOW PROCEDURES YIELD name WHERE name = 'n10s.rdf.import.inline' "
+                "RETURN count(*) AS n"
+            ).single()["n"]
+            if not has_n10s:
+                raise RuntimeError(
+                    "neosemantics (n10s) is not installed in this Neo4j instance"
+                )
+            session.run(
+                "CREATE CONSTRAINT n10s_unique_uri IF NOT EXISTS "
+                "FOR (r:Resource) REQUIRE r.uri IS UNIQUE"
+            )
+            config_rows = session.run("CALL n10s.graphconfig.show()").data()
+            if not config_rows:
+                session.run("CALL n10s.graphconfig.init()")
+            record = session.run(
+                "CALL n10s.rdf.import.inline($ttl, 'Turtle')", {"ttl": turtle}
+            ).single()
+        return {
+            "status": record["terminationStatus"],
+            "triples_loaded": record["triplesLoaded"],
+            "detail": record.get("extraInfo", "") if hasattr(record, "get") else "",
+        }
+
     def run_cypher(self, query: str) -> list[dict[str, Any]]:
         """Execute read-only Cypher; raises ValueError for write queries."""
         violation = guard_cypher(query)

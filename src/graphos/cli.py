@@ -111,6 +111,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--context", default=DEFAULT_CONTEXT_PATH)
     p.set_defaults(func=cmd_reason)
 
+    p = sub.add_parser(
+        "sync-rdf", help="Import the context RDF into Neo4j via neosemantics (n10s)"
+    )
+    p.add_argument("--ttl", default="data/semantic_context.ttl")
+    p.set_defaults(func=cmd_sync_rdf)
+
     return parser
 
 
@@ -445,6 +451,26 @@ def cmd_reason(args) -> int:
         print(f"  ancestors:   {chain}")
         print(f"  descendants: {len(descendants)}"
               + (f" (e.g. {', '.join(d.label for d in descendants[:4])})" if descendants else ""))
+    return 0
+
+
+def cmd_sync_rdf(args) -> int:
+    from graphos.knowledge_graph import Neo4jGraphStore
+
+    ttl_path = Path(args.ttl)
+    if not ttl_path.exists():
+        print(f"No RDF at {ttl_path}. Run: graphos rdf")
+        return 1
+    store = Neo4jGraphStore()
+    if not store.is_available():
+        print("Neo4j not reachable — check NEO4J_URI / NEO4J_PASSWORD")
+        return 1
+    try:
+        stats = store.import_rdf(ttl_path.read_text(encoding="utf-8"))
+    finally:
+        store.close()
+    print(f"n10s import: {stats['status']} — {stats['triples_loaded']} triples loaded")
+    print("RDF view in Neo4j: MATCH (r:Resource) RETURN r.uri LIMIT 25")
     return 0
 
 
