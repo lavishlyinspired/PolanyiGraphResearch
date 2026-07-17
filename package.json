@@ -1,0 +1,12 @@
+{
+  "name": "graphos",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/studio"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace apps/studio",
+    "dev": "npm run dev --workspace apps/studio"
+  }
+}

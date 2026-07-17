@@ -4,7 +4,7 @@
       "type": "stdio",
       "command": "node",
       "args": [
-        "/Users/akash/KG_Projects/PolanyiGraphResearch/tools/mcp-server-graphdb/dist/index.js"
+        "/Users/akash/KG_Projects/PolanyiGraphResearch/mcp/servers/graphdb/dist/index.js"
       ],
       "env": {
         "GRAPHDB_ENDPOINT": "http://localhost:7200/",

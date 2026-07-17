@@ -39,6 +39,24 @@ structure is a `git mv` from here:
 Still intentionally one installable distribution (`pip install graphos`) —
 the split into separately versioned packages waits for a real second consumer.
 
+## Full target skeleton materialized (2026-07-17, on request)
+
+The complete target layout now exists on disk: `apps/{studio,server,cli,
+gateway,worker,scheduler}`, `packages/*` (21), `skills/*` (10), `agents/*`
+(10), `workflows/*` (7), `ontologies/*` (9), `knowledge/*` (9), `prompts/`,
+`policies/`, `connectors/*` (15), `plugins/*` (7), `mcp/{servers,clients,
+registry,transports}`, `infrastructure/{docker,kubernetes,terraform,
+monitoring,deployment}`, `config/`, `scripts/`, `tests/{unit,integration,
+e2e,benchmark,performance}`, plus root `package.json` (npm workspaces),
+`pnpm-workspace.yaml`, and `turbo.json`.
+
+Every directory carries a README stating its purpose, status, and — where
+the functionality already exists — the module that currently provides it,
+so the scaffold documents intent rather than implying unbuilt capability.
+Real content moved to its target home: tests → `tests/unit/`, the vendored
+GraphDB MCP server → `mcp/servers/graphdb`, thin app entry points in
+`apps/server` and `apps/cli`.
+
 ## Evolution triggers — split when it hurts, not before
 
 1. **`src/graphos/semantic/` subpackage** — when the semantic modules pass

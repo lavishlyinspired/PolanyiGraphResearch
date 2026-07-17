@@ -1,0 +1,4 @@
+# pnpm workspace definition (npm workspaces in package.json work too).
+packages:
+  - "apps/*"
+  - "packages/*"
