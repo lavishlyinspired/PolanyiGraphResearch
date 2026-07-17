@@ -148,6 +148,19 @@ def _register_optional_backends(registry: CapabilityRegistry) -> None:
                 metadata={"repository": store.repository},
             )
         )
+        registry.register(
+            CapabilityProvider(
+                name="graphdb-hierarchy-expansion",
+                capability="ExpandOntology",
+                kind="function",
+                description=(
+                    "Expand an ontology class to all transitive subclasses "
+                    "(deterministic rdfs:subClassOf* traversal)"
+                ),
+                handler=store.expand_subclasses,
+                metadata={"repository": store.repository},
+            )
+        )
 
     if neo4j_configured():
         from langchain.tools import tool

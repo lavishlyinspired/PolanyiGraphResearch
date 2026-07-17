@@ -82,6 +82,33 @@ class GraphDBOntologyStore:
         except httpx.HTTPError:
             return False
 
+    def expand_subclasses(self, class_uri: str, limit: int = 100) -> list[OntologyCandidate]:
+        """All transitive subclasses of a class — deterministic hierarchy
+        expansion ("all financial instruments" → every subclass), no reasoner
+        or LLM required."""
+        query = f"""
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        SELECT DISTINCT ?class ?label WHERE {{
+            ?class rdfs:subClassOf* <{class_uri}> .
+            OPTIONAL {{ ?class rdfs:label ?label }}
+        }} LIMIT {int(limit)}
+        """
+        response = httpx.post(
+            self._query_url,
+            data={"query": query},
+            headers={"Accept": "application/sparql-results+json"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        return [
+            OntologyCandidate(
+                uri=binding["class"]["value"],
+                label=binding.get("label", {}).get("value", ""),
+                score=1.0,
+            )
+            for binding in response.json()["results"]["bindings"]
+        ]
+
     def search_classes(self, term: str, limit: int = 5) -> list[OntologyCandidate]:
         token = _normalize(term).split(" ")[0] if term else ""
         if not token:

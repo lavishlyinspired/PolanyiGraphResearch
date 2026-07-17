@@ -96,10 +96,12 @@ def context_to_rdf(context: SemanticContext) -> Graph:
 
 
 def _shapes_graph() -> Graph:
-    shapes_text = (
-        resources.files("graphos") / "shapes" / "context-shapes.ttl"
-    ).read_text(encoding="utf-8")
-    return Graph().parse(data=shapes_text, format="turtle")
+    graph = Graph()
+    shapes_dir = resources.files("graphos") / "shapes"
+    for entry in shapes_dir.iterdir():
+        if entry.name.endswith(".ttl"):
+            graph.parse(data=entry.read_text(encoding="utf-8"), format="turtle")
+    return graph
 
 
 def validate_rdf(graph: Graph) -> tuple[bool, str]:
@@ -141,8 +143,13 @@ def publish_to_graphdb(
     endpoint: Optional[str] = None,
     repository: Optional[str] = None,
     named_graph: str = CONTEXT_GRAPH_IRI,
+    replace: bool = True,
 ) -> str:
-    """Replace the GraphOS named graph in GraphDB with this context. Idempotent."""
+    """Publish to a GraphDB named graph.
+
+    replace=True swaps the whole named graph (idempotent — right for the
+    context); replace=False appends (right for accumulating documents).
+    """
     import os
 
     ep = (endpoint or os.environ.get("GRAPHDB_ENDPOINT", "")).rstrip("/")
@@ -150,7 +157,8 @@ def publish_to_graphdb(
     if not ep:
         raise ValueError("GRAPHDB_ENDPOINT is required to publish")
 
-    response = httpx.put(
+    method = httpx.put if replace else httpx.post
+    response = method(
         f"{ep}/repositories/{repo}/statements",
         params={"context": f"<{named_graph}>"},
         content=graph.serialize(format="turtle"),

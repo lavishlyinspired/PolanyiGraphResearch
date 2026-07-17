@@ -93,6 +93,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ttl", default="data/semantic_context.ttl")
     p.set_defaults(func=cmd_sparql)
 
+    p = sub.add_parser(
+        "ingest-document",
+        help="Parse a document, extract mentions, resolve to glossary, publish RDF",
+    )
+    p.add_argument("path")
+    p.add_argument("--context", default=DEFAULT_CONTEXT_PATH)
+    p.add_argument("--no-publish", action="store_true", help="Skip GraphDB publishing")
+    p.add_argument("--no-llm", action="store_true", help="Heuristic extraction only")
+    p.set_defaults(func=cmd_ingest_document)
+
     return parser
 
 
@@ -337,6 +347,51 @@ def cmd_sparql(args) -> int:
         rows = local_sparql(ttl_path.read_text(encoding="utf-8"), args.query)
 
     print(json_module.dumps(rows, indent=2))
+    return 0
+
+
+def cmd_ingest_document(args) -> int:
+    from collections import Counter
+
+    from graphos.documents import DOCUMENTS_GRAPH_IRI, ingest_document
+    from graphos.llm import resolve_llm
+    from graphos.rdf import publish_to_graphdb, validate_rdf
+
+    if not Path(args.path).exists():
+        print(f"Document not found: {args.path}")
+        return 1
+    ctx = _load_context_file(args.context)
+    llm = None if args.no_llm else resolve_llm("pipeline")
+    print(f"Ingesting {args.path} (extractor: {'llm' if llm else 'heuristic'}) ...")
+    doc, graph = ingest_document(args.path, ctx, llm=llm)
+
+    by_type = Counter(m.entity_type for m in doc.extraction.mentions)
+    print(f"Extracted {len(doc.extraction.mentions)} mentions: "
+          + ", ".join(f"{t}×{n}" for t, n in by_type.most_common()))
+    for mention in doc.extraction.mentions:
+        if mention.resolved_term:
+            print(f"  ✓ '{mention.text}' → glossary term '{mention.resolved_term}'")
+
+    conforms, report = validate_rdf(graph)
+    if not conforms:
+        print("✗ SHACL validation failed:")
+        print(report)
+        return 2
+    print(f"✓ SHACL-valid document RDF ({len(graph)} triples)")
+
+    out = Path("data/documents") / (Path(args.path).stem + ".ttl")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(graph.serialize(format="turtle"), encoding="utf-8")
+    print(f"Written to {out}")
+
+    if not args.no_publish:
+        from graphos.ontology import GraphDBOntologyStore, graphdb_configured
+
+        if graphdb_configured() and GraphDBOntologyStore().is_available():
+            publish_to_graphdb(graph, named_graph=DOCUMENTS_GRAPH_IRI, replace=False)
+            print(f"✓ Published to GraphDB named graph <{DOCUMENTS_GRAPH_IRI}>")
+        else:
+            print("GraphDB not available — skipped publishing")
     return 0
 
 

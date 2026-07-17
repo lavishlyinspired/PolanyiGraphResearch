@@ -36,6 +36,11 @@ class GenerateRequest(BaseModel):
     use_llm: bool = True
 
 
+class IngestDocumentRequest(BaseModel):
+    text: str
+    title: Optional[str] = None
+
+
 def create_app(
     db_uri: Optional[str] = None,
     rules: Optional[list[BusinessRule]] = None,
@@ -171,6 +176,46 @@ def create_app(
             return [c.model_dump() for c in GraphDBOntologyStore().search_classes(q)]
         except Exception as exc:  # noqa: BLE001 — GraphDB failures become 502s
             raise HTTPException(status_code=502, detail=f"Ontology search failed: {exc}") from exc
+
+    @app.get("/api/ontology/expand")
+    def ontology_expand(uri: str):
+        from graphos.ontology import GraphDBOntologyStore, graphdb_configured
+
+        if not graphdb_configured():
+            raise HTTPException(status_code=503, detail="GRAPHDB_ENDPOINT not configured")
+        try:
+            return [c.model_dump() for c in GraphDBOntologyStore().expand_subclasses(uri)]
+        except Exception as exc:  # noqa: BLE001 — GraphDB failures become 502s
+            raise HTTPException(status_code=502, detail=f"Expansion failed: {exc}") from exc
+
+    @app.post("/api/documents/ingest")
+    def ingest_doc(req: "IngestDocumentRequest"):
+        from graphos.documents import (
+            DocumentExtraction,
+            IngestedDocument,
+            document_to_rdf,
+            make_extractor,
+            resolve_mentions,
+        )
+        from graphos.rdf import validate_rdf
+
+        extractor = make_extractor(resolve_llm("pipeline"))
+        doc = IngestedDocument(
+            source=req.title or "api-upload",
+            title=req.title or "Untitled document",
+            text=req.text,
+            extraction=DocumentExtraction(),
+        )
+        doc.extraction = extractor.extract(req.text)
+        doc = resolve_mentions(doc, context())
+        graph = document_to_rdf(doc)
+        conforms, report = validate_rdf(graph)
+        if not conforms:
+            raise HTTPException(status_code=422, detail=f"SHACL validation failed: {report}")
+        return {
+            "mentions": [m.model_dump() for m in doc.extraction.mentions],
+            "triples": len(graph),
+        }
 
     @app.post("/api/context/align")
     def align_context():

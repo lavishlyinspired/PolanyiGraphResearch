@@ -114,20 +114,27 @@ How the ontology-driven ingestion/reasoning stack maps into GraphOS
 | **GraphDB** | Persistent semantic layer. Context published to the `<urn:graphos:context>` named graph next to FIBO — one SPARQL query joins the enterprise glossary to FIBO definitions. Also the retrieval source for alignment | ✅ `graphos publish`, `graphos sparql`, `POST /api/rdf/publish` |
 | **pyoxigraph** | Embedded local SPARQL when GraphDB is absent — same query surface, zero infrastructure (mirrors the LLM-optional principle) | ✅ `local_sparql`, `graphos sparql` fallback |
 | **Neo4j (+ n10s later)** | Property-graph projection for analytics/Graph RAG (`graphos materialize`); n10s RDF import/export would sync the two stores | ✅ direct projection; 🔜 n10s |
-| **Owlready2** | Local OWL reasoning (HermiT/Pellet): hierarchy expansion for query rewriting ("all financial instruments" → subclasses) | 🔜 roadmap |
+| **Owlready2** | Local OWL reasoning (HermiT/Pellet). Hierarchy expansion is already covered deterministically: `expand_subclasses` walks `rdfs:subClassOf*` in GraphDB (`ExpandOntology` capability, `GET /api/ontology/expand`) — Owlready2 only becomes necessary for full OWL inference (equivalence, property chains) | 🧩 expansion done via SPARQL; full reasoning 🔜 |
 | **SPARQLWrapper / Jena** | Not needed: httpx covers the GraphDB REST/SPARQL protocol; Jena only if Java tooling appears | — |
 
-### Document extraction layer (roadmap)
+### Document extraction layer (first slice shipped)
 
 The ingestion pipeline for unstructured sources feeds the same semantic layer:
 
 ```
-Documents → Docling (parse) → spaCy / GLiNER / OntoGPT (extract, ontology-aware)
-          → RDFLib (triples) → pySHACL (validate) → GraphDB (persist)
-          → Neo4j (Graph RAG & analytics)
+Documents → parse (txt/md/html native; PDF via optional Docling)
+          → extract mentions (LLM structured output, heuristic fallback;
+            GLiNER/OntoGPT as future optional extractors)
+          → resolve to glossary terms (deterministic, same scorer as alignment)
+          → RDFLib (gos:Document / gos:Mention with provenance)
+          → pySHACL gate → GraphDB <urn:graphos:documents> (append mode)
 ```
 
-Design constraints carried over from the structured pipeline: extraction output
-becomes **Semantic Concepts first** (not storage rows), SHACL gates persistence
-the same way `validate_sql` gates execution, and every extracted assertion
-keeps provenance back to its source document.
+Shipped in `graphos/documents.py` (`graphos ingest-document <path>`,
+`POST /api/documents/ingest`). Design constraints carried over from the
+structured pipeline: extraction output is **Semantic Concepts first** (not
+storage rows), the extractor is **LLM-optional** (heuristic dates/amounts/org
+patterns always work), SHACL gates persistence the same way `validate_sql`
+gates execution, and every mention keeps `gos:inDocument` provenance.
+Next: entity resolution of document mentions against the Neo4j knowledge
+graph (Graph RAG), Docling/GLiNER as installed extractor plugins.

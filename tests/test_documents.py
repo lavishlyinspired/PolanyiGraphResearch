@@ -1,0 +1,128 @@
+from rdflib import RDF
+
+from graphos.documents import (
+    DocumentExtraction,
+    ExtractedMention,
+    HeuristicExtractor,
+    IngestedDocument,
+    document_to_rdf,
+    parse_file,
+    resolve_mentions,
+)
+from graphos.models import GlossaryEntry, SemanticContext
+from graphos.rdf import GOS, validate_rdf
+
+SAMPLE = """Goldman Sachs Group Inc executed trades worth $98,500,000 on 2026-01-17.
+The desk's VaR remained within the notional amount limits set for US Treasury 10Y."""
+
+
+def test_parse_file_reads_text_and_markdown(tmp_path):
+    md = tmp_path / "report.md"
+    md.write_text("# Q1 Report\n\nGoldman Sachs traded **AAPL**.", encoding="utf-8")
+    text = parse_file(str(md))
+    assert "Goldman Sachs" in text
+    assert "#" not in text.splitlines()[0]
+
+
+def test_parse_file_strips_html_tags(tmp_path):
+    html = tmp_path / "filing.html"
+    html.write_text(
+        "<html><body><h1>Filing</h1><p>Morgan Stanley bought bonds.</p></body></html>",
+        encoding="utf-8",
+    )
+    text = parse_file(str(html))
+    assert "Morgan Stanley bought bonds." in text
+    assert "<p>" not in text
+
+
+def test_heuristic_extractor_finds_organizations_dates_and_amounts():
+    extraction = HeuristicExtractor().extract(SAMPLE)
+    types = {m.entity_type for m in extraction.mentions}
+    assert "Date" in types
+    assert "MonetaryAmount" in types
+    org_texts = {m.text for m in extraction.mentions if m.entity_type == "Organization"}
+    assert any("Goldman Sachs" in t for t in org_texts)
+
+
+def make_document() -> IngestedDocument:
+    return IngestedDocument(
+        source="sample-report.md",
+        title="Sample Report",
+        text=SAMPLE,
+        extraction=DocumentExtraction(
+            mentions=[
+                ExtractedMention(
+                    text="Goldman Sachs Group Inc",
+                    entity_type="Organization",
+                    context="Goldman Sachs Group Inc executed trades",
+                ),
+                ExtractedMention(
+                    text="notional amount",
+                    entity_type="Metric",
+                    context="within the notional amount limits",
+                ),
+            ]
+        ),
+    )
+
+
+def make_context() -> SemanticContext:
+    return SemanticContext(
+        domain="Financial Services",
+        glossary=[
+            GlossaryEntry(
+                term="Notional Amount",
+                definition="Total value of a trade",
+                source_tables=["trades"],
+                source_columns=["notional_amount"],
+            )
+        ],
+    )
+
+
+def test_resolve_mentions_links_to_glossary_terms_deterministically():
+    doc = resolve_mentions(make_document(), make_context())
+    metric = next(m for m in doc.extraction.mentions if m.entity_type == "Metric")
+    assert metric.resolved_term == "Notional Amount"
+    org = next(m for m in doc.extraction.mentions if m.entity_type == "Organization")
+    assert org.resolved_term is None
+
+
+def test_resolution_overrides_llm_prefilled_terms():
+    """The LLM may populate resolved_term during extraction — resolution is
+    the deterministic layer's decision, so prefilled values must be replaced."""
+    doc = make_document()
+    for mention in doc.extraction.mentions:
+        mention.resolved_term = mention.text
+    resolved = resolve_mentions(doc, make_context())
+    org = next(m for m in resolved.extraction.mentions if m.entity_type == "Organization")
+    assert org.resolved_term is None
+    metric = next(m for m in resolved.extraction.mentions if m.entity_type == "Metric")
+    assert metric.resolved_term == "Notional Amount"
+
+
+def test_document_rdf_carries_provenance_and_mentions():
+    doc = resolve_mentions(make_document(), make_context())
+    graph = document_to_rdf(doc)
+    docs = list(graph.subjects(RDF.type, GOS.Document))
+    assert len(docs) == 1
+    mentions = list(graph.subjects(RDF.type, GOS.Mention))
+    assert len(mentions) == 2
+    for mention in mentions:
+        assert next(graph.objects(mention, GOS.inDocument)) == docs[0]
+    refers = list(graph.objects(None, GOS.refersTo))
+    assert len(refers) == 1, "resolved mention must link to the glossary term URI"
+
+
+def test_document_rdf_conforms_to_shacl_shapes():
+    graph = document_to_rdf(resolve_mentions(make_document(), make_context()))
+    conforms, report = validate_rdf(graph)
+    assert conforms, report
+
+
+def test_document_rdf_without_text_fails_shacl():
+    graph = document_to_rdf(make_document())
+    mention = next(graph.subjects(RDF.type, GOS.Mention))
+    graph.remove((mention, GOS.mentionText, None))
+    conforms, _ = validate_rdf(graph)
+    assert not conforms
