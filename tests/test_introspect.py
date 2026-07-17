@@ -38,3 +38,23 @@ def test_introspect_produces_table_info_text_for_llm(demo_uri):
     snapshot = introspect(demo_uri)
     assert "CREATE TABLE" in snapshot.table_info_text
     assert "trades" in snapshot.table_info_text
+
+
+def test_databricks_uris_are_normalized_for_sqlalchemy():
+    from graphos.introspect import _normalize_databricks_uri
+
+    friendly = (
+        "databricks://token:PASS@host.cloud.databricks.com"
+        "/sql/1.0/warehouses/abc123?catalog=workspace&schema=graphos_demo"
+    )
+    normalized = _normalize_databricks_uri(friendly)
+    assert normalized.startswith("databricks://token:PASS@host.cloud.databricks.com?")
+    assert "http_path=%2Fsql%2F1.0%2Fwarehouses%2Fabc123" in normalized
+    assert "catalog=workspace" in normalized
+    assert "schema=graphos_demo" in normalized
+
+
+def test_non_databricks_uris_pass_through_unchanged():
+    from graphos.introspect import _normalize_databricks_uri
+
+    assert _normalize_databricks_uri("sqlite:///x.db") == "sqlite:///x.db"

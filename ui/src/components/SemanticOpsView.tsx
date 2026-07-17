@@ -186,12 +186,20 @@ function OntologyExplorerPanel() {
                 : "(top-level class)"}
             </p>
             <p className="text-xs text-slate-500">
-              {reasoning.descendants.length} subclasses
-              {reasoning.descendants.length > 0 &&
-                ` — e.g. ${reasoning.descendants
-                  .slice(0, 4)
-                  .map((d) => d.label)
-                  .join(", ")}`}
+              {reasoning.descendants.length > 0 ? (
+                <>
+                  {reasoning.descendants.length} subclasses
+                  {" — e.g. "}
+                  {reasoning.descendants
+                    .slice(0, 4)
+                    .map((d) => d.label)
+                    .join(", ")}
+                </>
+              ) : (
+                <span className="text-amber-600">
+                  0 subclasses — this is a leaf class. Try a higher-level class from the search results for a richer hierarchy.
+                </span>
+              )}
             </p>
             <p className="text-xs text-slate-400">{reasoning.reasoner.detail}</p>
           </div>

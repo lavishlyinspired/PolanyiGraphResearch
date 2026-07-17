@@ -117,11 +117,23 @@ class GraphDBOntologyStore:
         PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
         PREFIX owl: <http://www.w3.org/2002/07/owl#>
         PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-        SELECT DISTINCT ?class ?label ?definition WHERE {{
+        SELECT DISTINCT ?class ?label ?definition ?subCount WHERE {{
             ?class a owl:Class ; rdfs:label ?label .
             OPTIONAL {{ ?class skos:definition ?skosDef }}
             OPTIONAL {{ ?class rdfs:comment ?comment }}
             BIND(COALESCE(?skosDef, ?comment, "") AS ?definition)
+            {{
+                SELECT ?class (COUNT(DISTINCT ?sub) AS ?subCount) WHERE {{
+                    ?sub rdfs:subClassOf ?class .
+                }} GROUP BY ?class
+            }}
+            UNION
+            {{
+                SELECT ?class (0 AS ?subCount) WHERE {{
+                    ?class a owl:Class .
+                    MINUS {{ ?sub rdfs:subClassOf ?class }}
+                }}
+            }}
             FILTER(CONTAINS(LCASE(STR(?label)), "{token}"))
         }} LIMIT 50
         """
@@ -135,12 +147,19 @@ class GraphDBOntologyStore:
         candidates = []
         for binding in response.json()["results"]["bindings"]:
             label = binding["label"]["value"]
+            base_score = score_label(term, label)
+            sub_count = int(binding.get("subCount", {}).get("value", "0"))
+            # Boost main classes (has subclasses) and penalize leaf nodes
+            if sub_count > 0:
+                boosted = min(base_score + 0.15, 1.0)
+            else:
+                boosted = max(base_score - 0.1, 0.0)
             candidates.append(
                 OntologyCandidate(
                     uri=binding["class"]["value"],
                     label=label,
                     definition=binding.get("definition", {}).get("value", ""),
-                    score=score_label(term, label),
+                    score=round(boosted, 2),
                 )
             )
         candidates.sort(key=lambda c: c.score, reverse=True)

@@ -1,17 +1,19 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  ontologyConcepts,
-  semanticConcepts,
-  graphNodes,
-  graphEdges,
-  type OntologyConcept,
-  type SemanticConcept,
-  type GraphNode,
-  type GraphEdge,
-} from "@/data/mockData";
-import { getContext, type ApiContext } from "@/lib/api";
+  getContext,
+  searchOntology,
+  reasonOntology,
+  type ApiContext,
+  type ApiGlossaryEntry,
+  type ApiRelationship,
+  type ApiBusinessRule,
+  type ApiOntologyCandidate,
+  type ApiReasoning,
+} from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   BookOpen,
@@ -24,832 +26,629 @@ import {
   Layers,
   Move,
   ArrowRight,
-  Building2,
-  Boxes,
   Link2,
   Table2,
   CheckCircle2,
-  XCircle,
   AlertTriangle,
   Sparkles,
-  History,
-  GitBranch,
-  Gauge,
   Search,
   ChevronRight,
-  Clock,
+  Loader2,
+  BookMarked,
+  GitBranch,
+  Scale,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ═══════════════════════════════════════════════════
-// Semantic View — GraphDB Ontology Browser
+// Shared hook: fetch semantic context from API
 // ═══════════════════════════════════════════════════
 
-function OntologyTree({
-  concepts,
-  selectedId,
+function useSemanticContext() {
+  const [ctx, setCtx] = useState<ApiContext | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    void getContext().then((c) => {
+      setCtx(c);
+      setLoading(false);
+    });
+  }, []);
+  return { ctx, loading };
+}
+
+// ═══════════════════════════════════════════════════
+// Semantic View — Glossary & Ontology (real data)
+// ═══════════════════════════════════════════════════
+
+function GlossarySidebar({
+  entries,
+  selectedIdx,
   onSelect,
 }: {
-  concepts: OntologyConcept[];
-  selectedId: string;
-  onSelect: (id: string) => void;
+  entries: ApiGlossaryEntry[];
+  selectedIdx: number;
+  onSelect: (idx: number) => void;
 }) {
+  const [filter, setFilter] = useState("");
+  const filtered = entries.filter(
+    (e) =>
+      !filter ||
+      e.term.toLowerCase().includes(filter.toLowerCase()) ||
+      e.definition.toLowerCase().includes(filter.toLowerCase())
+  );
+
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-2">
       <div className="flex items-center gap-2 px-2 py-1.5 text-sm font-semibold text-teal-700">
-        <BookOpen className="w-4 h-4" />
-        FIBO Ontology
+        <BookMarked className="w-4 h-4" />
+        Enterprise Glossary ({entries.length})
       </div>
-      {concepts.map((concept) => (
-        <button
-          key={concept.id}
-          onClick={() => onSelect(concept.id)}
-          className={cn(
-            "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors text-left ml-2",
-            selectedId === concept.id
-              ? "bg-teal-50 text-teal-800 font-medium ring-1 ring-teal-200"
-              : "hover:bg-slate-50 text-slate-600"
-          )}
-        >
-          <CircleDot className="w-3 h-3 text-slate-400 shrink-0" />
-          {concept.name}
-        </button>
-      ))}
+      <Input
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="Filter terms..."
+        className="h-8 text-xs"
+      />
+      <div className="space-y-0.5 max-h-[60vh] overflow-y-auto">
+        {filtered.map((entry) => {
+          const realIdx = entries.indexOf(entry);
+          return (
+            <button
+              key={entry.term}
+              onClick={() => onSelect(realIdx)}
+              className={cn(
+                "w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors text-left",
+                selectedIdx === realIdx
+                  ? "bg-teal-50 text-teal-800 font-medium ring-1 ring-teal-200"
+                  : "hover:bg-slate-50 text-slate-600"
+              )}
+            >
+              <CircleDot className="w-3 h-3 shrink-0" />
+              <span className="truncate flex-1">{entry.term}</span>
+              {entry.ontology_class && (
+                <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-200 text-[10px] px-1.5 py-0">
+                  FIBO
+                </Badge>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function ConceptDetail({ concept }: { concept: OntologyConcept }) {
+function GlossaryDetail({ entry }: { entry: ApiGlossaryEntry }) {
   return (
     <div className="space-y-5">
       <div>
-        <div className="flex items-center gap-3 mb-2">
+        <div className="flex items-center gap-3 mb-2 flex-wrap">
           <h3 className="font-serif text-2xl font-bold text-slate-900">
-            {concept.name}
+            {entry.term}
           </h3>
-          <code className="text-sm text-teal-600 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100">
-            {concept.fiboClass}
-          </code>
+          {entry.ontology_class && (
+            <code className="text-sm text-teal-600 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100">
+              fibo:{entry.ontology_class}
+            </code>
+          )}
         </div>
-        <p className="text-slate-600 leading-relaxed">{concept.definition}</p>
+        <p className="text-slate-600 leading-relaxed">{entry.definition}</p>
       </div>
 
-      <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border border-slate-100">
-        <span className="text-sm font-medium text-slate-500">Parent class:</span>
-        <code className="text-sm text-teal-700 font-mono">{concept.parentClass}</code>
-      </div>
+      {entry.ontology_uri && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border border-slate-100">
+          <Network className="w-4 h-4 text-teal-600 shrink-0" />
+          <span className="text-sm font-medium text-slate-500">Ontology URI:</span>
+          <code className="text-xs text-teal-700 font-mono truncate">{entry.ontology_uri}</code>
+        </div>
+      )}
 
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
-          <Layers className="w-4 h-4 text-teal-600" />
-          Properties
-        </h4>
-        <div className="space-y-1.5">
-          {concept.properties.map((prop) => (
-            <div
-              key={prop.name}
-              className="flex items-center gap-3 p-2.5 rounded-lg bg-white border border-slate-200"
-            >
-              <code className="text-sm font-mono font-medium text-slate-800 w-44 shrink-0">
-                {prop.name}
-              </code>
-              <Badge variant="outline" className="text-xs text-slate-500 border-slate-200">
-                {prop.type}
-              </Badge>
-              <code className="text-xs text-teal-600 font-mono ml-auto">
-                {prop.fiboProp}
-              </code>
+      {entry.formula && (
+        <div className="p-3 rounded-lg bg-violet-50 border border-violet-100">
+          <span className="text-xs font-semibold text-violet-700 uppercase tracking-wide">Formula</span>
+          <pre className="text-sm font-mono text-violet-800 mt-1 whitespace-pre-wrap">{entry.formula}</pre>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        {entry.source_tables.length > 0 && (
+          <div>
+            <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
+              <Database className="w-4 h-4 text-teal-600" />
+              Source Tables
+            </h4>
+            <div className="space-y-1">
+              {entry.source_tables.map((t) => (
+                <div key={t} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <Table2 className="w-3.5 h-3.5 text-slate-400" />
+                  <code className="text-sm font-mono text-slate-700">{t}</code>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-amber-600" />
-          SHACL Constraints
-        </h4>
-        <div className="space-y-1.5">
-          {concept.shaclConstraints.map((constraint, idx) => (
-            <div
-              key={idx}
-              className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-50/50 border border-amber-100"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-              <code className="text-xs text-amber-900 font-mono">{constraint}</code>
+          </div>
+        )}
+        {entry.source_columns.length > 0 && (
+          <div>
+            <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-teal-600" />
+              Source Columns
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
+              {entry.source_columns.map((c) => (
+                <code key={c} className="text-xs font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  {c}
+                </code>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">
-          Related Concepts
-        </h4>
-        <div className="flex flex-wrap gap-2">
-          {concept.relatedConcepts.map((rel) => (
-            <Badge
-              key={rel}
-              variant="secondary"
-              className="bg-teal-50 text-teal-700 border border-teal-200"
-            >
-              {rel}
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
-          <Database className="w-4 h-4 text-teal-600" />
-          Mapped Enterprise Tables
-        </h4>
-        <div className="space-y-1.5">
-          {concept.mappedTables.map((table) => (
-            <div
-              key={table}
-              className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-100"
-            >
-              <Table2 className="w-3.5 h-3.5 text-slate-400" />
-              <code className="text-sm font-mono text-slate-700">{table}</code>
+      {(entry.unit || entry.synonyms.length > 0) && (
+        <div className="flex flex-wrap gap-3">
+          {entry.unit && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-slate-500">Unit:</span>
+              <Badge variant="outline" className="text-xs">{entry.unit}</Badge>
             </div>
-          ))}
+          )}
+          {entry.synonyms.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-medium text-slate-500">Synonyms:</span>
+              {entry.synonyms.map((s) => (
+                <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
+              ))}
+            </div>
+          )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function RelationshipsList({ relationships }: { relationships: ApiRelationship[] }) {
+  return (
+    <div className="space-y-3">
+      <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+        <Link2 className="w-4 h-4 text-emerald-600" />
+        Entity Relationships ({relationships.length})
+      </h4>
+      {relationships.length === 0 && (
+        <p className="text-sm text-slate-400 italic">No relationships defined in context.</p>
+      )}
+      <div className="space-y-2">
+        {relationships.map((rel, idx) => (
+          <div
+            key={idx}
+            className="flex items-center gap-3 p-3 rounded-lg bg-white border border-slate-200 hover:border-teal-200 transition-colors"
+          >
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
+              <Link2 className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <code className="text-sm font-mono font-semibold text-teal-700">
+                  {rel.from_entity}
+                </code>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
+                <code className="text-sm font-mono font-semibold text-teal-700">
+                  {rel.to_entity}
+                </code>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <Badge variant="outline" className="text-[10px] text-slate-500 border-slate-200">
+                  {rel.relationship_type}
+                </Badge>
+                <code className="text-[10px] text-slate-400 font-mono">
+                  via {rel.foreign_key}
+                </code>
+              </div>
+              {rel.description && (
+                <p className="text-xs text-slate-500 mt-1">{rel.description}</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BusinessRulesList({ rules }: { rules: ApiBusinessRule[] }) {
+  const severityStyle: Record<string, string> = {
+    CRITICAL: "bg-rose-100 text-rose-700 border-rose-200",
+    WARNING: "bg-amber-100 text-amber-700 border-amber-200",
+    INFO: "bg-slate-100 text-slate-600 border-slate-200",
+  };
+  const severityIcon: Record<string, typeof ShieldCheck> = {
+    CRITICAL: AlertTriangle,
+    WARNING: ShieldCheck,
+    INFO: CheckCircle2,
+  };
+
+  return (
+    <div className="space-y-3">
+      <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+        <Scale className="w-4 h-4 text-amber-600" />
+        Business Rules ({rules.length})
+      </h4>
+      {rules.length === 0 && (
+        <p className="text-sm text-slate-400 italic">No business rules defined.</p>
+      )}
+      <div className="space-y-2">
+        {rules.map((rule) => {
+          const Icon = severityIcon[rule.severity] ?? CheckCircle2;
+          return (
+            <div
+              key={rule.rule_id}
+              className="p-3 rounded-lg bg-white border border-slate-200 space-y-2"
+            >
+              <div className="flex items-center gap-2">
+                <Badge className={cn("text-[10px] border", severityStyle[rule.severity] ?? severityStyle.INFO)}>
+                  <Icon className="w-3 h-3 mr-1" />
+                  {rule.severity}
+                </Badge>
+                <span className="text-sm font-semibold text-slate-800">{rule.name}</span>
+                <code className="text-[10px] text-slate-400 font-mono ml-auto">{rule.rule_id}</code>
+              </div>
+              <p className="text-sm text-slate-600">{rule.description}</p>
+              {rule.affected_entities.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {rule.affected_entities.map((e) => (
+                    <Badge key={e} variant="secondary" className="text-[10px]">{e}</Badge>
+                  ))}
+                </div>
+              )}
+              {rule.sql_hints.length > 0 && (
+                <div className="space-y-1">
+                  {rule.sql_hints.map((hint, i) => (
+                    <pre key={i} className="text-xs font-mono text-slate-500 bg-slate-50 p-2 rounded border border-slate-100">
+                      {hint}
+                    </pre>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 export function SemanticView() {
-  const [selectedId, setSelectedId] = useState("trade");
-  const selected = ontologyConcepts.find((c) => c.id === selectedId)!;
+  const { ctx, loading } = useSemanticContext();
+  const [selectedIdx, setSelectedIdx] = useState(0);
+
+  if (loading) {
+    return (
+      <div className="p-8 max-w-7xl mx-auto flex items-center justify-center h-96">
+        <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+        <span className="ml-3 text-slate-500">Loading semantic context...</span>
+      </div>
+    );
+  }
+
+  if (!ctx) {
+    return (
+      <div className="p-8 max-w-7xl mx-auto">
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-12 text-center">
+            <BookOpen className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-slate-700 mb-2">No semantic context found</h3>
+            <p className="text-slate-500 mb-4">
+              Run <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">graphos generate</code> to create
+              a semantic context from your database.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const entry = ctx.glossary[selectedIdx];
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-6">
         <h2 className="font-serif text-3xl font-bold text-slate-900 mb-1">
-          Semantic Layer
+          Glossary &amp; Ontology
         </h2>
         <p className="text-slate-500">
-          Browse the FIBO ontology stored in GraphDB. Explore definitions, properties,
-          SHACL constraints, and related concepts.
+          Enterprise glossary grounded in {ctx.domain} — {ctx.glossary.length} terms, {" "}
+          {ctx.relationships.length} relationships, {ctx.business_rules.length} business rules
+          {ctx.generated_by === "llm" && " (LLM-enhanced)"}.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div>
-          <Card className="border-slate-200 shadow-sm sticky top-0">
-            <CardHeader className="pb-3 border-b border-slate-100">
-              <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
-                Ontology Browser
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-3">
-              <OntologyTree
-                concepts={ontologyConcepts}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-              />
-            </CardContent>
-          </Card>
-        </div>
+      <Tabs defaultValue="glossary">
+        <TabsList className="mb-4">
+          <TabsTrigger value="glossary">Glossary</TabsTrigger>
+          <TabsTrigger value="relationships">Relationships</TabsTrigger>
+          <TabsTrigger value="rules">Business Rules</TabsTrigger>
+        </TabsList>
 
-        <div className="lg:col-span-2">
+        <TabsContent value="glossary">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div>
+              <Card className="border-slate-200 shadow-sm sticky top-0">
+                <CardHeader className="pb-3 border-b border-slate-100">
+                  <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
+                    Glossary Terms
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-3">
+                  <GlossarySidebar
+                    entries={ctx.glossary}
+                    selectedIdx={selectedIdx}
+                    onSelect={setSelectedIdx}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+            <div className="lg:col-span-2">
+              <Card className="border-slate-200 shadow-sm">
+                <CardContent className="p-6">
+                  {entry && <GlossaryDetail entry={entry} />}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="relationships">
           <Card className="border-slate-200 shadow-sm">
             <CardContent className="p-6">
-              <ConceptDetail concept={selected} />
+              <RelationshipsList relationships={ctx.relationships} />
             </CardContent>
           </Card>
-        </div>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="rules">
+          <Card className="border-slate-200 shadow-sm">
+            <CardContent className="p-6">
+              <BusinessRulesList rules={ctx.business_rules} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
 
 // ═══════════════════════════════════════════════════
-// Knowledge View — Neo4j Enterprise Semantic Graph
+// Knowledge View — Entity Relationship Graph (real data)
 // ═══════════════════════════════════════════════════
 
-function SemanticGraphTree({
-  concepts,
-  selectedId,
-  onSelect,
-}: {
-  concepts: SemanticConcept[];
-  selectedId: string;
-  onSelect: (id: string) => void;
-}) {
-  const clusters: { label: string; conceptIds: string[] }[] = [
-    { label: "Trading", conceptIds: ["trade", "instrument", "settlement"] },
-    { label: "Customer", conceptIds: ["customer", "account"] },
-    { label: "Risk", conceptIds: ["position"] },
-    { label: "Reference", conceptIds: ["counterparty", "issuer", "country"] },
-  ];
+function EntityRelationshipGraph({ ctx }: { ctx: ApiContext }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
 
-  const getConcept = (id: string) => concepts.find((c) => c.id === id)!;
+  const entities = ctx.key_entities;
+  const cx = 400;
+  const cy = 260;
+  const radius = Math.min(200, 50 + entities.length * 20);
 
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2 px-2 py-2">
-        <Building2 className="w-4 h-4 text-teal-700" />
-        <span className="font-bold text-slate-800 text-sm">ABC Bank</span>
-      </div>
+  const positions: Record<string, { x: number; y: number }> = {};
+  entities.forEach((name, i) => {
+    const angle = (2 * Math.PI * i) / entities.length - Math.PI / 2;
+    positions[name] = {
+      x: Math.round(cx + radius * Math.cos(angle)),
+      y: Math.round(cy + radius * Math.sin(angle)),
+    };
+  });
 
-      {clusters.map((cluster) => (
-        <div key={cluster.label} className="ml-3 border-l border-slate-200 pl-3 space-y-0.5">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-2 py-1">
-            {cluster.label}
-          </div>
-          {cluster.conceptIds.map((cid) => {
-            const concept = getConcept(cid);
-            const isSelected = selectedId === cid;
-            return (
-              <button
-                key={cid}
-                onClick={() => onSelect(cid)}
-                className={cn(
-                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left",
-                  isSelected
-                    ? "bg-teal-50 text-teal-800 font-medium ring-1 ring-teal-200"
-                    : "hover:bg-slate-50 text-slate-600"
-                )}
-              >
-                <Network className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                <span>{concept.name}</span>
-                <code className="text-xs text-slate-400 ml-auto font-mono">
-                  {concept.instances}
-                </code>
-              </button>
-            );
-          })}
-        </div>
-      ))}
-    </div>
+  const entityGlossary: Record<string, ApiGlossaryEntry[]> = {};
+  ctx.glossary.forEach((g) => {
+    g.source_tables.forEach((t) => {
+      if (!entityGlossary[t]) entityGlossary[t] = [];
+      entityGlossary[t].push(g);
+    });
+  });
+
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent, nodeId: string | null) => {
+      e.stopPropagation();
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      if (nodeId) {
+        setSelectedEntity(nodeId);
+      } else {
+        setIsPanning(true);
+        dragStart.current = { x: e.clientX - rect.left - pan.x, y: e.clientY - rect.top - pan.y };
+      }
+    },
+    [pan]
   );
-}
 
-// ── Tab Panels ──
-
-function OverviewTab({ concept }: { concept: SemanticConcept }) {
-  return (
-    <div className="space-y-5">
-      <div>
-        <div className="flex items-center gap-3 mb-2">
-          <h3 className="font-serif text-2xl font-bold text-slate-900">
-            {concept.name}
-          </h3>
-          <code className="text-sm text-teal-600 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100">
-            {concept.fiboClass}
-          </code>
-        </div>
-        <p className="text-slate-600 leading-relaxed">{concept.description}</p>
-      </div>
-
-      {/* Ontology hierarchy breadcrumbs */}
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">
-          Ontology Hierarchy
-        </h4>
-        <div className="flex items-center gap-1.5 flex-wrap p-3 rounded-lg bg-slate-50 border border-slate-100">
-          {concept.hierarchy.map((cls, idx) => (
-            <div key={idx} className="flex items-center gap-1.5">
-              {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-300" />}
-              <span
-                className={cn(
-                  "text-sm",
-                  idx === concept.hierarchy.length - 1
-                    ? "font-semibold text-teal-700"
-                    : "text-slate-500"
-                )}
-              >
-                {cls}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="p-4 rounded-xl bg-teal-50 border border-teal-100">
-          <div className="flex items-center gap-2 mb-1">
-            <Boxes className="w-4 h-4 text-teal-600" />
-            <span className="text-xs font-medium text-teal-700 uppercase tracking-wide">
-              Instances
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-teal-900">{concept.instances}</p>
-        </div>
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
-          <div className="flex items-center gap-2 mb-1">
-            <Layers className="w-4 h-4 text-emerald-600" />
-            <span className="text-xs font-medium text-emerald-700 uppercase tracking-wide">
-              Properties
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-emerald-900">{concept.properties.length}</p>
-        </div>
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
-          <div className="flex items-center gap-2 mb-1">
-            <Gauge className="w-4 h-4 text-slate-500" />
-            <span className="text-xs font-medium text-slate-600 uppercase tracking-wide">
-              Coverage
-            </span>
-          </div>
-          <p className="text-2xl font-bold text-slate-800">{concept.coverage}%</p>
-        </div>
-      </div>
-
-      {/* Provenance */}
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
-          <History className="w-4 h-4 text-teal-600" />
-          Provenance
-        </h4>
-        <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-500">Origin</span>
-            <span className="text-sm font-medium text-slate-800">{concept.provenance.origin}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-500">Created by</span>
-            <span className="text-sm font-medium text-slate-800">{concept.provenance.createdBy}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-500">Approved by</span>
-            <span className="text-sm font-medium text-slate-800">{concept.provenance.approvedBy}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-500">Confidence</span>
-            <Badge className="bg-teal-100 text-teal-800 border border-teal-200">
-              {concept.provenance.confidence}%
-            </Badge>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-500">Last synced</span>
-            <span className="text-sm font-medium text-slate-800">{concept.provenance.lastSynced}</span>
-          </div>
-        </div>
-      </div>
-    </div>
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!dragStart.current || !isPanning) return;
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      setPan({ x: x - dragStart.current.x, y: y - dragStart.current.y });
+    },
+    [isPanning]
   );
-}
 
-function RelationshipsTab({ concept }: { concept: SemanticConcept }) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-          <Link2 className="w-4 h-4 text-emerald-600" />
-          Semantic Relationships
-        </h4>
-        <div className="space-y-2">
-          {concept.relationships.map((rel, idx) => (
-            <div
-              key={idx}
-              className="flex items-center gap-3 p-3 rounded-lg bg-white border border-slate-200 hover:border-teal-200 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center shrink-0">
-                <Link2 className="w-4 h-4 text-emerald-600" />
-              </div>
-              <div className="flex-1">
-                <code className="text-sm font-mono font-semibold text-teal-700">
-                  {rel.label}
-                </code>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
-                  <span className="text-sm font-medium text-slate-700">{rel.target}</span>
-                </div>
-              </div>
-              <Badge variant="outline" className="text-xs text-slate-500 border-slate-200">
-                {rel.count} edges
-              </Badge>
-            </div>
-          ))}
-        </div>
-      </div>
+  const handleMouseUp = useCallback(() => {
+    setIsPanning(false);
+    dragStart.current = null;
+  }, []);
 
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3">
-          Frequently Connected
-        </h4>
-        <div className="flex flex-wrap gap-2">
-          {concept.relationships.map((rel, idx) => (
-            <button
-              key={idx}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 hover:bg-teal-50 hover:border-teal-200 transition-colors text-sm"
-            >
-              <Network className="w-3.5 h-3.5 text-slate-400" />
-              <span className="font-medium text-slate-700">{rel.target}</span>
-              <span className="text-xs text-slate-400">{rel.count}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PropertiesTab({ concept }: { concept: SemanticConcept }) {
-  return (
-    <div className="space-y-2">
-      <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-        <Layers className="w-4 h-4 text-teal-600" />
-        FIBO Properties ({concept.properties.length})
-      </h4>
-      {concept.properties.map((prop) => (
-        <div
-          key={prop.name}
-          className="flex items-center gap-3 p-3 rounded-lg bg-white border border-slate-200"
-        >
-          <code className="text-sm font-mono font-medium text-slate-800 w-48 shrink-0">
-            {prop.name}
-          </code>
-          <Badge variant="outline" className="text-xs text-slate-500 border-slate-200">
-            {prop.type}
-          </Badge>
-          <code className="text-xs text-teal-600 font-mono ml-auto">
-            {prop.fiboProp}
-          </code>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function MappingsTab({ concept }: { concept: SemanticConcept }) {
-  const statusConfig = {
-    complete: { color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: CheckCircle2, label: "Complete" },
-    partial: { color: "bg-amber-100 text-amber-700 border-amber-200", icon: AlertTriangle, label: "Partial" },
-    candidate: { color: "bg-slate-100 text-slate-600 border-slate-200", icon: Clock, label: "Candidate" },
-  };
+  const selectedGlossary = selectedEntity ? entityGlossary[selectedEntity] ?? [] : [];
+  const selectedRels = selectedEntity
+    ? ctx.relationships.filter(
+        (r) => r.from_entity === selectedEntity || r.to_entity === selectedEntity
+      )
+    : [];
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-          <Database className="w-4 h-4 text-teal-600" />
-          Data Source Mappings
-        </h4>
-        {concept.dataSources.map((source) => (
-          <div key={source.system} className="space-y-2">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 border border-slate-100">
-              <Database className="w-4 h-4 text-teal-600" />
-              <span className="font-semibold text-slate-800 text-sm">{source.system}</span>
-              <Badge variant="outline" className="text-xs text-slate-500 border-slate-200 ml-auto">
-                {source.mappingCount} datasets
-              </Badge>
-            </div>
-            <div className="ml-4 space-y-1.5">
-              {source.mappings.map((mapping) => {
-                const config = statusConfig[mapping.status];
-                const Icon = config.icon;
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:h-[640px]">
+      <div className="lg:col-span-3 h-[420px] lg:h-auto">
+        <div className="relative w-full h-full bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+          <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/90 backdrop-blur shadow-sm border border-slate-200">
+            <Move className="w-3.5 h-3.5 text-slate-400" />
+            <span className="text-xs text-slate-500">Drag background to pan · Click entity</span>
+          </div>
+          <svg
+            ref={svgRef}
+            className="w-full h-full cursor-grab active:cursor-grabbing"
+            onMouseDown={(e) => handleMouseDown(e, null)}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+          >
+            <defs>
+              <pattern id="kg-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <circle cx="10" cy="10" r="1" fill="rgb(203 213 225)" opacity="0.4" />
+              </pattern>
+              <marker id="kg-arrow" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="rgb(148 163 184)" />
+              </marker>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#kg-grid)" />
+            <g transform={`translate(${pan.x}, ${pan.y})`}>
+              {ctx.relationships.map((rel, idx) => {
+                const from = positions[rel.from_entity];
+                const to = positions[rel.to_entity];
+                if (!from || !to) return null;
+                const midX = (from.x + to.x) / 2;
+                const midY = (from.y + to.y) / 2;
+                const lw = rel.relationship_type.length * 6 + 16;
                 return (
-                  <div
-                    key={mapping.table}
-                    className="flex items-center gap-3 p-2.5 rounded-lg bg-white border border-slate-200"
-                  >
-                    <Table2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <code className="text-sm font-mono text-slate-700 flex-1">
-                      {mapping.table}
-                    </code>
-                    <span className="text-xs text-slate-400">{mapping.columns} cols</span>
-                    <Badge className={cn("border", config.color)}>
-                      <Icon className="w-3 h-3 mr-1" />
-                      {config.label}
-                    </Badge>
-                  </div>
+                  <g key={idx}>
+                    <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="rgb(148 163 184)" strokeWidth="1.5" strokeDasharray="4 3" markerEnd="url(#kg-arrow)" />
+                    <rect x={midX - lw / 2} y={midY - 9} width={lw} height="18" rx="9" fill="white" stroke="rgb(226 232 240)" strokeWidth="1" />
+                    <text x={midX} y={midY + 4} textAnchor="middle" className="fill-slate-500 font-mono" style={{ fontSize: "10px" }}>
+                      {rel.relationship_type}
+                    </text>
+                  </g>
                 );
               })}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LineageTab({ concept }: { concept: SemanticConcept }) {
-  return (
-    <div className="space-y-3">
-      <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-        <GitBranch className="w-4 h-4 text-teal-600" />
-        Data Lineage
-      </h4>
-      <div className="space-y-0">
-        {concept.lineage.map((step, idx) => (
-          <div key={idx}>
-            <div className="flex items-start gap-3 p-3 rounded-lg bg-white border border-slate-200">
-              <div className="w-8 h-8 rounded-lg bg-teal-50 flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-teal-700">{idx + 1}</span>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-slate-800">{step.step}</span>
-                  <Badge variant="outline" className="text-xs text-slate-500 border-slate-200">
-                    {step.source}
-                  </Badge>
-                </div>
-                <p className="text-sm text-slate-600 mt-1">{step.detail}</p>
-              </div>
-            </div>
-            {idx < concept.lineage.length - 1 && (
-              <div className="flex justify-center py-1">
-                <ArrowRight className="w-4 h-4 text-slate-300 rotate-90" />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ValidationTab({ concept }: { concept: SemanticConcept }) {
-  return (
-    <div className="space-y-5">
-      {/* SHACL Validation */}
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-amber-600" />
-          SHACL Validation
-        </h4>
-        <div className="space-y-1.5">
-          {concept.validation.passed.map((rule, idx) => (
-            <div key={`p${idx}`} className="flex items-center gap-3 p-2.5 rounded-lg bg-emerald-50/50 border border-emerald-100">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              <code className="text-sm font-mono text-slate-700">{rule.rule}</code>
-              <Badge className="bg-emerald-100 text-emerald-700 border border-emerald-200 ml-auto">Passed</Badge>
-            </div>
-          ))}
-          {concept.validation.failed.map((rule, idx) => (
-            <div key={`f${idx}`} className="flex items-center gap-3 p-2.5 rounded-lg bg-rose-50/50 border border-rose-100">
-              <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <div className="flex-1">
-                <code className="text-sm font-mono text-slate-700">{rule.rule}</code>
-                <p className="text-xs text-rose-600 mt-0.5">{rule.detail}</p>
-              </div>
-              <Badge className="bg-rose-100 text-rose-700 border border-rose-200">Failed</Badge>
-            </div>
-          ))}
-          {concept.validation.warnings.map((rule, idx) => (
-            <div key={`w${idx}`} className="flex items-center gap-3 p-2.5 rounded-lg bg-amber-50/50 border border-amber-100">
-              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <div className="flex-1">
-                <code className="text-sm font-mono text-slate-700">{rule.rule}</code>
-                <p className="text-xs text-amber-700 mt-0.5">{rule.detail}</p>
-              </div>
-              <Badge className="bg-amber-100 text-amber-700 border border-amber-200">Warning</Badge>
-            </div>
-          ))}
+              {entities.map((name) => {
+                const pos = positions[name];
+                if (!pos) return null;
+                const isSelected = selectedEntity === name;
+                const aligned = entityGlossary[name]?.find((g) => g.ontology_class);
+                return (
+                  <g key={name} transform={`translate(${pos.x}, ${pos.y})`} onMouseDown={(e) => handleMouseDown(e, name)} style={{ cursor: "pointer" }}>
+                    {isSelected && <circle r="42" fill="none" stroke="rgb(20 184 166)" strokeWidth="2" strokeDasharray="3 3" opacity="0.5" />}
+                    <circle r="32" fill="white" stroke={isSelected ? "rgb(20 184 166)" : aligned ? "rgb(16 185 129)" : "rgb(148 163 184)"} strokeWidth={isSelected ? "2.5" : "1.5"} />
+                    <text y="-2" textAnchor="middle" className="font-semibold" fill="rgb(15 23 42)" style={{ fontSize: "11px" }}>
+                      {name}
+                    </text>
+                    <text y="10" textAnchor="middle" fill="rgb(100 116 139)" style={{ fontSize: "8px" }}>
+                      {aligned ? `fibo:${aligned.ontology_class}` : "entity"}
+                    </text>
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
         </div>
       </div>
 
-      {/* Data Quality */}
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-          <Gauge className="w-4 h-4 text-teal-600" />
-          Data Quality Score
-        </h4>
-        <div className="grid grid-cols-2 gap-3">
-          {Object.entries(concept.quality).map(([key, value]) => (
-            <div key={key} className="p-3 rounded-lg bg-white border border-slate-200">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm font-medium text-slate-600 capitalize">{key}</span>
-                <span className="text-sm font-bold text-slate-900">{value}%</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all",
-                    value >= 95 ? "bg-emerald-500" : value >= 85 ? "bg-teal-500" : "bg-amber-500"
+      <div className="lg:col-span-2 overflow-y-auto">
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-6 space-y-5">
+            {selectedEntity ? (
+              <>
+                <div>
+                  <h3 className="font-serif text-xl font-bold text-slate-900 mb-1">{selectedEntity}</h3>
+                  {selectedGlossary.length > 0 && (
+                    <p className="text-sm text-slate-600">{selectedGlossary[0].definition}</p>
                   )}
-                  style={{ width: `${value}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+                </div>
 
-function AIInsightsTab({ concept }: { concept: SemanticConcept }) {
-  return (
-    <div className="space-y-4">
-      <div className="p-4 rounded-xl bg-gradient-to-br from-violet-50 to-teal-50 border border-violet-100">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-violet-600" />
-          </div>
-          <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">
-            AI Explanation
-          </h4>
-        </div>
-        <div className="space-y-3">
-          {concept.aiInsights.map((insight, idx) => (
-            <p key={idx} className="text-sm text-slate-700 leading-relaxed">
-              {insight}
-            </p>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-violet-600" />
-          Suggested Queries
-        </h4>
-        <div className="space-y-2">
-          {concept.aiQueries.map((query, idx) => (
-            <button
-              key={idx}
-              className="w-full flex items-center gap-3 p-3 rounded-lg bg-white border border-slate-200 hover:border-violet-200 hover:bg-violet-50/30 transition-colors text-left"
-            >
-              <Search className="w-4 h-4 text-slate-400 shrink-0" />
-              <span className="text-sm text-slate-700 flex-1">{query}</span>
-              <ArrowRight className="w-3.5 h-3.5 text-slate-300" />
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function QueryTab({ concept }: { concept: SemanticConcept }) {
-  const cypherQuery = `MATCH (n:${concept.name})-[r]->(target)
-RETURN type(r) AS relationship,
-       labels(target) AS targetConcept,
-       count(r) AS edgeCount
-ORDER BY edgeCount DESC
-LIMIT 25;`;
-
-  const sparqlQuery = `PREFIX fibo: <https://spec.edmcouncil.org/fibo/>
-PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-
-SELECT ?instance ?property ?value
-WHERE {
-  ?instance a ${concept.fiboClass} .
-  ?instance ?property ?value .
-}
-LIMIT 100`;
-
-  const sqlQuery = `-- Natural language: "Show me all ${concept.name.toLowerCase()}s"
-SELECT *
-FROM ${concept.dataSources[0]?.mappings[0]?.table ?? "unknown_table"}
-LIMIT 100;`;
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
-          <Code2 className="w-4 h-4 text-teal-600" />
-          Cypher (Neo4j)
-        </h4>
-        <pre className="text-xs font-mono text-slate-600 bg-teal-50 p-3 rounded-lg border border-teal-100 overflow-x-auto whitespace-pre-wrap">
-          {cypherQuery}
-        </pre>
-      </div>
-
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
-          <Code2 className="w-4 h-4 text-violet-600" />
-          SPARQL (GraphDB)
-        </h4>
-        <pre className="text-xs font-mono text-slate-600 bg-violet-50 p-3 rounded-lg border border-violet-100 overflow-x-auto whitespace-pre-wrap">
-          {sparqlQuery}
-        </pre>
-      </div>
-
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
-          <Database className="w-4 h-4 text-slate-600" />
-          SQL (Databricks)
-        </h4>
-        <pre className="text-xs font-mono text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200 overflow-x-auto whitespace-pre-wrap">
-          {sqlQuery}
-        </pre>
-      </div>
-    </div>
-  );
-}
-
-function HistoryTab({ concept }: { concept: SemanticConcept }) {
-  return (
-    <div className="space-y-3">
-      <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-3 flex items-center gap-2">
-        <History className="w-4 h-4 text-teal-600" />
-        Change History
-      </h4>
-      <div className="space-y-0">
-        {concept.history.map((entry, idx) => (
-          <div key={idx} className="flex items-start gap-3 pb-4 relative">
-            {idx < concept.history.length - 1 && (
-              <div className="absolute left-[15px] top-8 bottom-0 w-px bg-slate-200" />
-            )}
-            <div className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10",
-              entry.user === "GraphOS Agent" ? "bg-violet-100" : "bg-teal-100"
-            )}>
-              <span className="text-xs font-bold text-slate-700">
-                {entry.user.charAt(0)}
-              </span>
-            </div>
-            <div className="flex-1 pb-1">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-slate-800">{entry.user}</span>
-                {entry.user === "GraphOS Agent" && (
-                  <Badge className="bg-violet-100 text-violet-700 border border-violet-200 text-xs">
-                    <Sparkles className="w-2.5 h-2.5 mr-1" />
-                    AI
-                  </Badge>
+                {selectedRels.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">Relationships</h4>
+                    <div className="space-y-1.5">
+                      {selectedRels.map((r, i) => (
+                        <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-100 text-sm">
+                          <code className="text-teal-700 font-mono font-medium">{r.from_entity}</code>
+                          <ArrowRight className="w-3 h-3 text-slate-300" />
+                          <code className="text-teal-700 font-mono font-medium">{r.to_entity}</code>
+                          <Badge variant="outline" className="text-[10px] ml-auto">{r.relationship_type}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </div>
-              <p className="text-sm text-slate-600 mt-0.5">{entry.action}</p>
-              <div className="flex items-center gap-1.5 mt-1">
-                <Clock className="w-3 h-3 text-slate-400" />
-                <span className="text-xs text-slate-400">{entry.timestamp}</span>
-              </div>
-            </div>
-          </div>
-        ))}
+
+                {selectedGlossary.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2">Mapped Terms</h4>
+                    <div className="space-y-1.5">
+                      {selectedGlossary.map((g) => (
+                        <div key={g.term} className="p-2 rounded-lg bg-white border border-slate-200">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-slate-800">{g.term}</span>
+                            {g.ontology_class && <Badge className="bg-emerald-100 text-emerald-700 text-[10px]">fibo:{g.ontology_class}</Badge>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="text-sm text-slate-400 text-center py-8">Click an entity in the graph</p>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
-  );
-}
-
-function SemanticIntelligencePanel({ concept }: { concept: SemanticConcept }) {
-  return (
-    <Tabs defaultValue="overview" className="w-full">
-      <TabsList className="grid grid-cols-2 sm:grid-cols-4 gap-1 mb-4 h-auto w-full">
-        <TabsTrigger value="overview" className="text-xs">Overview</TabsTrigger>
-        <TabsTrigger value="relationships" className="text-xs">Relationships</TabsTrigger>
-        <TabsTrigger value="properties" className="text-xs">Properties</TabsTrigger>
-        <TabsTrigger value="mappings" className="text-xs">Mappings</TabsTrigger>
-        <TabsTrigger value="lineage" className="text-xs">Lineage</TabsTrigger>
-        <TabsTrigger value="validation" className="text-xs">Validation</TabsTrigger>
-        <TabsTrigger value="ai" className="text-xs">AI Insights</TabsTrigger>
-        <TabsTrigger value="query" className="text-xs">Query</TabsTrigger>
-      </TabsList>
-      <TabsContent value="overview"><OverviewTab concept={concept} /></TabsContent>
-      <TabsContent value="relationships"><RelationshipsTab concept={concept} /></TabsContent>
-      <TabsContent value="properties"><PropertiesTab concept={concept} /></TabsContent>
-      <TabsContent value="mappings"><MappingsTab concept={concept} /></TabsContent>
-      <TabsContent value="lineage"><LineageTab concept={concept} /></TabsContent>
-      <TabsContent value="validation"><ValidationTab concept={concept} /></TabsContent>
-      <TabsContent value="ai"><AIInsightsTab concept={concept} /></TabsContent>
-      <TabsContent value="query"><QueryTab concept={concept} /></TabsContent>
-    </Tabs>
   );
 }
 
 export function KnowledgeView() {
-  const [selectedId, setSelectedId] = useState("trade");
-  const selected = semanticConcepts.find((c) => c.id === selectedId)!;
+  const { ctx, loading } = useSemanticContext();
+
+  if (loading) {
+    return (
+      <div className="p-8 max-w-7xl mx-auto flex items-center justify-center h-96">
+        <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+        <span className="ml-3 text-slate-500">Loading knowledge graph...</span>
+      </div>
+    );
+  }
+
+  if (!ctx || ctx.key_entities.length === 0) {
+    return (
+      <div className="p-8 max-w-7xl mx-auto">
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-12 text-center">
+            <Network className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-slate-700 mb-2">No entities found</h3>
+            <p className="text-slate-500">
+              Run <code className="bg-slate-100 px-1.5 py-0.5 rounded text-sm">graphos generate</code> to create
+              a semantic context with key entities.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-6">
         <h2 className="font-serif text-3xl font-bold text-slate-900 mb-1">
-          Knowledge Layer
+          Knowledge Graph
         </h2>
         <p className="text-slate-500">
-          The enterprise semantic graph in Neo4j. This is your organization's live
-          instantiation of FIBO concepts — purely semantic, with relationship edges
-          between concepts and underlying data mappings.
+          {ctx.key_entities.length} entities from {ctx.domain} — relationships and glossary mappings
+          derived from your semantic context.
         </p>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Left: Semantic graph tree */}
-        <div className="lg:col-span-2">
-          <Card className="border-slate-200 shadow-sm">
-            <CardHeader className="border-b border-slate-100 pb-3">
-              <CardTitle className="font-serif text-lg text-slate-800">
-                ABC Bank · Semantic Graph
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-4">
-              <SemanticGraphTree
-                concepts={semanticConcepts}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right: Semantic Intelligence Panel */}
-        <div className="lg:col-span-3">
-          <Card className="border-slate-200 shadow-sm">
-            <CardContent className="p-6">
-              <SemanticIntelligencePanel concept={selected} />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <EntityRelationshipGraph ctx={ctx} />
     </div>
   );
 }
@@ -858,10 +657,66 @@ export function KnowledgeView() {
 // Knowledge Graph View — Interactive Visual Canvas
 // ═══════════════════════════════════════════════════
 
-const nodeColors: Record<GraphNode["type"], { fill: string; stroke: string; text: string; chip: string }> = {
-  concept: { fill: "bg-teal-50", stroke: "border-teal-400", text: "text-teal-800", chip: "bg-teal-600 text-white" },
-  entity: { fill: "bg-emerald-50", stroke: "border-emerald-400", text: "text-emerald-800", chip: "bg-emerald-600 text-white" },
-  data: { fill: "bg-slate-50", stroke: "border-slate-300", text: "text-slate-700", chip: "bg-slate-500 text-white" },
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function humanize(name: string): string {
+  return name
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+function liveGraphFromContext(ctx: ApiContext) {
+  const entityNames = Array.from(
+    new Set([
+      ...ctx.key_entities,
+      ...ctx.relationships.flatMap((r) => [r.from_entity, r.to_entity]),
+      ...ctx.glossary.flatMap((g) => g.source_tables),
+    ])
+  );
+  const cx = 400;
+  const cy = 280;
+  const radius = Math.min(210, 60 + entityNames.length * 18);
+
+  const nodes = entityNames.map((name, index) => {
+    const angle = (2 * Math.PI * index) / entityNames.length - Math.PI / 2;
+    const terms = ctx.glossary.filter((g) => g.source_tables.includes(name));
+    const aligned = terms.find((g) => g.ontology_class);
+    return {
+      id: name,
+      label: humanize(name),
+      fiboClass: aligned ? `fibo:${aligned.ontology_class}` : "unaligned",
+      x: Math.round(cx + radius * Math.cos(angle)),
+      y: Math.round(cy + radius * Math.sin(angle)),
+      type: "concept" as const,
+      confidence: aligned ? 97 : 85,
+      tables: [name],
+      sampleData: [],
+      sparql:
+        `PREFIX gos: <https://graphos.dev/ontology#>\n` +
+        `SELECT ?p ?o WHERE {\n  <https://graphos.dev/entity/${slugify(name)}> ?p ?o .\n}`,
+      cypher: `MATCH (e:Entity {name: '${name}'})-[r:RELATES_TO]-(other)\nRETURN e, r, other`,
+      definition:
+        terms[0]?.definition ??
+        ctx.relationships.find((r) => r.from_entity === name || r.to_entity === name)?.description ??
+        `Business entity backed by the ${name} table.`,
+    };
+  });
+
+  const edges = ctx.relationships.map((r) => ({
+    from: r.from_entity,
+    to: r.to_entity,
+    label: r.foreign_key,
+  }));
+  return { nodes, edges };
+}
+
+const nodeColors: Record<string, { fill: string; stroke: string; chip: string }> = {
+  concept: { fill: "bg-teal-50", stroke: "border-teal-400", chip: "bg-teal-600 text-white" },
+  entity: { fill: "bg-emerald-50", stroke: "border-emerald-400", chip: "bg-emerald-600 text-white" },
+  data: { fill: "bg-slate-50", stroke: "border-slate-300", chip: "bg-slate-500 text-white" },
 };
 
 function GraphCanvas({
@@ -870,7 +725,7 @@ function GraphCanvas({
   selectedId,
   onSelect,
 }: {
-  nodes: GraphNode[];
+  nodes: { id: string; label: string; x: number; y: number; type: string; confidence: number }[];
   edges: { from: string; to: string; label: string }[];
   selectedId: string;
   onSelect: (id: string) => void;
@@ -882,7 +737,6 @@ function GraphCanvas({
   const nodeKey = nodes.map((n) => n.id).join("|");
   useEffect(() => {
     setPositions(Object.fromEntries(nodes.map((n) => [n.id, { x: n.x, y: n.y }])));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodeKey]);
   const [dragging, setDragging] = useState<string | null>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -897,7 +751,6 @@ function GraphCanvas({
       if (nodeId) {
         setDragging(nodeId);
         onSelect(nodeId);
-        // keep the grab offset so the node doesn't snap its center to the cursor
         const pos = positions[nodeId];
         dragStart.current = {
           x: e.clientX - rect.left - pan.x - (pos?.x ?? 0),
@@ -919,7 +772,6 @@ function GraphCanvas({
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
       const start = dragStart.current;
-
       if (dragging) {
         setPositions((prev) => ({
           ...prev,
@@ -940,11 +792,6 @@ function GraphCanvas({
 
   return (
     <div className="relative w-full h-full bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/90 backdrop-blur shadow-sm border border-slate-200">
-        <Move className="w-3.5 h-3.5 text-slate-400" />
-        <span className="text-xs text-slate-500">Drag nodes · Click to inspect</span>
-      </div>
-
       <svg
         ref={svgRef}
         className="w-full h-full cursor-grab active:cursor-grabbing"
@@ -962,7 +809,6 @@ function GraphCanvas({
           </marker>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
-
         <g transform={`translate(${pan.x}, ${pan.y})`}>
           {edges.map((edge, idx) => {
             const from = positions[edge.from];
@@ -970,86 +816,30 @@ function GraphCanvas({
             if (!from || !to) return null;
             const midX = (from.x + to.x) / 2;
             const midY = (from.y + to.y) / 2;
-            // size the label pill to its text so long labels don't overflow
             const labelWidth = edge.label.length * 6 + 16;
             return (
               <g key={idx}>
-                <line
-                  x1={from.x}
-                  y1={from.y}
-                  x2={to.x}
-                  y2={to.y}
-                  stroke="rgb(148 163 184)"
-                  strokeWidth="1.5"
-                  strokeDasharray="4 3"
-                  markerEnd="url(#arrow)"
-                />
-                <rect
-                  x={midX - labelWidth / 2}
-                  y={midY - 9}
-                  width={labelWidth}
-                  height="18"
-                  rx="9"
-                  fill="white"
-                  stroke="rgb(226 232 240)"
-                  strokeWidth="1"
-                />
-                <text
-                  x={midX}
-                  y={midY + 4}
-                  textAnchor="middle"
-                  className="fill-slate-500 font-mono"
-                  style={{ fontSize: "10px" }}
-                >
+                <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="rgb(148 163 184)" strokeWidth="1.5" strokeDasharray="4 3" markerEnd="url(#arrow)" />
+                <rect x={midX - labelWidth / 2} y={midY - 9} width={labelWidth} height="18" rx="9" fill="white" stroke="rgb(226 232 240)" strokeWidth="1" />
+                <text x={midX} y={midY + 4} textAnchor="middle" className="fill-slate-500 font-mono" style={{ fontSize: "10px" }}>
                   {edge.label}
                 </text>
               </g>
             );
           })}
-
           {nodes.map((node) => {
             const pos = positions[node.id];
             if (!pos) return null;
-            const colors = nodeColors[node.type];
+            const colors = nodeColors[node.type] ?? nodeColors.concept;
             const isSelected = selectedId === node.id;
             return (
-              <g
-                key={node.id}
-                transform={`translate(${pos.x}, ${pos.y})`}
-                onMouseDown={(e) => handleMouseDown(e, node.id)}
-                style={{ cursor: "grab" }}
-                className="active:cursor-grabbing"
-              >
-                {isSelected && (
-                  <circle r="42" fill="none" stroke="rgb(20 184 166)" strokeWidth="2" strokeDasharray="3 3" opacity="0.5" />
-                )}
-                <circle
-                  r="32"
-                  className={cn(colors.fill)}
-                  fill="currentColor"
-                  opacity="0.15"
-                />
-                <circle
-                  r="32"
-                  fill="white"
-                  stroke={isSelected ? "rgb(20 184 166)" : "rgb(148 163 184)"}
-                  strokeWidth={isSelected ? "2.5" : "1.5"}
-                />
-                <text
-                  y="-2"
-                  textAnchor="middle"
-                  className="font-semibold"
-                  fill="rgb(15 23 42)"
-                  style={{ fontSize: "11px" }}
-                >
+              <g key={node.id} transform={`translate(${pos.x}, ${pos.y})`} onMouseDown={(e) => handleMouseDown(e, node.id)} style={{ cursor: "grab" }}>
+                {isSelected && <circle r="42" fill="none" stroke="rgb(20 184 166)" strokeWidth="2" strokeDasharray="3 3" opacity="0.5" />}
+                <circle r="32" fill="white" stroke={isSelected ? "rgb(20 184 166)" : "rgb(148 163 184)"} strokeWidth={isSelected ? "2.5" : "1.5"} />
+                <text y="-2" textAnchor="middle" className="font-semibold" fill="rgb(15 23 42)" style={{ fontSize: "11px" }}>
                   {node.label}
                 </text>
-                <text
-                  y="10"
-                  textAnchor="middle"
-                  fill="rgb(100 116 139)"
-                  style={{ fontSize: "8px" }}
-                >
+                <text y="10" textAnchor="middle" fill="rgb(100 116 139)" style={{ fontSize: "8px" }}>
                   {node.confidence}%
                 </text>
               </g>
@@ -1061,210 +851,103 @@ function GraphCanvas({
   );
 }
 
-function NodeDetailPanel({ node }: { node: GraphNode }) {
-  const colors = nodeColors[node.type];
+function NodeDetailPanel({ node }: { node: { id: string; label: string; fiboClass: string; definition: string; tables: string[]; sparql: string; cypher: string } }) {
   return (
     <div className="space-y-5">
       <div>
         <div className="flex items-center gap-3 mb-2">
-          <span className={cn("px-2 py-0.5 rounded-full text-xs font-semibold", colors.chip)}>
-            {node.type}
-          </span>
-          <h3 className="font-serif text-2xl font-bold text-slate-900">
-            {node.label}
-          </h3>
+          <h3 className="font-serif text-2xl font-bold text-slate-900">{node.label}</h3>
           <code className="text-sm text-teal-600 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100">
             {node.fiboClass}
           </code>
         </div>
         <p className="text-slate-600 leading-relaxed">{node.definition}</p>
       </div>
-
       <div>
         <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
           <Database className="w-4 h-4 text-teal-600" />
-          Databricks Tables
+          Source Tables
         </h4>
         <div className="flex flex-wrap gap-2">
-          {node.tables.map((table) => (
-            <code
-              key={table}
-              className="text-xs font-mono text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200"
-            >
-              {table}
-            </code>
+          {node.tables.map((t) => (
+            <code key={t} className="text-xs font-mono text-slate-700 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">{t}</code>
           ))}
         </div>
       </div>
-
-      {node.sampleData.length > 0 && (
-      <div>
-        <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
-          <FileText className="w-4 h-4 text-teal-600" />
-          Sample Data
-        </h4>
-        <div className="overflow-x-auto rounded-lg border border-slate-200">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                {Object.keys(node.sampleData[0]).map((key) => (
-                  <th
-                    key={key}
-                    className="px-3 py-2 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide"
-                  >
-                    {key}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {node.sampleData.map((row, idx) => (
-                <tr key={idx} className="hover:bg-slate-50">
-                  {Object.values(row).map((val, vidx) => (
-                    <td key={vidx} className="px-3 py-2 font-mono text-xs text-slate-700">
-                      {val}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      )}
-
       <div className="grid grid-cols-2 gap-4">
         <div>
           <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
             <Code2 className="w-4 h-4 text-violet-600" />
             SPARQL
           </h4>
-          <pre className="text-xs font-mono text-slate-600 bg-violet-50 p-3 rounded-lg border border-violet-100 overflow-x-auto whitespace-pre-wrap">
-            {node.sparql}
-          </pre>
+          <pre className="text-xs font-mono text-slate-600 bg-violet-50 p-3 rounded-lg border border-violet-100 overflow-x-auto whitespace-pre-wrap">{node.sparql}</pre>
         </div>
         <div>
           <h4 className="text-sm font-semibold text-slate-700 uppercase tracking-wide mb-2 flex items-center gap-2">
             <Network className="w-4 h-4 text-teal-600" />
             Cypher
           </h4>
-          <pre className="text-xs font-mono text-slate-600 bg-teal-50 p-3 rounded-lg border border-teal-100 overflow-x-auto whitespace-pre-wrap">
-            {node.cypher}
-          </pre>
+          <pre className="text-xs font-mono text-slate-600 bg-teal-50 p-3 rounded-lg border border-teal-100 overflow-x-auto whitespace-pre-wrap">{node.cypher}</pre>
         </div>
       </div>
     </div>
   );
 }
 
-function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
-
-function humanize(name: string): string {
-  return name
-    .split("_")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
-function liveGraphFromContext(ctx: ApiContext): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  const entityNames = Array.from(
-    new Set([
-      ...ctx.key_entities,
-      ...ctx.relationships.flatMap((r) => [r.from_entity, r.to_entity]),
-      ...ctx.glossary.flatMap((g) => g.source_tables),
-    ])
-  );
-  const cx = 400;
-  const cy = 280;
-  const radius = Math.min(210, 60 + entityNames.length * 18);
-
-  const nodes: GraphNode[] = entityNames.map((name, index) => {
-    const angle = (2 * Math.PI * index) / entityNames.length - Math.PI / 2;
-    const terms = ctx.glossary.filter((g) => g.source_tables.includes(name));
-    const aligned = terms.find((g) => g.ontology_class);
-    const relationship = ctx.relationships.find(
-      (r) => r.from_entity === name || r.to_entity === name
-    );
-    return {
-      id: name,
-      label: humanize(name),
-      fiboClass: aligned ? `fibo:${aligned.ontology_class}` : "unaligned",
-      x: Math.round(cx + radius * Math.cos(angle)),
-      y: Math.round(cy + radius * Math.sin(angle)),
-      type: "concept",
-      confidence: aligned ? 97 : 85,
-      tables: [name],
-      sampleData: [],
-      sparql:
-        `PREFIX gos: <https://graphos.dev/ontology#>\n` +
-        `SELECT ?p ?o WHERE {\n  <https://graphos.dev/entity/${slugify(name)}> ?p ?o .\n}`,
-      cypher: `MATCH (e:Entity {name: '${name}'})-[r:RELATES_TO]-(other)\nRETURN e, r, other`,
-      definition:
-        terms[0]?.definition ??
-        relationship?.description ??
-        `Business entity backed by the ${name} table.`,
-    };
-  });
-
-  const edges: GraphEdge[] = ctx.relationships.map((r) => ({
-    from: r.from_entity,
-    to: r.to_entity,
-    label: r.foreign_key,
-  }));
-  return { nodes, edges };
-}
-
 export function KnowledgeGraphView() {
-  const [live, setLive] = useState<{ nodes: GraphNode[]; edges: GraphEdge[] } | null>(null);
-  const [selectedId, setSelectedId] = useState("trade");
+  const { ctx, loading } = useSemanticContext();
+  const [selectedId, setSelectedId] = useState("");
+
+  if (loading) {
+    return (
+      <div className="p-8 max-w-7xl mx-auto flex items-center justify-center h-96">
+        <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+        <span className="ml-3 text-slate-500">Loading graph...</span>
+      </div>
+    );
+  }
+
+  const graph = ctx ? liveGraphFromContext(ctx) : { nodes: [], edges: [] };
+  const nodes = graph.nodes;
+  const edges = graph.edges;
 
   useEffect(() => {
-    void getContext().then((ctx) => {
-      if (ctx && (ctx.relationships.length > 0 || ctx.key_entities.length > 0)) {
-        const graph = liveGraphFromContext(ctx);
-        setLive(graph);
-        if (graph.nodes.length > 0) setSelectedId(graph.nodes[0].id);
-      }
-    });
-  }, []);
+    if (nodes.length > 0 && !selectedId) setSelectedId(nodes[0].id);
+  }, [nodes, selectedId]);
 
-  const nodes = live?.nodes ?? graphNodes;
-  const edges = live?.edges ?? graphEdges;
   const selected = nodes.find((n) => n.id === selectedId) ?? nodes[0];
 
   return (
     <div className="p-8 max-w-7xl mx-auto">
       <div className="mb-6">
-        <h2 className="font-serif text-3xl font-bold text-slate-900 mb-1">
-          Knowledge Graph
-        </h2>
+        <h2 className="font-serif text-3xl font-bold text-slate-900 mb-1">Knowledge Graph</h2>
         <p className="text-slate-500">
-          {live
+          {ctx
             ? "The live enterprise knowledge graph from your semantic context — click any node for its ontology class, source table, and query definitions."
-            : "An interactive semantic map of your enterprise (demo data — start the API for the live graph)."}
+            : "No semantic context available. Run `graphos generate` first."}
         </p>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:h-[640px]">
-        <div className="lg:col-span-3 h-[420px] lg:h-auto">
-          <GraphCanvas
-            nodes={nodes}
-            edges={edges}
-            selectedId={selected.id}
-            onSelect={setSelectedId}
-          />
+      {nodes.length === 0 ? (
+        <Card className="border-slate-200 shadow-sm">
+          <CardContent className="p-12 text-center">
+            <Network className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-slate-700">No entities to visualize</h3>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:h-[640px]">
+          <div className="lg:col-span-3 h-[420px] lg:h-auto">
+            <GraphCanvas nodes={nodes} edges={edges} selectedId={selected.id} onSelect={setSelectedId} />
+          </div>
+          <div className="lg:col-span-2 overflow-y-auto">
+            <Card className="border-slate-200 shadow-sm">
+              <CardContent className="p-6">
+                <NodeDetailPanel node={selected} />
+              </CardContent>
+            </Card>
+          </div>
         </div>
-
-        <div className="lg:col-span-2 overflow-y-auto">
-          <Card className="border-slate-200 shadow-sm">
-            <CardContent className="p-6">
-              <NodeDetailPanel node={selected} />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
