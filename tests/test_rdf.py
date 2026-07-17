@@ -6,7 +6,7 @@ from graphos.models import (
     GlossaryEntry,
     SemanticContext,
 )
-from graphos.rdf import GOS, context_to_rdf, local_sparql, validate_rdf
+from graphos.semantic.rdf import GOS, context_to_rdf, local_sparql, validate_rdf
 
 
 def make_context() -> SemanticContext:

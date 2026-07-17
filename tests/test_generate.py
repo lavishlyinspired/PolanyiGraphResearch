@@ -1,8 +1,8 @@
 import pytest
 
 from graphos.demo import DEMO_BUSINESS_RULES, seed_demo_db
-from graphos.generate import deterministic_context, generate_context
-from graphos.introspect import introspect
+from graphos.semantic.generate import deterministic_context, generate_context
+from graphos.semantic.introspect import introspect
 from graphos.models import SemanticContext
 
 

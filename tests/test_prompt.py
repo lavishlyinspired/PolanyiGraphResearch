@@ -4,7 +4,7 @@ from graphos.models import (
     GlossaryEntry,
     SemanticContext,
 )
-from graphos.prompt import build_agent_prompt
+from graphos.semantic.prompt import build_agent_prompt
 
 
 def make_context() -> SemanticContext:

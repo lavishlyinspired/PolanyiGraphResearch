@@ -33,7 +33,7 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
 2. **Declared rules are authoritative.** Business rules are validated
    symbolically (`validate_sql`) — the LLM cannot weaken enforcement, even when
    it rewrites rule prose during context generation (see
-   `graphos.generate.llm_context`).
+   `graphos.semantic.generate.llm_context`).
 3. **The LLM reasons; the symbolic layer decides.** Agent SQL is checked
    against rules *in code* before execution. Blocked queries return the rule
    text so the agent can self-correct — the neurosymbolic loop.

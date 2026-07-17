@@ -79,9 +79,9 @@ def default_registry(
     on_event: Optional[Callable[[Any], None]] = None,
 ) -> CapabilityRegistry:
     """The built-in providers for a single-database GraphOS deployment."""
-    from graphos.agent import build_sql_tools
-    from graphos.introspect import introspect
-    from graphos.validate import validate_sql
+    from graphos.agents.semantic_agent import build_sql_tools
+    from graphos.semantic.introspect import introspect
+    from graphos.execution.validate import validate_sql
 
     registry = CapabilityRegistry()
     dialect = db_uri.split(":", 1)[0]
@@ -131,11 +131,11 @@ def default_registry(
 
 
 def _register_optional_backends(registry: CapabilityRegistry) -> None:
-    from graphos.knowledge_graph import neo4j_configured
-    from graphos.ontology import graphdb_configured
+    from graphos.execution.knowledge_graph import neo4j_configured
+    from graphos.semantic.ontology import graphdb_configured
 
     if graphdb_configured():
-        from graphos.ontology import GraphDBOntologyStore
+        from graphos.semantic.ontology import GraphDBOntologyStore
 
         store = GraphDBOntologyStore()
         registry.register(
@@ -162,7 +162,7 @@ def _register_optional_backends(registry: CapabilityRegistry) -> None:
             )
         )
 
-        from graphos.owl import java_available, reason_about_class
+        from graphos.semantic.owl import java_available, reason_about_class
 
         registry.register(
             CapabilityProvider(
@@ -182,7 +182,7 @@ def _register_optional_backends(registry: CapabilityRegistry) -> None:
     if neo4j_configured():
         from langchain.tools import tool
 
-        from graphos.knowledge_graph import Neo4jGraphStore, guard_cypher
+        from graphos.execution.knowledge_graph import Neo4jGraphStore, guard_cypher
 
         @tool
         def query_knowledge_graph(cypher: str) -> str:

@@ -1,13 +1,13 @@
 import pytest
 
-from graphos.capabilities import (
+from graphos.kernel.capabilities import (
     CapabilityNotFound,
     CapabilityProvider,
     CapabilityRegistry,
     default_registry,
 )
 from graphos.demo import DEMO_BUSINESS_RULES, seed_demo_db
-from graphos.generate import build_rule_contexts
+from graphos.semantic.generate import build_rule_contexts
 
 
 @pytest.fixture()

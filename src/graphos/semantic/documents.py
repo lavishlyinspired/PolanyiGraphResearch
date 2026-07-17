@@ -24,8 +24,8 @@ from pydantic import BaseModel, Field
 from rdflib import RDF, RDFS, Graph, Literal as RDFLiteral, Namespace
 
 from graphos.models import SemanticContext
-from graphos.ontology import score_label
-from graphos.rdf import GOS, TERM, _slug
+from graphos.semantic.ontology import score_label
+from graphos.semantic.rdf import GOS, TERM, _slug
 
 DOCUMENT = Namespace("https://graphos.dev/document/")
 MENTION = Namespace("https://graphos.dev/mention/")

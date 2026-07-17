@@ -39,7 +39,7 @@ graphos = "graphos.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-graphos = ["shapes/*.ttl"]
+"graphos.semantic" = ["shapes/*.ttl"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

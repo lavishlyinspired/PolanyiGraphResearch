@@ -114,7 +114,7 @@ graphos generate --db "postgresql://user:pass@host/db" --rules my_rules.json
 graphos serve --db "databricks://token:...@host/sql/1.0/warehouses/..."
 ```
 
-Business rules are declared as JSON (`rule_id`, `name`, `description`, `tables`, `severity`); predicates in descriptions (e.g. `is_sanctioned = TRUE`) become both agent guidance and validation checks. Databricks helpers live in `graphos.connectors.databricks`; `graphos ingest-databricks` pushes the demo dataset to a Unity Catalog schema.
+Business rules are declared as JSON (`rule_id`, `name`, `description`, `tables`, `severity`); predicates in descriptions (e.g. `is_sanctioned = TRUE`) become both agent guidance and validation checks. Databricks helpers live in `graphos.execution.connectors.databricks`; `graphos ingest-databricks` pushes the demo dataset to a Unity Catalog schema.
 
 ## Repository layout
 

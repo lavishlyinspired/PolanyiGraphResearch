@@ -1,6 +1,6 @@
 from rdflib import RDF
 
-from graphos.documents import (
+from graphos.semantic.documents import (
     DocumentExtraction,
     ExtractedMention,
     HeuristicExtractor,
@@ -10,7 +10,7 @@ from graphos.documents import (
     resolve_mentions,
 )
 from graphos.models import GlossaryEntry, SemanticContext
-from graphos.rdf import GOS, validate_rdf
+from graphos.semantic.rdf import GOS, validate_rdf
 
 SAMPLE = """Goldman Sachs Group Inc executed trades worth $98,500,000 on 2026-01-17.
 The desk's VaR remained within the notional amount limits set for US Treasury 10Y."""
@@ -54,7 +54,7 @@ def test_heuristic_extractor_normalizes_whitespace_in_mentions():
 def test_glossary_terms_in_text_are_always_captured_even_if_extractor_misses_them():
     """The glossary is known — finding its terms in text is deterministic work,
     not a job for a model. This guarantees document→term links for Graph RAG."""
-    from graphos.documents import scan_glossary_terms
+    from graphos.semantic.documents import scan_glossary_terms
 
     mentions = scan_glossary_terms(SAMPLE, make_context())
     assert any(
@@ -64,7 +64,7 @@ def test_glossary_terms_in_text_are_always_captured_even_if_extractor_misses_the
 
 
 def test_glossary_scan_reports_each_term_once():
-    from graphos.documents import scan_glossary_terms
+    from graphos.semantic.documents import scan_glossary_terms
 
     text = "The notional amount grew; notional amount limits held."
     mentions = scan_glossary_terms(text, make_context())
@@ -81,7 +81,7 @@ class FakeGLiNERModel:
 
 
 def test_gliner_extractor_maps_labels_to_entity_types():
-    from graphos.documents import GLiNERExtractor
+    from graphos.semantic.documents import GLiNERExtractor
 
     extraction = GLiNERExtractor(model=FakeGLiNERModel()).extract(SAMPLE)
     by_text = {m.text: m.entity_type for m in extraction.mentions}
@@ -93,14 +93,14 @@ def test_gliner_extractor_maps_labels_to_entity_types():
 def test_gliner_extractor_without_package_gives_install_hint():
     import pytest as _pytest
 
-    from graphos.documents import GLiNERExtractor
+    from graphos.semantic.documents import GLiNERExtractor
 
     with _pytest.raises(ImportError, match="pip install gliner"):
         GLiNERExtractor().extract(SAMPLE)
 
 
 def test_make_extractor_honors_env_override(monkeypatch):
-    from graphos.documents import HeuristicExtractor, LLMExtractor, make_extractor
+    from graphos.semantic.documents import HeuristicExtractor, LLMExtractor, make_extractor
 
     monkeypatch.setenv("GRAPHOS_EXTRACTOR", "heuristic")
     assert isinstance(make_extractor(llm=object()), HeuristicExtractor)

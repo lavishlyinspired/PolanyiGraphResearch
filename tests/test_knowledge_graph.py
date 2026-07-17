@@ -1,4 +1,4 @@
-from graphos.knowledge_graph import guard_cypher, materialization_statements
+from graphos.execution.knowledge_graph import guard_cypher, materialization_statements
 from graphos.models import (
     EntityRelationship,
     GlossaryEntry,
@@ -81,7 +81,7 @@ def test_materialization_parameters_never_interpolate_values():
 
 
 def make_document():
-    from graphos.documents import DocumentExtraction, ExtractedMention, IngestedDocument
+    from graphos.semantic.documents import DocumentExtraction, ExtractedMention, IngestedDocument
 
     return IngestedDocument(
         source="examples/report.md",
@@ -106,7 +106,7 @@ def make_document():
 
 
 def test_document_projection_creates_document_and_mention_nodes():
-    from graphos.knowledge_graph import document_materialization_statements
+    from graphos.execution.knowledge_graph import document_materialization_statements
 
     statements = document_materialization_statements(make_document())
     text = " ".join(s for s, _ in statements)
@@ -116,7 +116,7 @@ def test_document_projection_creates_document_and_mention_nodes():
 
 
 def test_resolved_mentions_link_to_terms_for_graph_rag():
-    from graphos.knowledge_graph import document_materialization_statements
+    from graphos.execution.knowledge_graph import document_materialization_statements
 
     statements = document_materialization_statements(make_document())
     refers = [(s, p) for s, p in statements if "REFERS_TO" in s]
@@ -125,7 +125,7 @@ def test_resolved_mentions_link_to_terms_for_graph_rag():
 
 
 def test_document_projection_is_parameterized_and_idempotent_by_id():
-    from graphos.knowledge_graph import document_materialization_statements
+    from graphos.execution.knowledge_graph import document_materialization_statements
 
     statements = document_materialization_statements(make_document())
     for statement, _params in statements:

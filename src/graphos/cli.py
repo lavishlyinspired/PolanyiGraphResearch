@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from graphos.env import load_dotenv
+from graphos.kernel.env import load_dotenv
 
 DEFAULT_DB_PATH = "data/financial_demo.db"
 DEFAULT_CONTEXT_PATH = "data/semantic_context.json"
@@ -150,9 +150,9 @@ def cmd_init_demo(args) -> int:
 
 
 def cmd_generate(args) -> int:
-    from graphos.generate import generate_context
-    from graphos.introspect import introspect
-    from graphos.llm import llm_mode, resolve_llm
+    from graphos.semantic.generate import generate_context
+    from graphos.semantic.introspect import introspect
+    from graphos.kernel.llm import llm_mode, resolve_llm
 
     db_uri = _default_db(args.db)
     rules = _load_rules(args.rules)
@@ -196,7 +196,7 @@ def cmd_context(args) -> int:
 
 def cmd_validate(args) -> int:
     from graphos.models import SemanticContext
-    from graphos.validate import validate_sql
+    from graphos.execution.validate import validate_sql
 
     path = Path(args.context)
     if not path.exists():
@@ -213,8 +213,8 @@ def cmd_validate(args) -> int:
 
 
 def cmd_ask(args) -> int:
-    from graphos.agent import SemanticAgent
-    from graphos.llm import resolve_llm
+    from graphos.agents.semantic_agent import SemanticAgent
+    from graphos.kernel.llm import resolve_llm
     from graphos.models import SemanticContext
 
     db_uri = _default_db(args.db)
@@ -256,14 +256,14 @@ def cmd_serve(args) -> int:
 
 
 def cmd_ingest_databricks(args) -> int:
-    from graphos.ingest import ingest_demo_to_databricks
+    from graphos.execution.ingest import ingest_demo_to_databricks
 
     return ingest_demo_to_databricks(catalog=args.catalog, schema=args.schema)
 
 
 def cmd_align(args) -> int:
     from graphos.models import SemanticContext
-    from graphos.ontology import GraphDBOntologyStore, align_glossary
+    from graphos.semantic.ontology import GraphDBOntologyStore, align_glossary
 
     path = Path(args.context)
     if not path.exists():
@@ -273,7 +273,7 @@ def cmd_align(args) -> int:
     if not store.is_available():
         print(f"GraphDB not reachable at {store.endpoint}")
         return 1
-    from graphos.llm import resolve_llm
+    from graphos.kernel.llm import resolve_llm
 
     llm = resolve_llm("pipeline")
     if llm is not None:
@@ -299,7 +299,7 @@ def _load_context_file(path_str: str):
 
 
 def cmd_rdf(args) -> int:
-    from graphos.rdf import context_to_rdf, validate_rdf
+    from graphos.semantic.rdf import context_to_rdf, validate_rdf
 
     ctx = _load_context_file(args.context)
     graph = context_to_rdf(ctx)
@@ -316,7 +316,7 @@ def cmd_rdf(args) -> int:
 
 
 def cmd_publish(args) -> int:
-    from graphos.rdf import context_to_rdf, publish_to_graphdb, validate_rdf
+    from graphos.semantic.rdf import context_to_rdf, publish_to_graphdb, validate_rdf
 
     ctx = _load_context_file(args.context)
     graph = context_to_rdf(ctx)
@@ -335,7 +335,7 @@ def cmd_sparql(args) -> int:
     import json as json_module
     import os
 
-    from graphos.ontology import GraphDBOntologyStore, graphdb_configured
+    from graphos.semantic.ontology import GraphDBOntologyStore, graphdb_configured
 
     if graphdb_configured() and GraphDBOntologyStore().is_available():
         import httpx
@@ -352,7 +352,7 @@ def cmd_sparql(args) -> int:
         bindings = response.json()["results"]["bindings"]
         rows = [{k: v["value"] for k, v in b.items()} for b in bindings]
     else:
-        from graphos.rdf import local_sparql
+        from graphos.semantic.rdf import local_sparql
 
         ttl_path = Path(args.ttl)
         if not ttl_path.exists():
@@ -367,9 +367,9 @@ def cmd_sparql(args) -> int:
 def cmd_ingest_document(args) -> int:
     from collections import Counter
 
-    from graphos.documents import DOCUMENTS_GRAPH_IRI, ingest_document
-    from graphos.llm import resolve_llm
-    from graphos.rdf import publish_to_graphdb, validate_rdf
+    from graphos.semantic.documents import DOCUMENTS_GRAPH_IRI, ingest_document
+    from graphos.kernel.llm import resolve_llm
+    from graphos.semantic.rdf import publish_to_graphdb, validate_rdf
 
     if not Path(args.path).exists():
         print(f"Document not found: {args.path}")
@@ -399,7 +399,7 @@ def cmd_ingest_document(args) -> int:
     print(f"Written to {out}")
 
     if not args.no_publish:
-        from graphos.ontology import GraphDBOntologyStore, graphdb_configured
+        from graphos.semantic.ontology import GraphDBOntologyStore, graphdb_configured
 
         if graphdb_configured() and GraphDBOntologyStore().is_available():
             publish_to_graphdb(graph, named_graph=DOCUMENTS_GRAPH_IRI, replace=False)
@@ -407,7 +407,7 @@ def cmd_ingest_document(args) -> int:
         else:
             print("GraphDB not available — skipped publishing")
 
-        from graphos.knowledge_graph import Neo4jGraphStore, neo4j_configured
+        from graphos.execution.knowledge_graph import Neo4jGraphStore, neo4j_configured
 
         if neo4j_configured():
             store = Neo4jGraphStore()
@@ -424,7 +424,7 @@ def cmd_ingest_document(args) -> int:
 
 
 def cmd_reason(args) -> int:
-    from graphos.owl import OwlReasoner, java_available
+    from graphos.semantic.owl import OwlReasoner, java_available
 
     uris: list[tuple[str, str]] = []
     if args.uri:
@@ -455,7 +455,7 @@ def cmd_reason(args) -> int:
 
 
 def cmd_sync_rdf(args) -> int:
-    from graphos.knowledge_graph import Neo4jGraphStore
+    from graphos.execution.knowledge_graph import Neo4jGraphStore
 
     ttl_path = Path(args.ttl)
     if not ttl_path.exists():
@@ -475,7 +475,7 @@ def cmd_sync_rdf(args) -> int:
 
 
 def cmd_materialize(args) -> int:
-    from graphos.knowledge_graph import Neo4jGraphStore
+    from graphos.execution.knowledge_graph import Neo4jGraphStore
     from graphos.models import SemanticContext
 
     path = Path(args.context)

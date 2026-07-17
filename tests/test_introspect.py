@@ -1,7 +1,7 @@
 import pytest
 
 from graphos.demo import seed_demo_db
-from graphos.introspect import introspect
+from graphos.semantic.introspect import introspect
 
 
 @pytest.fixture()
@@ -41,7 +41,7 @@ def test_introspect_produces_table_info_text_for_llm(demo_uri):
 
 
 def test_databricks_uris_are_normalized_for_sqlalchemy():
-    from graphos.introspect import _normalize_databricks_uri
+    from graphos.semantic.introspect import _normalize_databricks_uri
 
     friendly = (
         "databricks://token:PASS@host.cloud.databricks.com"
@@ -55,6 +55,6 @@ def test_databricks_uris_are_normalized_for_sqlalchemy():
 
 
 def test_non_databricks_uris_pass_through_unchanged():
-    from graphos.introspect import _normalize_databricks_uri
+    from graphos.semantic.introspect import _normalize_databricks_uri
 
     assert _normalize_databricks_uri("sqlite:///x.db") == "sqlite:///x.db"

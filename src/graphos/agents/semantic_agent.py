@@ -17,8 +17,8 @@ from graphos.models import (
     BusinessRuleContext,
     SemanticContext,
 )
-from graphos.prompt import build_agent_prompt
-from graphos.validate import validate_sql
+from graphos.semantic.prompt import build_agent_prompt
+from graphos.execution.validate import validate_sql
 
 _AGENT_PREAMBLE = """You are an agent designed to interact with a SQL database.
 Given an input question, create a syntactically correct {dialect} query to run,
@@ -154,7 +154,7 @@ class SemanticAgent:
             )
         self._steps: list[AgentStep] = []
         if registry is None:
-            from graphos.capabilities import default_registry
+            from graphos.kernel.capabilities import default_registry
 
             registry = default_registry(
                 db_uri, context.business_rules, on_event=self._steps.append

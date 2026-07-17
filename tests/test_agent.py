@@ -1,8 +1,8 @@
 import pytest
 
-from graphos.agent import build_sql_tools
+from graphos.agents.semantic_agent import build_sql_tools
 from graphos.demo import DEMO_BUSINESS_RULES, seed_demo_db
-from graphos.generate import build_rule_contexts
+from graphos.semantic.generate import build_rule_contexts
 
 RULES = build_rule_contexts(DEMO_BUSINESS_RULES)
 

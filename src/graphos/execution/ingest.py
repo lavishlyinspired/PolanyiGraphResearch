@@ -74,7 +74,7 @@ def demo_table_statements(catalog: str, schema: str) -> list[str]:
 
 
 def ingest_demo_to_databricks(catalog: str | None = None, schema: str = "graphos_demo") -> int:
-    from graphos.connectors.databricks import DatabricksClient, DatabricksConfig
+    from graphos.execution.connectors.databricks import DatabricksClient, DatabricksConfig
 
     config = DatabricksConfig.from_env()
     cat = catalog or config.catalog or "main"

@@ -1,5 +1,5 @@
 from graphos.models import GlossaryEntry, SemanticContext
-from graphos.ontology import (
+from graphos.semantic.ontology import (
     OntologyCandidate,
     align_glossary,
     score_label,
