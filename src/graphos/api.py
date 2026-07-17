@@ -188,6 +188,18 @@ def create_app(
         except Exception as exc:  # noqa: BLE001 — GraphDB failures become 502s
             raise HTTPException(status_code=502, detail=f"Expansion failed: {exc}") from exc
 
+    @app.get("/api/ontology/reason")
+    def ontology_reason(uri: str):
+        from graphos.ontology import graphdb_configured
+        from graphos.owl import reason_about_class
+
+        if not graphdb_configured():
+            raise HTTPException(status_code=503, detail="GRAPHDB_ENDPOINT not configured")
+        try:
+            return reason_about_class(uri)
+        except Exception as exc:  # noqa: BLE001 — reasoning failures become 502s
+            raise HTTPException(status_code=502, detail=f"Reasoning failed: {exc}") from exc
+
     @app.post("/api/documents/ingest")
     def ingest_doc(req: "IngestDocumentRequest"):
         from graphos.documents import (

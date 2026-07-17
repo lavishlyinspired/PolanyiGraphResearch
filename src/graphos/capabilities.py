@@ -162,6 +162,23 @@ def _register_optional_backends(registry: CapabilityRegistry) -> None:
             )
         )
 
+        from graphos.owl import java_available, reason_about_class
+
+        registry.register(
+            CapabilityProvider(
+                name="owlready2-reasoner",
+                capability="ReasonOWL",
+                kind="function",
+                description=(
+                    "Load a class's subclass neighborhood from GraphDB into "
+                    "Owlready2: ancestors, descendants, and HermiT consistency "
+                    "when a Java runtime is present"
+                ),
+                handler=reason_about_class,
+                metadata={"hermit": java_available()},
+            )
+        )
+
     if neo4j_configured():
         from langchain.tools import tool
 

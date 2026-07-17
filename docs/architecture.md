@@ -114,7 +114,7 @@ How the ontology-driven ingestion/reasoning stack maps into GraphOS
 | **GraphDB** | Persistent semantic layer. Context published to the `<urn:graphos:context>` named graph next to FIBO — one SPARQL query joins the enterprise glossary to FIBO definitions. Also the retrieval source for alignment | ✅ `graphos publish`, `graphos sparql`, `POST /api/rdf/publish` |
 | **pyoxigraph** | Embedded local SPARQL when GraphDB is absent — same query surface, zero infrastructure (mirrors the LLM-optional principle) | ✅ `local_sparql`, `graphos sparql` fallback |
 | **Neo4j (+ n10s later)** | Property-graph projection for analytics/Graph RAG (`graphos materialize`); n10s RDF import/export would sync the two stores | ✅ direct projection; 🔜 n10s |
-| **Owlready2** | Local OWL reasoning (HermiT/Pellet). Hierarchy expansion is already covered deterministically: `expand_subclasses` walks `rdfs:subClassOf*` in GraphDB (`ExpandOntology` capability, `GET /api/ontology/expand`) — Owlready2 only becomes necessary for full OWL inference (equivalence, property chains) | 🧩 expansion done via SPARQL; full reasoning 🔜 |
+| **Owlready2** | `OwlReasoner` (`graphos/owl.py`): loads a class's subclass neighborhood exported from GraphDB (or any OWL file), walks ancestors/descendants structurally everywhere, and runs **HermiT inference + consistency checking when a Java runtime is present** — reasoner-optional, same pattern as LLM-optional. `ReasonOWL` capability, `graphos reason`, `GET /api/ontology/reason`. Fast `rdfs:subClassOf*` expansion stays in GraphDB (`ExpandOntology`) | ✅ structural + HermiT-when-Java |
 | **SPARQLWrapper / Jena** | Not needed: httpx covers the GraphDB REST/SPARQL protocol; Jena only if Java tooling appears | — |
 
 ### Document extraction layer (first slice shipped)
@@ -136,5 +136,10 @@ structured pipeline: extraction output is **Semantic Concepts first** (not
 storage rows), the extractor is **LLM-optional** (heuristic dates/amounts/org
 patterns always work), SHACL gates persistence the same way `validate_sql`
 gates execution, and every mention keeps `gos:inDocument` provenance.
-Next: entity resolution of document mentions against the Neo4j knowledge
-graph (Graph RAG), Docling/GLiNER as installed extractor plugins.
+Documents also project into Neo4j for Graph RAG:
+`(:Document)-[:MENTIONS]->(:Mention)-[:REFERS_TO]->(:Term)-[:DESCRIBES]->(:Entity)`
+— one Cypher traversal connects a source document to the glossary, FIBO, and
+the business entities it talks about. A deterministic glossary scan guarantees
+document→term links even when the extractor misses a metric (the glossary is
+known; finding its terms is string matching, not model work).
+Next: Docling/GLiNER as installed extractor plugins, n10s RDF↔property-graph sync.

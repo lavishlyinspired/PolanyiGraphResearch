@@ -44,6 +44,33 @@ def test_heuristic_extractor_finds_organizations_dates_and_amounts():
     assert any("Goldman Sachs" in t for t in org_texts)
 
 
+def test_heuristic_extractor_normalizes_whitespace_in_mentions():
+    extraction = HeuristicExtractor().extract("Deals with Goldman Sachs\nGroup Inc closed.")
+    org = next(m for m in extraction.mentions if m.entity_type == "Organization")
+    assert "\n" not in org.text
+    assert org.text == "Goldman Sachs Group Inc"
+
+
+def test_glossary_terms_in_text_are_always_captured_even_if_extractor_misses_them():
+    """The glossary is known — finding its terms in text is deterministic work,
+    not a job for a model. This guarantees document→term links for Graph RAG."""
+    from graphos.documents import scan_glossary_terms
+
+    mentions = scan_glossary_terms(SAMPLE, make_context())
+    assert any(
+        m.text.lower() == "notional amount" and m.entity_type == "Metric"
+        for m in mentions
+    )
+
+
+def test_glossary_scan_reports_each_term_once():
+    from graphos.documents import scan_glossary_terms
+
+    text = "The notional amount grew; notional amount limits held."
+    mentions = scan_glossary_terms(text, make_context())
+    assert len([m for m in mentions if m.text.lower() == "notional amount"]) == 1
+
+
 def make_document() -> IngestedDocument:
     return IngestedDocument(
         source="sample-report.md",

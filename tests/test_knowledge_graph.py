@@ -75,3 +75,60 @@ def test_materialization_links_glossary_terms_to_entities_and_ontology():
 def test_materialization_parameters_never_interpolate_values():
     for statement, _params in materialization_statements(make_context()):
         assert "Notional" not in statement, "values must be parameters, not inline"
+
+
+# ── Document projection (Graph RAG) ──────────────────────────────
+
+
+def make_document():
+    from graphos.documents import DocumentExtraction, ExtractedMention, IngestedDocument
+
+    return IngestedDocument(
+        source="examples/report.md",
+        title="Q1 Report",
+        text="...",
+        extraction=DocumentExtraction(
+            mentions=[
+                ExtractedMention(
+                    text="notional amount",
+                    entity_type="Metric",
+                    context="within the notional amount limits",
+                    resolved_term="Notional Amount",
+                ),
+                ExtractedMention(
+                    text="Goldman Sachs Group Inc",
+                    entity_type="Organization",
+                    context="Goldman Sachs Group Inc executed trades",
+                ),
+            ]
+        ),
+    )
+
+
+def test_document_projection_creates_document_and_mention_nodes():
+    from graphos.knowledge_graph import document_materialization_statements
+
+    statements = document_materialization_statements(make_document())
+    text = " ".join(s for s, _ in statements)
+    assert "MERGE (d:Document {source: $source})" in text
+    assert "MERGE (m:Mention {id: $id})" in text
+    assert "MERGE (d)-[:MENTIONS]->(m)" in text
+
+
+def test_resolved_mentions_link_to_terms_for_graph_rag():
+    from graphos.knowledge_graph import document_materialization_statements
+
+    statements = document_materialization_statements(make_document())
+    refers = [(s, p) for s, p in statements if "REFERS_TO" in s]
+    assert len(refers) == 1
+    assert refers[0][1]["term"] == "Notional Amount"
+
+
+def test_document_projection_is_parameterized_and_idempotent_by_id():
+    from graphos.knowledge_graph import document_materialization_statements
+
+    statements = document_materialization_statements(make_document())
+    for statement, _params in statements:
+        assert "Goldman" not in statement
+    mention_ids = [p["id"] for s, p in statements if "MERGE (m:Mention {id" in s]
+    assert len(mention_ids) == len(set(mention_ids))

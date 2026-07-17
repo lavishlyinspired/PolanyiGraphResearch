@@ -93,6 +93,48 @@ def materialization_statements(
     return statements
 
 
+def document_materialization_statements(doc) -> list[tuple[str, dict[str, Any]]]:
+    """Project an ingested document into Neo4j for Graph RAG.
+
+    (:Document)-[:MENTIONS]->(:Mention)-[:REFERS_TO]->(:Term) — documents become
+    traversable context connected to the business glossary.
+    """
+    doc_slug = re.sub(r"[^a-z0-9]+", "-", (doc.title or doc.source).lower()).strip("-")
+    statements: list[tuple[str, dict[str, Any]]] = [
+        (
+            "MERGE (d:Document {source: $source}) SET d.title = $title",
+            {"source": doc.source, "title": doc.title},
+        )
+    ]
+    for index, mention in enumerate(doc.extraction.mentions):
+        mention_id = f"{doc_slug}-{index}"
+        statements.append(
+            (
+                "MATCH (d:Document {source: $source}) "
+                "MERGE (m:Mention {id: $id}) "
+                "SET m.text = $text, m.entity_type = $entity_type, m.context = $context "
+                "MERGE (d)-[:MENTIONS]->(m)",
+                {
+                    "source": doc.source,
+                    "id": mention_id,
+                    "text": mention.text,
+                    "entity_type": mention.entity_type,
+                    "context": mention.context,
+                },
+            )
+        )
+        if mention.resolved_term:
+            statements.append(
+                (
+                    "MATCH (m:Mention {id: $id}) "
+                    "MERGE (t:Term {term: $term}) "
+                    "MERGE (m)-[:REFERS_TO]->(t)",
+                    {"id": mention_id, "term": mention.resolved_term},
+                )
+            )
+    return statements
+
+
 class Neo4jGraphStore:
     def __init__(
         self,
@@ -147,6 +189,19 @@ class Neo4jGraphStore:
             "terms": counts["terms"],
             "relationships": counts["rels"],
         }
+
+    def materialize_document(self, doc) -> dict[str, int]:
+        """Project an ingested document into the knowledge graph. Idempotent."""
+        with self._driver.session() as session:
+            for statement, params in document_materialization_statements(doc):
+                session.run(statement, params)
+            counts = session.run(
+                "MATCH (d:Document {source: $source})-[:MENTIONS]->(m) "
+                "OPTIONAL MATCH (m)-[:REFERS_TO]->(t:Term) "
+                "RETURN count(DISTINCT m) AS mentions, count(DISTINCT t) AS terms",
+                {"source": doc.source},
+            ).single()
+        return {"mentions": counts["mentions"], "linked_terms": counts["terms"]}
 
     def run_cypher(self, query: str) -> list[dict[str, Any]]:
         """Execute read-only Cypher; raises ValueError for write queries."""

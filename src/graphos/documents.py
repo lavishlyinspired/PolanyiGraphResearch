@@ -136,14 +136,37 @@ class HeuristicExtractor:
             (_DATE_PATTERN, "Date"),
         ):
             for match in pattern.finditer(text):
+                surface = re.sub(r"\s+", " ", match.group(0)).strip().rstrip(".")
                 mentions.append(
                     ExtractedMention(
-                        text=match.group(0).strip().rstrip("."),
+                        text=surface,
                         entity_type=entity_type,
                         context=_sentence_of(text, match.start()),
                     )
                 )
         return DocumentExtraction(mentions=mentions)
+
+
+def scan_glossary_terms(text: str, context: SemanticContext) -> list[ExtractedMention]:
+    """Deterministically capture glossary terms appearing in the text.
+
+    The glossary is known up front — finding its terms is string matching,
+    not model work. This guarantees document→term links for Graph RAG even
+    when the extractor misses a metric.
+    """
+    mentions: list[ExtractedMention] = []
+    for entry in context.glossary:
+        pattern = re.compile(rf"\b{re.escape(entry.term)}s?\b", re.IGNORECASE)
+        match = pattern.search(text)
+        if match:
+            mentions.append(
+                ExtractedMention(
+                    text=re.sub(r"\s+", " ", match.group(0)),
+                    entity_type="Metric",
+                    context=_sentence_of(text, match.start()),
+                )
+            )
+    return mentions
 
 
 _EXTRACTION_PROMPT = """Extract named entities from this financial document text.
@@ -227,11 +250,16 @@ def ingest_document(
 ) -> tuple[IngestedDocument, Graph]:
     """Full local pipeline: parse → extract → resolve → RDF (not yet published)."""
     text = parse_file(path)
+    extraction = make_extractor(llm).extract(text)
+    extracted_texts = {m.text.lower() for m in extraction.mentions}
+    extraction.mentions.extend(
+        m for m in scan_glossary_terms(text, context) if m.text.lower() not in extracted_texts
+    )
     doc = IngestedDocument(
         source=str(path),
         title=Path(path).stem.replace("-", " ").replace("_", " ").title(),
         text=text,
-        extraction=make_extractor(llm).extract(text),
+        extraction=extraction,
     )
     doc = resolve_mentions(doc, context)
     return doc, document_to_rdf(doc)

@@ -103,6 +103,14 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-llm", action="store_true", help="Heuristic extraction only")
     p.set_defaults(func=cmd_ingest_document)
 
+    p = sub.add_parser(
+        "reason",
+        help="OWL reasoning over aligned classes (Owlready2; HermiT when Java present)",
+    )
+    p.add_argument("--uri", default=None, help="Reason about a specific class URI")
+    p.add_argument("--context", default=DEFAULT_CONTEXT_PATH)
+    p.set_defaults(func=cmd_reason)
+
     return parser
 
 
@@ -392,6 +400,51 @@ def cmd_ingest_document(args) -> int:
             print(f"✓ Published to GraphDB named graph <{DOCUMENTS_GRAPH_IRI}>")
         else:
             print("GraphDB not available — skipped publishing")
+
+        from graphos.knowledge_graph import Neo4jGraphStore, neo4j_configured
+
+        if neo4j_configured():
+            store = Neo4jGraphStore()
+            if store.is_available():
+                try:
+                    stats = store.materialize_document(doc)
+                finally:
+                    store.close()
+                print(
+                    f"✓ Projected into Neo4j for Graph RAG: {stats['mentions']} mentions, "
+                    f"{stats['linked_terms']} linked to glossary terms"
+                )
+    return 0
+
+
+def cmd_reason(args) -> int:
+    from graphos.owl import OwlReasoner, java_available
+
+    uris: list[tuple[str, str]] = []
+    if args.uri:
+        uris.append(("(explicit)", args.uri))
+    else:
+        ctx = _load_context_file(args.context)
+        uris = [(g.term, g.ontology_uri) for g in ctx.glossary if g.ontology_uri]
+        if not uris:
+            print("No aligned glossary terms. Run: graphos align  (or pass --uri)")
+            return 1
+
+    print(f"Java runtime: {'available — HermiT inference on' if java_available() else 'not found — structural traversal only (install a JDK for HermiT)'}")
+    reasoner = OwlReasoner()
+    reasoner.load_from_graphdb([uri for _, uri in uris])
+    result = reasoner.run_reasoner()
+    if result.ran:
+        print(f"HermiT: consistent={result.consistent}")
+
+    for term, uri in uris:
+        ancestors = reasoner.ancestors(uri)
+        descendants = reasoner.descendants(uri)
+        chain = " → ".join(a.label for a in ancestors) or "(top-level class)"
+        print(f"\n{term}  <{uri.rsplit('/', 1)[-1]}>")
+        print(f"  ancestors:   {chain}")
+        print(f"  descendants: {len(descendants)}"
+              + (f" (e.g. {', '.join(d.label for d in descendants[:4])})" if descendants else ""))
     return 0
 
 
