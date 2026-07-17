@@ -1,0 +1,62 @@
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix gos: <https://graphos.dev/ontology#> .
+@prefix gosh: <https://graphos.dev/shapes#> .
+
+gosh:TermShape
+    a sh:NodeShape ;
+    sh:targetClass skos:Concept ;
+    sh:property [
+        sh:path skos:prefLabel ;
+        sh:minCount 1 ;
+        sh:datatype xsd:string ;
+        sh:message "Every glossary term needs a skos:prefLabel." ;
+    ] ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 1 ;
+        sh:minLength 1 ;
+        sh:message "Every glossary term needs a non-empty skos:definition." ;
+    ] .
+
+gosh:EntityShape
+    a sh:NodeShape ;
+    sh:targetClass gos:Entity ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:message "Every entity needs an rdfs:label." ;
+    ] .
+
+gosh:RelationshipShape
+    a sh:NodeShape ;
+    sh:targetClass gos:Relationship ;
+    sh:property [
+        sh:path gos:from ;
+        sh:minCount 1 ;
+        sh:class gos:Entity ;
+        sh:message "Every relationship needs a gos:from entity." ;
+    ] ;
+    sh:property [
+        sh:path gos:to ;
+        sh:minCount 1 ;
+        sh:class gos:Entity ;
+        sh:message "Every relationship needs a gos:to entity." ;
+    ] .
+
+gosh:BusinessRuleShape
+    a sh:NodeShape ;
+    sh:targetClass gos:BusinessRule ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:message "Every business rule needs an rdfs:label." ;
+    ] ;
+    sh:property [
+        sh:path gos:severity ;
+        sh:minCount 1 ;
+        sh:in ( "CRITICAL" "HIGH" "MEDIUM" "LOW" "INFO" ) ;
+        sh:message "Rule severity must be one of CRITICAL/HIGH/MEDIUM/LOW/INFO." ;
+    ] .

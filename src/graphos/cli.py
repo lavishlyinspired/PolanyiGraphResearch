@@ -79,6 +79,20 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--context", default=DEFAULT_CONTEXT_PATH)
     p.set_defaults(func=cmd_materialize)
 
+    p = sub.add_parser("rdf", help="Build + SHACL-validate the RDF form of the context")
+    p.add_argument("--context", default=DEFAULT_CONTEXT_PATH)
+    p.add_argument("--out", default="data/semantic_context.ttl")
+    p.set_defaults(func=cmd_rdf)
+
+    p = sub.add_parser("publish", help="Publish the context RDF to GraphDB (named graph)")
+    p.add_argument("--context", default=DEFAULT_CONTEXT_PATH)
+    p.set_defaults(func=cmd_publish)
+
+    p = sub.add_parser("sparql", help="Run SPARQL (GraphDB if configured, else local)")
+    p.add_argument("query")
+    p.add_argument("--ttl", default="data/semantic_context.ttl")
+    p.set_defaults(func=cmd_sparql)
+
     return parser
 
 
@@ -235,13 +249,94 @@ def cmd_align(args) -> int:
     if not store.is_available():
         print(f"GraphDB not reachable at {store.endpoint}")
         return 1
+    from graphos.llm import resolve_llm
+
+    llm = resolve_llm("pipeline")
+    if llm is not None:
+        print("Ambiguous candidates will be ranked by the LLM (retrieval-constrained)")
     ctx = SemanticContext.model_validate_json(path.read_text(encoding="utf-8"))
-    aligned = align_glossary(ctx, store)
+    aligned = align_glossary(ctx, store, llm=llm)
     path.write_text(aligned.model_dump_json(indent=2), encoding="utf-8")
     hits = [g for g in aligned.glossary if g.ontology_uri]
     print(f"Aligned {len(hits)}/{len(aligned.glossary)} glossary terms with {store.repository}:")
     for g in hits:
         print(f"  ✓ {g.term} → {g.ontology_class}  <{g.ontology_uri}>")
+    return 0
+
+
+def _load_context_file(path_str: str):
+    from graphos.models import SemanticContext
+
+    path = Path(path_str)
+    if not path.exists():
+        print(f"No context at {path}. Run: graphos generate")
+        sys.exit(1)
+    return SemanticContext.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def cmd_rdf(args) -> int:
+    from graphos.rdf import context_to_rdf, validate_rdf
+
+    ctx = _load_context_file(args.context)
+    graph = context_to_rdf(ctx)
+    conforms, report = validate_rdf(graph)
+    if not conforms:
+        print("✗ SHACL validation failed:")
+        print(report)
+        return 2
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.out).write_text(graph.serialize(format="turtle"), encoding="utf-8")
+    print(f"✓ SHACL-valid RDF written to {args.out} ({len(graph)} triples)")
+    print("Next: graphos publish   (or query locally: graphos sparql '<query>')")
+    return 0
+
+
+def cmd_publish(args) -> int:
+    from graphos.rdf import context_to_rdf, publish_to_graphdb, validate_rdf
+
+    ctx = _load_context_file(args.context)
+    graph = context_to_rdf(ctx)
+    conforms, report = validate_rdf(graph)
+    if not conforms:
+        print("✗ Refusing to publish SHACL-invalid RDF:")
+        print(report)
+        return 2
+    named_graph = publish_to_graphdb(graph)
+    print(f"✓ Published {len(graph)} triples to GraphDB named graph <{named_graph}>")
+    print("The enterprise glossary now sits next to FIBO — query with: graphos sparql")
+    return 0
+
+
+def cmd_sparql(args) -> int:
+    import json as json_module
+    import os
+
+    from graphos.ontology import GraphDBOntologyStore, graphdb_configured
+
+    if graphdb_configured() and GraphDBOntologyStore().is_available():
+        import httpx
+
+        endpoint = os.environ["GRAPHDB_ENDPOINT"].rstrip("/")
+        repo = os.environ.get("GRAPHDB_REPOSITORY", "fibo")
+        response = httpx.post(
+            f"{endpoint}/repositories/{repo}",
+            data={"query": args.query},
+            headers={"Accept": "application/sparql-results+json"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        bindings = response.json()["results"]["bindings"]
+        rows = [{k: v["value"] for k, v in b.items()} for b in bindings]
+    else:
+        from graphos.rdf import local_sparql
+
+        ttl_path = Path(args.ttl)
+        if not ttl_path.exists():
+            print(f"GraphDB not available and no local RDF at {ttl_path}. Run: graphos rdf")
+            return 1
+        rows = local_sparql(ttl_path.read_text(encoding="utf-8"), args.query)
+
+    print(json_module.dumps(rows, indent=2))
     return 0
 
 

@@ -12,7 +12,7 @@ import re
 from typing import Optional, Protocol
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field  # noqa: F401 — Field used by _RankingChoice
 
 from graphos.models import SemanticContext
 
@@ -92,7 +92,9 @@ class GraphDBOntologyStore:
         PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
         SELECT DISTINCT ?class ?label ?definition WHERE {{
             ?class a owl:Class ; rdfs:label ?label .
-            OPTIONAL {{ ?class skos:definition ?definition }}
+            OPTIONAL {{ ?class skos:definition ?skosDef }}
+            OPTIONAL {{ ?class rdfs:comment ?comment }}
+            BIND(COALESCE(?skosDef, ?comment, "") AS ?definition)
             FILTER(CONTAINS(LCASE(STR(?label)), "{token}"))
         }} LIMIT 50
         """
@@ -118,8 +120,56 @@ class GraphDBOntologyStore:
         return candidates[:limit]
 
 
-def align_glossary(context: SemanticContext, store: OntologyStore) -> SemanticContext:
-    """Attach the best-scoring ontology class to each glossary term."""
+class _RankingChoice(BaseModel):
+    """LLM output schema for candidate ranking: pick one URI or decline."""
+
+    chosen_uri: Optional[str] = Field(
+        default=None,
+        description="URI of the best-matching candidate, or null if none fit",
+    )
+
+
+_RANKING_PROMPT = """You are aligning an enterprise business glossary with a formal ontology.
+
+Business term: {term}
+Definition: {definition}
+
+Candidate ontology classes (choose ONE or none):
+{candidates}
+
+Pick the candidate whose meaning matches the business term itself — reject
+candidates that are merely related, broader, or narrower concepts (for
+example, "revenue bond" is NOT a match for "Revenue"). Respond with the
+chosen candidate's URI, or null if no candidate is a true match."""
+
+
+def _rank_with_llm(entry, candidates: list[OntologyCandidate], llm) -> Optional[OntologyCandidate]:
+    """Ask the LLM to choose among retrieved candidates — never to invent one."""
+    listing = "\n".join(
+        f"- {c.uri}\n  label: {c.label}" + (f"\n  definition: {c.definition}" if c.definition else "")
+        for c in candidates
+    )
+    prompt = _RANKING_PROMPT.format(
+        term=entry.term, definition=entry.definition, candidates=listing
+    )
+    try:
+        choice = llm.with_structured_output(_RankingChoice).invoke(prompt)
+    except Exception:  # noqa: BLE001 — ranking is best-effort enrichment
+        return None
+    if choice is None or not choice.chosen_uri:
+        return None
+    return next((c for c in candidates if c.uri == choice.chosen_uri), None)
+
+
+def align_glossary(
+    context: SemanticContext, store: OntologyStore, llm=None
+) -> SemanticContext:
+    """Attach ontology classes to glossary terms.
+
+    Exact/inflection matches (score >= 0.9) attach directly. When an LLM is
+    supplied, ambiguous retrievals (0.5–0.9) are ranked by it — constrained
+    to the retrieved list, with the option to decline.
+    """
     aligned = context.model_copy(deep=True)
     for entry in aligned.glossary:
         entry.ontology_class = None
@@ -129,6 +179,13 @@ def align_glossary(context: SemanticContext, store: OntologyStore) -> SemanticCo
         if best is not None and best.score >= _MIN_ALIGNMENT_SCORE:
             entry.ontology_class = best.label
             entry.ontology_uri = best.uri
+            continue
+        if llm is not None:
+            plausible = [c for c in candidates if c.score >= 0.5]
+            chosen = _rank_with_llm(entry, plausible, llm) if plausible else None
+            if chosen is not None:
+                entry.ontology_class = chosen.label
+                entry.ontology_uri = chosen.uri
     return aligned
 
 

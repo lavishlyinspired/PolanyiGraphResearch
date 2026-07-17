@@ -119,3 +119,49 @@ def test_align_glossary_clears_stale_alignment_when_no_longer_confident():
     entry = next(g for g in realigned.glossary if g.term == "Notional Amount")
     assert entry.ontology_uri is None
     assert entry.ontology_class is None
+
+
+class FakeRankingLLM:
+    """Structured-output stub that always chooses the given URI."""
+
+    def __init__(self, chosen_uri):
+        self.chosen_uri = chosen_uri
+
+    def with_structured_output(self, schema):
+        outer = self
+
+        class Runner:
+            def invoke(self, _prompt):
+                return schema(chosen_uri=outer.chosen_uri)
+
+        return Runner()
+
+
+AMBIGUOUS = {
+    "notional amount": [
+        OntologyCandidate(uri="urn:fibo:NotionalAmount", label="notional amount leg", score=0.7),
+        OntologyCandidate(uri="urn:fibo:NotionalStep", label="notional step", score=0.5),
+    ]
+}
+
+
+def test_llm_ranks_ambiguous_candidates_from_retrieved_list():
+    ctx = align_glossary(
+        make_context(), FakeStore(AMBIGUOUS), llm=FakeRankingLLM("urn:fibo:NotionalAmount")
+    )
+    entry = next(g for g in ctx.glossary if g.term == "Notional Amount")
+    assert entry.ontology_uri == "urn:fibo:NotionalAmount"
+
+
+def test_llm_cannot_invent_uris_outside_the_candidate_list():
+    ctx = align_glossary(
+        make_context(), FakeStore(AMBIGUOUS), llm=FakeRankingLLM("urn:made:up")
+    )
+    entry = next(g for g in ctx.glossary if g.term == "Notional Amount")
+    assert entry.ontology_uri is None
+
+
+def test_llm_can_decline_to_align():
+    ctx = align_glossary(make_context(), FakeStore(AMBIGUOUS), llm=FakeRankingLLM(None))
+    entry = next(g for g in ctx.glossary if g.term == "Notional Amount")
+    assert entry.ontology_uri is None

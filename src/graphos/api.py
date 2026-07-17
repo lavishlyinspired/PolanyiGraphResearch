@@ -181,12 +181,35 @@ def create_app(
         store = GraphDBOntologyStore()
         if not store.is_available():
             raise HTTPException(status_code=503, detail="GraphDB is not reachable")
-        ctx = align_glossary(context(), store)
+        ctx = align_glossary(context(), store, llm=resolve_llm("pipeline"))
         state["context"] = ctx
         state["agent"] = None
         save_context(ctx)
         aligned = [g.term for g in ctx.glossary if g.ontology_uri]
         return {"aligned_terms": aligned, "total_terms": len(ctx.glossary)}
+
+    @app.get("/api/rdf")
+    def get_rdf():
+        from fastapi.responses import PlainTextResponse
+
+        from graphos.rdf import context_to_rdf
+
+        turtle = context_to_rdf(context()).serialize(format="turtle")
+        return PlainTextResponse(turtle, media_type="text/turtle")
+
+    @app.post("/api/rdf/publish")
+    def publish_rdf():
+        from graphos.ontology import graphdb_configured
+        from graphos.rdf import context_to_rdf, publish_to_graphdb, validate_rdf
+
+        if not graphdb_configured():
+            raise HTTPException(status_code=503, detail="GRAPHDB_ENDPOINT not configured")
+        graph = context_to_rdf(context())
+        conforms, report = validate_rdf(graph)
+        if not conforms:
+            raise HTTPException(status_code=422, detail=f"SHACL validation failed: {report}")
+        named_graph = publish_to_graphdb(graph)
+        return {"named_graph": named_graph, "triples": len(graph)}
 
     @app.post("/api/graph/materialize")
     def materialize_graph():

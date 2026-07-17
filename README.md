@@ -50,6 +50,20 @@ graphos ask "Which counterparties are in high-risk countries?"
 graphos serve            # http://localhost:8000
 ```
 
+### With graph backends (optional)
+
+With GraphDB (FIBO) and/or Neo4j running, the semantic layer goes further:
+
+```bash
+graphos align            # align glossary terms with FIBO (LLM ranks ambiguous hits)
+graphos rdf              # context → SKOS/RDF, validated with SHACL (pip install -e ".[semantic]")
+graphos publish          # push RDF into GraphDB next to FIBO (skos:exactMatch links)
+graphos sparql "..."     # SPARQL via GraphDB, or locally via pyoxigraph without any server
+graphos materialize      # project the context into Neo4j (pip install -e ".[graph]")
+```
+
+Once materialized, the agent gains a read-only `query_knowledge_graph` Cypher tool automatically.
+
 ### The UI
 
 ```bash

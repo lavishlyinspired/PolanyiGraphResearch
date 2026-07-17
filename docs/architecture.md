@@ -101,3 +101,33 @@ design rationale: [archive/conversations/readmegpt7-three-runtimes.md](archive/c
    explain).
 
 Each step extends the current modules; none replaces them.
+
+## The Python semantic stack
+
+How the ontology-driven ingestion/reasoning stack maps into GraphOS
+(raw discussion: [archive/conversations/readmegpt8-semantic-stack.md](archive/conversations/readmegpt8-semantic-stack.md)):
+
+| Library | Role in GraphOS | Status |
+|---|---|---|
+| **RDFLib** | `context_to_rdf`: semantic context → RDF. Glossary is a **SKOS vocabulary** (`skos:Concept/prefLabel/definition/altLabel`), entities/relationships/rules use the lightweight `gos:` ontology, FIBO alignments are `skos:exactMatch` links | ✅ `graphos/rdf.py` |
+| **pySHACL** | Validate the context RDF against bundled shapes (terms need definitions, severities from the allowed set, relationships need both ends). `graphos publish` refuses SHACL-invalid graphs | ✅ `graphos/shapes/context-shapes.ttl` |
+| **GraphDB** | Persistent semantic layer. Context published to the `<urn:graphos:context>` named graph next to FIBO — one SPARQL query joins the enterprise glossary to FIBO definitions. Also the retrieval source for alignment | ✅ `graphos publish`, `graphos sparql`, `POST /api/rdf/publish` |
+| **pyoxigraph** | Embedded local SPARQL when GraphDB is absent — same query surface, zero infrastructure (mirrors the LLM-optional principle) | ✅ `local_sparql`, `graphos sparql` fallback |
+| **Neo4j (+ n10s later)** | Property-graph projection for analytics/Graph RAG (`graphos materialize`); n10s RDF import/export would sync the two stores | ✅ direct projection; 🔜 n10s |
+| **Owlready2** | Local OWL reasoning (HermiT/Pellet): hierarchy expansion for query rewriting ("all financial instruments" → subclasses) | 🔜 roadmap |
+| **SPARQLWrapper / Jena** | Not needed: httpx covers the GraphDB REST/SPARQL protocol; Jena only if Java tooling appears | — |
+
+### Document extraction layer (roadmap)
+
+The ingestion pipeline for unstructured sources feeds the same semantic layer:
+
+```
+Documents → Docling (parse) → spaCy / GLiNER / OntoGPT (extract, ontology-aware)
+          → RDFLib (triples) → pySHACL (validate) → GraphDB (persist)
+          → Neo4j (Graph RAG & analytics)
+```
+
+Design constraints carried over from the structured pipeline: extraction output
+becomes **Semantic Concepts first** (not storage rows), SHACL gates persistence
+the same way `validate_sql` gates execution, and every extracted assertion
+keeps provenance back to its source document.

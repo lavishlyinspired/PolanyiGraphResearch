@@ -15,4 +15,5 @@ The distilled, actionable version of this material lives in
 | `conversations/readgpt5.md` | Agent Skills pattern (Neo4j) and capability-first skill design |
 | `conversations/readmegpt6.md` | Semantic Materialization Engine design review; what to build next |
 | `conversations/readmegpt7-three-runtimes.md` | Three-runtime split (semantic/agent/execution), capability registry, LangGraph as substrate — distilled into `docs/architecture.md` |
+| `conversations/readmegpt8-semantic-stack.md` | Python semantic stack (RDFLib/pySHACL/Owlready2/pyoxigraph/GraphDB/n10s) + extraction layer — implemented in `graphos/rdf.py`, distilled into `docs/architecture.md` |
 | `u.md` | Empty scratch file (kept as-is) |
