@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   acceptAlignment,
   fetchAlignmentQueue,
@@ -107,12 +107,22 @@ function BandTable({
 export function OntologyPage() {
   const [state, setState] = useState<State>({ kind: "loading" });
 
-  if (state.kind === "loading") {
+  useEffect(() => {
+    let cancelled = false;
     void fetchAlignmentQueue()
-      .then((queue) => setState({ kind: "ready", queue }))
+      .then((queue) => {
+        if (!cancelled) setState({ kind: "ready", queue });
+      })
       .catch((error) => {
+        if (cancelled) return;
         setState(error instanceof GraphDBUnavailableError ? { kind: "unavailable" } : { kind: "error" });
       });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (state.kind === "loading") {
     return <p>Loading…</p>;
   }
 

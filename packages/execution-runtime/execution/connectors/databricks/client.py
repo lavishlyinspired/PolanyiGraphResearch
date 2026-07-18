@@ -119,6 +119,25 @@ class DatabricksClient:
             rows = cursor.fetchall()
             return [dict(zip(columns, row)) for row in rows]
 
+    def execute_queries(
+        self,
+        queries: list[str],
+        warehouse_id: Optional[str] = None,
+    ) -> list[list[dict[str, Any]]]:
+        """Execute multiple SQL queries in a single cursor — one connection, no repeated backoff."""
+        results: list[list[dict[str, Any]]] = []
+        with self.sql_cursor(warehouse_id) as cursor:
+            for query in queries:
+                cursor.execute(query)
+                columns = (
+                    [desc[0] for desc in cursor.description]
+                    if cursor.description
+                    else []
+                )
+                rows = cursor.fetchall()
+                results.append([dict(zip(columns, row)) for row in rows])
+        return results
+
     def execute_query_df(
         self,
         query: str,
@@ -190,17 +209,53 @@ class DatabricksClient:
     def list_tables(
         self, catalog: Optional[str] = None, schema: Optional[str] = None
     ) -> list[dict]:
-        """List tables in a schema."""
+        """List tables in a schema, including column and key-constraint metadata.
+
+        Uses the Unity Catalog REST API (`tables.list`), which already returns
+        column name/type/nullability and any declared PK/FK constraints — no
+        SQL warehouse connection needed, so this stays fast even before any
+        SQL query has been executed. Unity Catalog PK/FK constraints are
+        optional, so tables without any declared will show no keys — that's
+        the real state, not a gap in this code.
+        """
         cat = catalog or self.config.catalog or "hive_metastore"
         sch = schema or self.config.schema_name or "default"
         tables = []
         for t in self.sdk.tables.list(catalog_name=cat, schema_name=sch):
+            pk_columns: set[str] = set()
+            foreign_keys: list[dict] = []
+            for constraint in t.table_constraints or []:
+                if constraint.primary_key_constraint is not None:
+                    pk_columns.update(constraint.primary_key_constraint.child_columns or [])
+                if constraint.foreign_key_constraint is not None:
+                    fk = constraint.foreign_key_constraint
+                    parent_table = (fk.parent_table or "").split(".")[-1]
+                    for child_col, parent_col in zip(
+                        fk.child_columns or [], fk.parent_columns or []
+                    ):
+                        foreign_keys.append(
+                            {
+                                "column": child_col,
+                                "references_table": parent_table,
+                                "references_column": parent_col,
+                            }
+                        )
             tables.append(
                 {
                     "name": t.name,
                     "table_type": t.table_type,
                     "data_source_format": t.data_source_format,
                     "comment": t.comment,
+                    "foreign_keys": foreign_keys,
+                    "columns": [
+                        {
+                            "name": c.name,
+                            "type": c.type_text or (c.type_name.value if c.type_name else "UNKNOWN"),
+                            "nullable": bool(c.nullable),
+                            "primary_key": c.name in pk_columns,
+                        }
+                        for c in (t.columns or [])
+                    ],
                 }
             )
         return tables

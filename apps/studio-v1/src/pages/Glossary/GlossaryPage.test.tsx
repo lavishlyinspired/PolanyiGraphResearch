@@ -30,6 +30,22 @@ const context = {
       ontology_uri: null,
     },
   ],
+  relationships: [
+    {
+      from_entity: "trades",
+      to_entity: "counterparties",
+      relationship_type: "many-to-one",
+      foreign_key: "counterparty_id",
+      description: "Each trades row references one counterparties row via counterparty_id.",
+    },
+    {
+      from_entity: "risk_metrics",
+      to_entity: "counterparties",
+      relationship_type: "many-to-one",
+      foreign_key: "counterparty_id",
+      description: "Each risk_metrics row references one counterparties row via counterparty_id.",
+    },
+  ],
   business_rules: [
     {
       rule_id: "BR-001",
@@ -90,4 +106,28 @@ test("there is no way to edit a term — read-only by design", async () => {
 
   await expect.element(screen.getByRole("textbox")).not.toBeInTheDocument();
   await expect.element(screen.getByRole("button", { name: /^edit/i })).not.toBeInTheDocument();
+});
+
+test("tab labels show real counts for glossary terms, key entities, and relationships", async () => {
+  mock();
+  const screen = await render(<GlossaryPage />);
+
+  await expect.element(screen.getByRole("tab", { name: "Glossary · 2" })).toBeVisible();
+  await expect
+    .element(screen.getByRole("tab", { name: "Entities & relationships · 3 / 2" }))
+    .toBeVisible();
+});
+
+test("Entities & relationships tab shows real key entities and FK relationships", async () => {
+  mock();
+  const screen = await render(<GlossaryPage />);
+
+  await screen.getByRole("tab", { name: /entities & relationships/i }).click();
+
+  const entitiesPanel = screen.getByLabelText("Key entities");
+  await expect.element(entitiesPanel.getByText("risk_metrics", { exact: true })).toBeVisible();
+
+  const relationshipsPanel = screen.getByLabelText("Relationships");
+  await expect.element(relationshipsPanel.getByRole("cell", { name: "trades" })).toBeVisible();
+  await expect.element(relationshipsPanel.getByRole("cell", { name: "counterparty_id" }).first()).toBeVisible();
 });

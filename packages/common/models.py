@@ -34,7 +34,6 @@ class TableInfo(BaseModel):
 class SchemaSnapshot(BaseModel):
     dialect: str
     tables: list[TableInfo] = Field(default_factory=list)
-    table_info_text: str = ""
 
 
 # ── Business rules (input) ───────────────────────────────────────

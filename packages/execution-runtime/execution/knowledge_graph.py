@@ -141,15 +141,20 @@ class Neo4jGraphStore:
         uri: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
+        connection_timeout: Optional[float] = None,
     ):
         from neo4j import GraphDatabase
 
+        driver_kwargs: dict = {}
+        if connection_timeout is not None:
+            driver_kwargs["connection_timeout"] = connection_timeout
         self._driver = GraphDatabase.driver(
             uri or os.environ.get("NEO4J_URI", "neo4j://127.0.0.1:7687"),
             auth=(
                 username or os.environ.get("NEO4J_USERNAME", "neo4j"),
                 password or os.environ.get("NEO4J_PASSWORD", ""),
             ),
+            **driver_kwargs,
         )
 
     def is_available(self) -> bool:

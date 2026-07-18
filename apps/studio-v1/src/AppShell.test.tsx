@@ -4,10 +4,10 @@ import { expect, test } from "vitest";
 import { worker } from "../vitest.browser.setup";
 import { AppShell } from "./AppShell";
 
-test("shows the wordmark and defaults to the Validator page", async () => {
+test("shows the wordmark and defaults to the Overview page", async () => {
   const screen = await render(<AppShell />);
   await expect.element(screen.getByText("Polanyi Works")).toBeVisible();
-  await expect.element(screen.getByRole("heading", { name: "Validator" })).toBeVisible();
+  await expect.element(screen.getByRole("heading", { name: "Overview" })).toBeVisible();
 });
 
 test("shows the built-out nav groups in prototype order", async () => {
@@ -17,22 +17,22 @@ test("shows the built-out nav groups in prototype order", async () => {
   await expect.element(screen.getByText("Govern")).toBeVisible();
 });
 
-test("navigates to Query Console and back to Validator, updating aria-current", async () => {
+test("navigates to Query Console and back to Overview, updating aria-current", async () => {
   const screen = await render(<AppShell />);
 
-  const validatorNav = screen.getByRole("button", { name: /^validator/i });
+  const overviewNav = screen.getByRole("button", { name: /^overview$/i });
   const consoleNav = screen.getByRole("button", { name: /query console/i });
 
-  await expect.element(validatorNav).toHaveAttribute("aria-current", "page");
+  await expect.element(overviewNav).toHaveAttribute("aria-current", "page");
 
   await consoleNav.click();
   await expect.element(screen.getByRole("heading", { name: "Query Console" })).toBeVisible();
   await expect.element(consoleNav).toHaveAttribute("aria-current", "page");
-  await expect.element(validatorNav).not.toHaveAttribute("aria-current");
+  await expect.element(overviewNav).not.toHaveAttribute("aria-current");
 
-  await validatorNav.click();
-  await expect.element(screen.getByRole("heading", { name: "Validator" })).toBeVisible();
-  await expect.element(validatorNav).toHaveAttribute("aria-current", "page");
+  await overviewNav.click();
+  await expect.element(screen.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect.element(overviewNav).toHaveAttribute("aria-current", "page");
 });
 
 test("navigates to the Semantic Model page", async () => {

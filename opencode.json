@@ -5,6 +5,16 @@
       "type": "remote",
       "url": "https://docs.langchain.com/mcp",
       "enabled": true
+    },
+    "databricks": {
+      "type": "local",
+      "command": ["/tmp/databricks-mcp/.venv/bin/unitycatalog-mcp", "-s", "workspace.graphos_demo"],
+      "enabled": true,
+      "env": {
+        "DATABRICKS_HOST": "{env:DATABRICKS_HOST}",
+        "DATABRICKS_TOKEN": "{env:DATABRICKS_TOKEN}",
+        "DATABRICKS_WAREHOUSE_ID": "{env:DATABRICKS_WAREHOUSE_ID}"
+      }
     }
   }
 }

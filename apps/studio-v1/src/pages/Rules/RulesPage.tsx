@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { fetchRules, type Rule } from "@/api/validation";
 
 function severityChip(severity: string): string {
@@ -26,8 +26,17 @@ export function RulesPage() {
   const [rules, setRules] = useState<Rule[] | null>(null);
   const [selected, setSelected] = useState<Rule | null>(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetchRules().then((r) => {
+      if (!cancelled) setRules(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (rules === null) {
-    void fetchRules().then(setRules);
     return <p>Loading…</p>;
   }
 
