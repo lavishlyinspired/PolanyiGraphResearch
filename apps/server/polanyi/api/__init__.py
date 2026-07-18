@@ -24,6 +24,7 @@ from polanyi.demo import DEMO_BUSINESS_RULES
 from polanyi.semantic.generate import generate_context
 from polanyi.semantic.introspect import introspect
 from polanyi.kernel.llm import llm_mode, resolve_llm
+from polanyi.semantic.embeddings import EmbeddingOntologyIndex, resolve_embedding_provider
 from polanyi.models import BusinessRule, SemanticContext
 from polanyi.execution.validate import validate_sql
 from polanyi.execution.sql import execute_sql
@@ -221,6 +222,7 @@ def create_app(
         "context": None,
         "agent": None,
         "databricks_client": None,
+        "embedding_index": None,
         "extra_sources": _sources_config["extra"],
         "extra_snapshots": {},
         "extra_introspected_at": {},
@@ -259,6 +261,18 @@ def create_app(
     def save_context(ctx: SemanticContext) -> None:
         context_path.parent.mkdir(parents=True, exist_ok=True)
         context_path.write_text(ctx.model_dump_json(indent=2), encoding="utf-8")
+
+    def embedding_index_for(store):
+        """Lazily build + cache the FIBO embedding index once per app lifetime
+        (the corpus fetch + embedding pass are too slow to repeat per request).
+        Optional — mirrors the LLM-optional posture: returns None when no
+        embedding provider is configured or installed."""
+        if state["embedding_index"] is None:
+            provider = resolve_embedding_provider()
+            if provider is None:
+                return None
+            state["embedding_index"] = EmbeddingOntologyIndex(provider, store.all_classes())
+        return state["embedding_index"]
 
     @app.get("/api/health")
     def health():
@@ -721,7 +735,9 @@ def create_app(
         store = GraphDBOntologyStore()
         if not store.is_available():
             raise HTTPException(status_code=503, detail="GraphDB is not reachable")
-        ctx = align_glossary(context(), store, llm=resolve_llm("pipeline"))
+        ctx = align_glossary(
+            context(), store, llm=resolve_llm("pipeline"), embedding_index=embedding_index_for(store)
+        )
         state["context"] = ctx
         state["agent"] = None
         save_context(ctx)
@@ -741,7 +757,9 @@ def create_app(
         store = GraphDBOntologyStore()
         if not store.is_available():
             raise HTTPException(status_code=503, detail="GraphDB is not reachable")
-        return alignment_queue(context(), store, llm=resolve_llm("pipeline"))
+        return alignment_queue(
+            context(), store, llm=resolve_llm("pipeline"), embedding_index=embedding_index_for(store)
+        )
 
     @app.post("/api/context/align/{term}/accept")
     def accept_alignment_candidate(term: str):
@@ -758,14 +776,15 @@ def create_app(
         if not store.is_available():
             raise HTTPException(status_code=503, detail="GraphDB is not reachable")
         llm = resolve_llm("pipeline")
+        index = embedding_index_for(store)
         try:
-            ctx = accept_alignment(context(), term, store, llm=llm)
+            ctx = accept_alignment(context(), term, store, llm=llm, embedding_index=index)
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         state["context"] = ctx
         state["agent"] = None
         save_context(ctx)
-        return alignment_queue(ctx, store, llm=llm)
+        return alignment_queue(ctx, store, llm=llm, embedding_index=index)
 
     @app.post("/api/context/align/{term}/reject")
     def reject_alignment_candidate(term: str):
@@ -782,14 +801,15 @@ def create_app(
         if not store.is_available():
             raise HTTPException(status_code=503, detail="GraphDB is not reachable")
         llm = resolve_llm("pipeline")
+        index = embedding_index_for(store)
         try:
-            ctx = reject_alignment(context(), term, store, llm=llm)
+            ctx = reject_alignment(context(), term, store, llm=llm, embedding_index=index)
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         state["context"] = ctx
         state["agent"] = None
         save_context(ctx)
-        return alignment_queue(ctx, store, llm=llm)
+        return alignment_queue(ctx, store, llm=llm, embedding_index=index)
 
     @app.get("/api/rdf")
     def get_rdf():

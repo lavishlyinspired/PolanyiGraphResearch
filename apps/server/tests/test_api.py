@@ -484,6 +484,43 @@ def test_accept_endpoint_wires_resolve_llm_and_persists_the_same_candidate_shown
     assert item["candidate_uri"] == "urn:fibo:AccountRef"
 
 
+def test_queue_endpoint_wires_embedding_index_into_the_review_band(client, monkeypatch):
+    """Proves resolve_embedding_provider() -> embedding_index_for() -> the real
+    EmbeddingOntologyIndex actually reaches alignment_queue() through the API,
+    surfacing a candidate lexical search found nothing for."""
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+
+    class FakeStore:
+        def is_available(self):
+            return True
+
+        def search_classes(self, term, limit=5):
+            return []  # lexical finds nothing -- forces embedding-only surfacing
+
+        def class_hierarchy(self, class_uri):
+            return [], []
+
+        def all_classes(self):
+            return [("urn:fibo:MonetaryAmount", "MonetaryAmount", "")]
+
+    import polanyi.semantic.ontology as ontology_module
+
+    monkeypatch.setattr(ontology_module, "GraphDBOntologyStore", lambda: FakeStore())
+
+    class FakeProvider:
+        def embed(self, texts):
+            return [[1.0, 0.0] if "amount" in t.lower() else [0.0, 1.0] for t in texts]
+
+    import polanyi.api as api_module
+
+    monkeypatch.setattr(api_module, "resolve_embedding_provider", lambda: FakeProvider())
+
+    res = client.get("/api/context/align/queue")
+    assert res.status_code == 200
+    item = next(i for i in res.json()["items"] if i["term"] == "Notional Amount")
+    assert item["candidate_uri"] == "urn:fibo:MonetaryAmount"
+
+
 def test_accepted_alignment_survives_a_context_regenerate(client, monkeypatch):
     """Regenerating context (e.g. after re-introspecting) must not wipe a
     steward's already-accepted FIBO alignment for a term that still exists."""

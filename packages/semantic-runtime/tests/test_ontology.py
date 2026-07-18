@@ -515,6 +515,153 @@ def test_reject_alignment_records_the_llm_ranked_candidate_the_queue_displayed()
 # ── GraphDBOntologyStore.sparql_query ───────────────────────────
 
 
+class FakeEmbeddingIndex:
+    def __init__(self, candidates_by_term, confirmed_labels=None):
+        self.candidates_by_term = candidates_by_term
+        self.confirmed_labels = confirmed_labels or set()
+
+    def search(self, text, limit=5):
+        return self.candidates_by_term.get(text.lower(), [])
+
+    def is_bidirectionally_confirmed(self, term, glossary_terms, candidate_label):
+        return candidate_label in self.confirmed_labels
+
+
+def test_alignment_queue_surfaces_an_embedding_only_candidate_lexical_search_missed():
+    """A term lexical search finds nothing for still gets a real candidate when
+    an embedding index is supplied -- the whole point of Story B."""
+    store = FakeStore({})  # no lexical candidates for anything
+    embedding_index = FakeEmbeddingIndex(
+        {
+            "notional amount": [
+                OntologyCandidate(
+                    uri="urn:fibo:MonetaryAmount",
+                    label="MonetaryAmount",
+                    score=0.72,
+                    method="embedding",
+                ),
+            ],
+        }
+    )
+    queue = alignment_queue(make_context(), store, embedding_index=embedding_index)
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert item.band == "review"
+    assert item.candidate_uri == "urn:fibo:MonetaryAmount"
+
+
+def test_alignment_queue_floors_an_hcb_confirmed_candidate_into_the_auto_band():
+    """Bidirectional confirmation is itself a high-confidence signal, independent
+    of the raw cosine score -- a confirmed 0.65 candidate still auto-aligns."""
+    store = FakeStore({})
+    embedding_index = FakeEmbeddingIndex(
+        {
+            "notional amount": [
+                OntologyCandidate(
+                    uri="urn:fibo:MonetaryAmount",
+                    label="MonetaryAmount",
+                    score=0.65,
+                    method="embedding",
+                ),
+            ],
+        },
+        confirmed_labels={"MonetaryAmount"},
+    )
+    queue = alignment_queue(make_context(), store, embedding_index=embedding_index)
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert item.band == "auto"
+    assert item.score == 0.90
+
+
+def test_alignment_queue_hcb_confirmation_does_not_lower_an_already_high_score():
+    """The floor is a minimum, not a reset -- a confirmed candidate already
+    above the auto threshold keeps its real (higher) score."""
+    store = FakeStore({})
+    embedding_index = FakeEmbeddingIndex(
+        {
+            "notional amount": [
+                OntologyCandidate(
+                    uri="urn:fibo:MonetaryAmount",
+                    label="MonetaryAmount",
+                    score=0.95,
+                    method="embedding",
+                ),
+            ],
+        },
+        confirmed_labels={"MonetaryAmount"},
+    )
+    queue = alignment_queue(make_context(), store, embedding_index=embedding_index)
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert item.score == 0.95
+
+
+def test_alignment_queue_unconfirmed_embedding_candidate_stays_in_review():
+    store = FakeStore({})
+    embedding_index = FakeEmbeddingIndex(
+        {
+            "notional amount": [
+                OntologyCandidate(
+                    uri="urn:fibo:MonetaryAmount",
+                    label="MonetaryAmount",
+                    score=0.65,
+                    method="embedding",
+                ),
+            ],
+        },
+        confirmed_labels=set(),  # not confirmed
+    )
+    queue = alignment_queue(make_context(), store, embedding_index=embedding_index)
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert item.band == "review"
+    assert item.score == 0.65
+
+
+def test_alignment_queue_prefers_the_higher_scored_duplicate_when_both_sources_find_the_same_uri():
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:Shared", label="lexical label", score=0.97),
+            ],
+        }
+    )
+    embedding_index = FakeEmbeddingIndex(
+        {
+            "notional amount": [
+                OntologyCandidate(
+                    uri="urn:fibo:Shared", label="embedding label", score=0.5, method="embedding"
+                ),
+            ],
+        }
+    )
+    queue = alignment_queue(make_context(), store, embedding_index=embedding_index)
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert item.band == "auto"
+    assert item.score == 0.97
+    assert item.candidate_label == "lexical label"
+
+
+def test_accept_alignment_persists_an_hcb_confirmed_embedding_candidate():
+    store = FakeStore({})
+    embedding_index = FakeEmbeddingIndex(
+        {
+            "notional amount": [
+                OntologyCandidate(
+                    uri="urn:fibo:MonetaryAmount",
+                    label="MonetaryAmount",
+                    score=0.65,
+                    method="embedding",
+                ),
+            ],
+        },
+        confirmed_labels={"MonetaryAmount"},
+    )
+    ctx = accept_alignment(
+        make_context(), "Notional Amount", store, embedding_index=embedding_index
+    )
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    assert entry.ontology_uri == "urn:fibo:MonetaryAmount"
+    assert entry.ontology_class == "MonetaryAmount"
+
+
 def test_sparql_query_flattens_bindings_to_plain_dicts(monkeypatch):
     from polanyi.semantic.ontology import GraphDBOntologyStore
 
@@ -577,6 +724,48 @@ def test_class_hierarchy_splits_parent_and_children_labels_by_kind(monkeypatch):
 
     assert parents == ["MonetaryAmount"]
     assert children == ["NotionalAmountLeg", "NotionalStep"]
+
+
+def test_all_classes_returns_uri_label_definition_for_the_whole_corpus(monkeypatch):
+    from polanyi.semantic.ontology import GraphDBOntologyStore
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "results": {
+                    "bindings": [
+                        {
+                            "class": {"value": "urn:fibo:ProfitAndLoss"},
+                            "label": {"value": "ProfitAndLoss"},
+                            "definition": {"value": "Net gain or loss."},
+                        },
+                        {
+                            "class": {"value": "urn:fibo:Currency"},
+                            "label": {"value": "Currency"},
+                        },
+                    ]
+                }
+            }
+
+    captured = {}
+
+    def fake_post(url, data, headers, timeout):
+        captured["query"] = data["query"]
+        return FakeResponse()
+
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    store = GraphDBOntologyStore(endpoint="http://localhost:7200", repository="fibo")
+    classes = store.all_classes()
+
+    assert classes == [
+        ("urn:fibo:ProfitAndLoss", "ProfitAndLoss", "Net gain or loss."),
+        ("urn:fibo:Currency", "Currency", ""),
+    ]
+    assert "CONTAINS" not in captured["query"]  # unfiltered — the whole corpus
 
 
 def test_class_hierarchy_returns_empty_lists_for_a_root_and_leaf_class(monkeypatch):

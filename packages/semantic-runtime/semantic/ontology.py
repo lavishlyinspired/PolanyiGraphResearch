@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Optional, Protocol
+from typing import Literal, Optional, Protocol
 
 import httpx
 from pydantic import BaseModel, Field  # noqa: F401 — Field used by _RankingChoice
@@ -30,11 +30,23 @@ class OntologyCandidate(BaseModel):
     label: str
     definition: str = ""
     score: float = Field(default=0.0, ge=0.0, le=1.0)
+    method: Literal["lexical", "embedding"] = "lexical"
 
 
 class OntologyStore(Protocol):
     def search_classes(self, term: str, limit: int = 5) -> list[OntologyCandidate]: ...
     def class_hierarchy(self, class_uri: str) -> tuple[list[str], list[str]]: ...
+
+
+class EmbeddingIndex(Protocol):
+    """What `embeddings.EmbeddingOntologyIndex` provides — declared here (not
+    imported) so ontology.py never depends on embeddings.py; embeddings.py
+    already depends on this module for `OntologyCandidate`."""
+
+    def search(self, text: str, limit: int = 5) -> list[OntologyCandidate]: ...
+    def is_bidirectionally_confirmed(
+        self, term: str, glossary_terms: list[str], candidate_label: str
+    ) -> bool: ...
 
 
 def _normalize(text: str) -> str:
@@ -164,6 +176,37 @@ class GraphDBOntologyStore:
             (parents if binding["kind"]["value"] == "parent" else children).append(label)
         return parents, children
 
+    def all_classes(self) -> list[tuple[str, str, str]]:
+        """Every FIBO class as (uri, label, definition), unfiltered — the
+        corpus an embedding index is built from, fetched once and cached by
+        the caller rather than on every request."""
+        query = """
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        PREFIX owl: <http://www.w3.org/2002/07/owl#>
+        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+        SELECT ?class ?label ?definition WHERE {
+            ?class a owl:Class ; rdfs:label ?label .
+            OPTIONAL { ?class skos:definition ?skosDef }
+            OPTIONAL { ?class rdfs:comment ?comment }
+            BIND(COALESCE(?skosDef, ?comment, "") AS ?definition)
+        }
+        """
+        response = httpx.post(
+            self._query_url,
+            data={"query": query},
+            headers={"Accept": "application/sparql-results+json"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        return [
+            (
+                binding["class"]["value"],
+                binding["label"]["value"],
+                binding.get("definition", {}).get("value", ""),
+            )
+            for binding in response.json()["results"]["bindings"]
+        ]
+
     def search_classes(self, term: str, limit: int = 5) -> list[OntologyCandidate]:
         token = _normalize(term).split(" ")[0] if term else ""
         if not token:
@@ -276,8 +319,53 @@ def _rank_with_llm(
     return next((c for c in candidates if c.uri == choice.chosen_uri), None)
 
 
+def _merge_candidates(
+    lexical: list[OntologyCandidate],
+    embedded: list[OntologyCandidate],
+    hcb_confirmed_uris: set[str],
+) -> list[OntologyCandidate]:
+    """Combine lexical + embedding candidates, deduped by URI (higher score
+    wins). An HCB-confirmed candidate's score floors at the auto-alignment
+    threshold — bidirectional confirmation is itself a high-confidence signal,
+    independent of the raw cosine score."""
+    by_uri: dict[str, OntologyCandidate] = {}
+    for candidate in lexical + embedded:
+        existing = by_uri.get(candidate.uri)
+        if existing is None or candidate.score > existing.score:
+            by_uri[candidate.uri] = candidate
+    for uri in hcb_confirmed_uris:
+        candidate = by_uri.get(uri)
+        if candidate is not None and candidate.score < _MIN_ALIGNMENT_SCORE:
+            by_uri[uri] = candidate.model_copy(update={"score": _MIN_ALIGNMENT_SCORE})
+    return sorted(by_uri.values(), key=lambda c: c.score, reverse=True)
+
+
+def _candidates_for(
+    entry,
+    store: OntologyStore,
+    embedding_index: Optional[EmbeddingIndex],
+    glossary_terms: list[str],
+) -> list[OntologyCandidate]:
+    """All real candidates for a term — lexical always, embedding-based (with
+    HCB confirmation) when an index is supplied. One shared fetch so every
+    caller combines lexical and semantic retrieval the same way."""
+    lexical = store.search_classes(entry.term)
+    if embedding_index is None:
+        return lexical
+    embedded = embedding_index.search(entry.term)
+    confirmed_uris = {
+        c.uri
+        for c in embedded
+        if embedding_index.is_bidirectionally_confirmed(entry.term, glossary_terms, c.label)
+    }
+    return _merge_candidates(lexical, embedded, confirmed_uris)
+
+
 def align_glossary(
-    context: SemanticContext, store: OntologyStore, llm=None
+    context: SemanticContext,
+    store: OntologyStore,
+    llm=None,
+    embedding_index: Optional[EmbeddingIndex] = None,
 ) -> SemanticContext:
     """Attach ontology classes to glossary terms.
 
@@ -286,10 +374,11 @@ def align_glossary(
     to the retrieved list, with the option to decline.
     """
     aligned = context.model_copy(deep=True)
+    glossary_terms = [e.term for e in aligned.glossary]
     for entry in aligned.glossary:
         entry.ontology_class = None
         entry.ontology_uri = None
-        candidates = store.search_classes(entry.term)
+        candidates = _candidates_for(entry, store, embedding_index, glossary_terms)
         best = max(candidates, key=lambda c: c.score, default=None)
         if best is not None and best.score >= _MIN_ALIGNMENT_SCORE:
             entry.ontology_class = best.label
@@ -342,7 +431,12 @@ def _resolve_best_candidate(
     return chosen if chosen is not None else best
 
 
-def alignment_queue(context: SemanticContext, store: OntologyStore, llm=None) -> AlignmentQueue:
+def alignment_queue(
+    context: SemanticContext,
+    store: OntologyStore,
+    llm=None,
+    embedding_index: Optional[EmbeddingIndex] = None,
+) -> AlignmentQueue:
     """Every glossary term, bucketed by alignment state.
 
     A term already aligned (persisted ``ontology_uri`` — auto ≥0.90 or a human
@@ -352,11 +446,14 @@ def alignment_queue(context: SemanticContext, store: OntologyStore, llm=None) ->
 
     When `llm` is given, a term in the 'review' band displays the LLM's ranked
     pick among real candidates instead of the raw top lexical score — the 'auto'/
-    'unmapped'/'rejected' bands are never affected.
+    'unmapped'/'rejected' bands are never affected. When `embedding_index` is
+    given, semantic candidates lexical search missed are merged in too (see
+    `_candidates_for`).
     """
     items = []
+    glossary_terms = [e.term for e in context.glossary]
     for entry in context.glossary:
-        candidates = store.search_classes(entry.term)
+        candidates = _candidates_for(entry, store, embedding_index, glossary_terms)
         if entry.ontology_uri is not None:
             score = next((c.score for c in candidates if c.uri == entry.ontology_uri), 0.0)
             items.append(
@@ -390,7 +487,11 @@ def alignment_queue(context: SemanticContext, store: OntologyStore, llm=None) ->
 
 
 def accept_alignment(
-    context: SemanticContext, term: str, store: OntologyStore, llm=None
+    context: SemanticContext,
+    term: str,
+    store: OntologyStore,
+    llm=None,
+    embedding_index: Optional[EmbeddingIndex] = None,
 ) -> SemanticContext:
     """Attach a term's best retrieved candidate — a human accepting the alignment.
 
@@ -403,7 +504,9 @@ def accept_alignment(
     entry = next((e for e in context.glossary if e.term == term), None)
     if entry is None:
         raise LookupError(f"No glossary term named {term!r}")
-    best = _resolve_best_candidate(entry, store.search_classes(entry.term), llm, store=store)
+    glossary_terms = [e.term for e in context.glossary]
+    candidates = _candidates_for(entry, store, embedding_index, glossary_terms)
+    best = _resolve_best_candidate(entry, candidates, llm, store=store)
     if best is None:
         raise LookupError(f"No ontology candidate to accept for {term!r}")
     entry.ontology_class = best.label
@@ -412,7 +515,11 @@ def accept_alignment(
 
 
 def reject_alignment(
-    context: SemanticContext, term: str, store: OntologyStore, llm=None
+    context: SemanticContext,
+    term: str,
+    store: OntologyStore,
+    llm=None,
+    embedding_index: Optional[EmbeddingIndex] = None,
 ) -> SemanticContext:
     """Reject a term's best retrieved candidate — precision over recall.
 
@@ -424,7 +531,9 @@ def reject_alignment(
     entry = next((e for e in context.glossary if e.term == term), None)
     if entry is None:
         raise LookupError(f"No glossary term named {term!r}")
-    best = _resolve_best_candidate(entry, store.search_classes(entry.term), llm, store=store)
+    glossary_terms = [e.term for e in context.glossary]
+    candidates = _candidates_for(entry, store, embedding_index, glossary_terms)
+    best = _resolve_best_candidate(entry, candidates, llm, store=store)
     if best is None:
         raise LookupError(f"No ontology candidate to reject for {term!r}")
     if best.uri not in entry.rejected_ontology_uris:
