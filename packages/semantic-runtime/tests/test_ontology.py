@@ -30,13 +30,17 @@ def test_score_prefix_beats_substring_beats_miss():
 
 
 class FakeStore:
-    def __init__(self, candidates_by_term):
+    def __init__(self, candidates_by_term, hierarchy=None):
         self.candidates_by_term = candidates_by_term
+        self.hierarchy = hierarchy or {}
         self.queries = []
 
     def search_classes(self, term, limit=5):
         self.queries.append(term)
         return self.candidates_by_term.get(term.lower(), [])
+
+    def class_hierarchy(self, class_uri):
+        return self.hierarchy.get(class_uri, ([], []))
 
 
 def make_context():
@@ -149,6 +153,45 @@ AMBIGUOUS = {
         OntologyCandidate(uri="urn:fibo:NotionalStep", label="notional step", score=0.5),
     ]
 }
+
+
+class CapturingRankingLLM:
+    """Structured-output stub that records the rendered prompt for inspection."""
+
+    def __init__(self, chosen_uri):
+        self.chosen_uri = chosen_uri
+        self.captured_prompt = None
+
+    def with_structured_output(self, schema):
+        outer = self
+
+        class Runner:
+            def invoke(self, prompt):
+                outer.captured_prompt = prompt
+                return schema(chosen_uri=outer.chosen_uri)
+
+        return Runner()
+
+
+def test_llm_ranking_prompt_includes_real_fibo_parent_and_children_labels():
+    store = FakeStore(
+        AMBIGUOUS,
+        hierarchy={"urn:fibo:NotionalAmount": (["MonetaryAmount"], ["NotionalAmountLeg"])},
+    )
+    llm = CapturingRankingLLM("urn:fibo:NotionalAmount")
+    align_glossary(make_context(), store, llm=llm)
+    assert "MonetaryAmount" in llm.captured_prompt
+    assert "NotionalAmountLeg" in llm.captured_prompt
+
+
+def test_llm_ranking_prompt_omits_structure_for_a_candidate_with_no_parent_or_children():
+    """A root class (no parent) or leaf class (no children) must render without
+    crashing and without inventing placeholder structure."""
+    store = FakeStore(AMBIGUOUS)  # no `hierarchy` given -> every candidate is bare
+    llm = CapturingRankingLLM("urn:fibo:NotionalAmount")
+    align_glossary(make_context(), store, llm=llm)
+    assert "parent" not in llm.captured_prompt.lower()
+    assert "children" not in llm.captured_prompt.lower()
 
 
 def test_llm_ranks_ambiguous_candidates_from_retrieved_list():
@@ -507,3 +550,49 @@ def test_sparql_query_flattens_bindings_to_plain_dicts(monkeypatch):
     ]
     assert captured["url"] == "http://localhost:7200/repositories/fibo"
     assert "SELECT ?term" in captured["query"]
+
+
+def test_class_hierarchy_splits_parent_and_children_labels_by_kind(monkeypatch):
+    from polanyi.semantic.ontology import GraphDBOntologyStore
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "results": {
+                    "bindings": [
+                        {"kind": {"value": "parent"}, "label": {"value": "MonetaryAmount"}},
+                        {"kind": {"value": "child"}, "label": {"value": "NotionalAmountLeg"}},
+                        {"kind": {"value": "child"}, "label": {"value": "NotionalStep"}},
+                    ]
+                }
+            }
+
+    monkeypatch.setattr("httpx.post", lambda *a, **k: FakeResponse())
+
+    store = GraphDBOntologyStore(endpoint="http://localhost:7200", repository="fibo")
+    parents, children = store.class_hierarchy("urn:fibo:NotionalAmount")
+
+    assert parents == ["MonetaryAmount"]
+    assert children == ["NotionalAmountLeg", "NotionalStep"]
+
+
+def test_class_hierarchy_returns_empty_lists_for_a_root_and_leaf_class(monkeypatch):
+    from polanyi.semantic.ontology import GraphDBOntologyStore
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"results": {"bindings": []}}
+
+    monkeypatch.setattr("httpx.post", lambda *a, **k: FakeResponse())
+
+    store = GraphDBOntologyStore(endpoint="http://localhost:7200", repository="fibo")
+    parents, children = store.class_hierarchy("urn:fibo:Root")
+
+    assert parents == []
+    assert children == []

@@ -429,6 +429,9 @@ def _fake_ambiguous_store(monkeypatch):
                 ]
             return []
 
+        def class_hierarchy(self, class_uri):
+            return [], []
+
     import polanyi.semantic.ontology as ontology_module
 
     monkeypatch.setattr(ontology_module, "GraphDBOntologyStore", lambda: FakeStore())

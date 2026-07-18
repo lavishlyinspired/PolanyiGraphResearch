@@ -34,6 +34,7 @@ class OntologyCandidate(BaseModel):
 
 class OntologyStore(Protocol):
     def search_classes(self, term: str, limit: int = 5) -> list[OntologyCandidate]: ...
+    def class_hierarchy(self, class_uri: str) -> tuple[list[str], list[str]]: ...
 
 
 def _normalize(text: str) -> str:
@@ -129,6 +130,40 @@ class GraphDBOntologyStore:
             for binding in response.json()["results"]["bindings"]
         ]
 
+    def class_hierarchy(self, class_uri: str) -> tuple[list[str], list[str]]:
+        """Immediate parent and children labels (one hop each direction) for a
+        class — real structural context for LLM ranking (the "right level of
+        abstraction" signal), without a graph database."""
+        query = f"""
+        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+        SELECT ?kind ?label WHERE {{
+            {{
+                <{class_uri}> rdfs:subClassOf ?parent .
+                ?parent rdfs:label ?label .
+                BIND("parent" AS ?kind)
+            }}
+            UNION
+            {{
+                ?child rdfs:subClassOf <{class_uri}> .
+                ?child rdfs:label ?label .
+                BIND("child" AS ?kind)
+            }}
+        }}
+        """
+        response = httpx.post(
+            self._query_url,
+            data={"query": query},
+            headers={"Accept": "application/sparql-results+json"},
+            timeout=15,
+        )
+        response.raise_for_status()
+        parents: list[str] = []
+        children: list[str] = []
+        for binding in response.json()["results"]["bindings"]:
+            label = binding["label"]["value"]
+            (parents if binding["kind"]["value"] == "parent" else children).append(label)
+        return parents, children
+
     def search_classes(self, term: str, limit: int = 5) -> list[OntologyCandidate]:
         token = _normalize(term).split(" ")[0] if term else ""
         if not token:
@@ -209,12 +244,26 @@ example, "revenue bond" is NOT a match for "Revenue"). Respond with the
 chosen candidate's URI, or null if no candidate is a true match."""
 
 
-def _rank_with_llm(entry, candidates: list[OntologyCandidate], llm) -> Optional[OntologyCandidate]:
+def _candidate_listing_entry(candidate: OntologyCandidate, store: Optional[OntologyStore]) -> str:
+    """One candidate's prompt text: label/definition plus real FIBO parent/children
+    context when a store is available — never invented, omitted when absent."""
+    text = f"- {candidate.uri}\n  label: {candidate.label}"
+    if candidate.definition:
+        text += f"\n  definition: {candidate.definition}"
+    if store is not None:
+        parents, children = store.class_hierarchy(candidate.uri)
+        if parents:
+            text += f"\n  parent: {', '.join(parents)}"
+        if children:
+            text += f"\n  children: {', '.join(children)}"
+    return text
+
+
+def _rank_with_llm(
+    entry, candidates: list[OntologyCandidate], llm, store: Optional[OntologyStore] = None
+) -> Optional[OntologyCandidate]:
     """Ask the LLM to choose among retrieved candidates — never to invent one."""
-    listing = "\n".join(
-        f"- {c.uri}\n  label: {c.label}" + (f"\n  definition: {c.definition}" if c.definition else "")
-        for c in candidates
-    )
+    listing = "\n".join(_candidate_listing_entry(c, store) for c in candidates)
     prompt = _RANKING_PROMPT.format(
         term=entry.term, definition=entry.definition, candidates=listing
     )
@@ -248,7 +297,7 @@ def align_glossary(
             continue
         if llm is not None:
             plausible = [c for c in candidates if c.score >= _MIN_REVIEW_SCORE]
-            chosen = _rank_with_llm(entry, plausible, llm) if plausible else None
+            chosen = _rank_with_llm(entry, plausible, llm, store=store) if plausible else None
             if chosen is not None:
                 entry.ontology_class = chosen.label
                 entry.ontology_uri = chosen.uri
@@ -269,7 +318,10 @@ def classify_band(score: Optional[float]) -> AlignmentBand:
 
 
 def _resolve_best_candidate(
-    entry, candidates: list[OntologyCandidate], llm=None
+    entry,
+    candidates: list[OntologyCandidate],
+    llm=None,
+    store: Optional[OntologyStore] = None,
 ) -> Optional[OntologyCandidate]:
     """The single source of truth for "which candidate is currently best for this
     term" — shared by the review queue (what's displayed) and accept/reject (what's
@@ -286,7 +338,7 @@ def _resolve_best_candidate(
     plausible = [c for c in candidates if c.score >= _MIN_REVIEW_SCORE]
     if not plausible:
         return best
-    chosen = _rank_with_llm(entry, plausible, llm)
+    chosen = _rank_with_llm(entry, plausible, llm, store=store)
     return chosen if chosen is not None else best
 
 
@@ -324,7 +376,7 @@ def alignment_queue(context: SemanticContext, store: OntologyStore, llm=None) ->
             band = classify_band(best.score if best is not None else None)
         displayed = best
         if band == "review":
-            displayed = _resolve_best_candidate(entry, candidates, llm) or best
+            displayed = _resolve_best_candidate(entry, candidates, llm, store=store) or best
         items.append(
             AlignmentReviewItem(
                 term=entry.term,
@@ -351,7 +403,7 @@ def accept_alignment(
     entry = next((e for e in context.glossary if e.term == term), None)
     if entry is None:
         raise LookupError(f"No glossary term named {term!r}")
-    best = _resolve_best_candidate(entry, store.search_classes(entry.term), llm)
+    best = _resolve_best_candidate(entry, store.search_classes(entry.term), llm, store=store)
     if best is None:
         raise LookupError(f"No ontology candidate to accept for {term!r}")
     entry.ontology_class = best.label
@@ -372,7 +424,7 @@ def reject_alignment(
     entry = next((e for e in context.glossary if e.term == term), None)
     if entry is None:
         raise LookupError(f"No glossary term named {term!r}")
-    best = _resolve_best_candidate(entry, store.search_classes(entry.term), llm)
+    best = _resolve_best_candidate(entry, store.search_classes(entry.term), llm, store=store)
     if best is None:
         raise LookupError(f"No ontology candidate to reject for {term!r}")
     if best.uri not in entry.rejected_ontology_uris:
