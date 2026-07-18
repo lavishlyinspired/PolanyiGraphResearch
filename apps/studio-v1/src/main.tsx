@@ -1,9 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { ValidatorPage } from "@/pages/Validator/ValidatorPage";
+import { AppShell } from "@/AppShell";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ValidatorPage />
+    <AppShell />
   </StrictMode>,
 );

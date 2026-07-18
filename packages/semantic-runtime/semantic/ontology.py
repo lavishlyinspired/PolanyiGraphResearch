@@ -82,6 +82,22 @@ class GraphDBOntologyStore:
         except httpx.HTTPError:
             return False
 
+    def sparql_query(self, query: str) -> list[dict]:
+        """Run an arbitrary read-only SPARQL query, flattened to plain dicts.
+
+        Shared by the CLI (`polanyi sparql`) and the API (`POST /api/sparql`) —
+        one implementation of the GraphDB query call, not two drifting copies.
+        """
+        response = httpx.post(
+            self._query_url,
+            data={"query": query},
+            headers={"Accept": "application/sparql-results+json"},
+            timeout=30,
+        )
+        response.raise_for_status()
+        bindings = response.json()["results"]["bindings"]
+        return [{key: value["value"] for key, value in binding.items()} for binding in bindings]
+
     def expand_subclasses(self, class_uri: str, limit: int = 100) -> list[OntologyCandidate]:
         """All transitive subclasses of a class — deterministic hierarchy
         expansion ("all financial instruments" → every subclass), no reasoner

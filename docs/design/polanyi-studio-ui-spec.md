@@ -1,6 +1,6 @@
 # Polanyi Works Studio — UI Specification & Implementation Plan
 
-**Status:** Proposal (v2 — adds §8, the research-driven expansion: Changes, Evaluations, Query Console, Activity, Platform Registry & Extensions, governance/lineage/cost affordances) · **Prototype:** [`polanyi-studio-prototype.html`](polanyi-studio-prototype.html) — a self-contained HTML file; open it in any browser. Every screen described here exists in the prototype.
+**Status:** Proposal (v3 — audited and consolidated. A separate session had expanded the sidebar to 21 items including a 5-page "Intelligence" group backed by `packages/gnn-runtime`, a disconnected research spike with no API wiring, no tests, and no entry in the root `pyproject.toml`. That group is consolidated into one honestly-labeled "Graph Insights" page (nested under Knowledge Graph, badged **experimental**); a speculative "Practices" page with zero backend was removed entirely. See [`polanyi-studio-prototype-additions.md`](polanyi-studio-prototype-additions.md) for the full audit and the research parking lot it now serves as.) · **Prototype:** [`polanyi-studio-prototype.html`](polanyi-studio-prototype.html) — a self-contained HTML file, 16 pages, all cross-wired (nav ↔ views ↔ command palette ↔ keyboard shortcuts verified). Every screen described here exists in the prototype.
 **Relationship to the current `apps/studio`:** none. This is a clean-slate design; the existing studio is deliberately ignored per the design brief. `PRODUCT.md` (repo root) captures the strategic register this spec follows.
 
 ---

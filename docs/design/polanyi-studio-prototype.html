@@ -45,9 +45,9 @@
   }
   .wordmark b{font-size:14px;font-weight:650;letter-spacing:-.01em}
   .wordmark span{color:var(--ink-3);font-size:12px}
-  .nav-group{margin-top:16px;padding:6px 10px 4px;font-size:10px;font-weight:700;letter-spacing:.09em;color:var(--ink-3);text-transform:uppercase;border-top:1px solid var(--line);opacity:1}
+  .nav-group{margin-top:16px;padding:5px 10px 4px;font-size:10px;font-weight:700;letter-spacing:.10em;color:var(--ink);text-transform:uppercase;border-top:1px solid var(--line)}
   .nav-group:first-of-type{margin-top:6px;border-top:none}
-  .nav-group .sub{display:block;font-size:9px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--ink-3);margin-top:1px;opacity:.7}
+  .nav-group .sub{display:block;font-size:9px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--ink-3);margin-top:1px;opacity:.75}
   .nav-item{
     display:flex;align-items:center;gap:8px;width:100%;text-align:left;
     padding:6px 10px;border-radius:6px;color:var(--ink-1);font-weight:500;
@@ -398,6 +398,38 @@
   .ep-section{padding:12px 14px;border-bottom:1px solid var(--line)}
   .ep-section:last-child{border-bottom:none}
 
+  /* ---------- Intelligence soft stat cards ---------- */
+  .intel-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;text-align:center}
+  .intel-card .ic-label{font-size:10px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px}
+  .intel-card .ic-val{font-size:30px;font-weight:700;color:var(--ink);line-height:1}
+  .intel-card .ic-badge{display:inline-block;margin-top:6px;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px;border:1px solid var(--line-2);color:var(--ink-2);background:var(--bg)}
+  .intel-card .ic-note{font-size:10px;color:var(--ink-3);margin-top:6px;line-height:1.5}
+  .intel-card.ic-green .ic-val{color:var(--good)}
+  .intel-card.ic-green .ic-badge{background:var(--good-tint);border-color:var(--good-line);color:var(--good)}
+  .intel-card.ic-blue .ic-val{color:#1e40af}
+  .intel-card.ic-blue .ic-badge{background:#dbeafe;border-color:#bfdbfe;color:#1e40af}
+  .intel-card.ic-warn .ic-val{color:var(--warn)}
+  .intel-card.ic-warn .ic-badge{background:var(--warn-tint);border-color:var(--warn-line);color:var(--warn)}
+  .intel-card.ic-purple .ic-val{color:var(--neural-text)}
+  .intel-card.ic-purple .ic-badge{background:var(--neural-tint);border-color:var(--neural-line);color:var(--neural-text)}
+  /* Plain-English insight explainer box */
+  .insight-explain{background:rgba(62,82,38,.04);border:1px solid var(--moss-line);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:var(--ink-2);line-height:1.65}
+  .insight-explain strong{color:var(--moss-deep)}
+  /* Generic card (Graph Analytics + Vector Search) */
+  .card{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:16px;overflow:hidden}
+  .card.mb{margin-bottom:18px}
+  .card-head{font-size:13px;font-weight:600;margin:0 0 12px;color:var(--ink)}
+  /* KPI stat cards */
+  .kpi-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;text-align:center}
+  .kpi-title{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);margin-bottom:6px}
+  .kpi-val{font-size:26px;font-weight:700;color:var(--ink);line-height:1.1}
+  .kpi-sub{font-size:11px;color:var(--ink-3);margin-top:4px}
+  /* Pill badge */
+  .pill{display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+  /* Simple 2-col grid */
+  .grid.cols-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:900px){.grid.cols-2{grid-template-columns:1fr}}
+
   /* ---------- guided walk ---------- */
   .walk-step{display:flex;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);align-items:flex-start}
   .walk-step:last-child{border-bottom:none}
@@ -451,22 +483,36 @@
       <svg class="nav-icon" viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
       Overview<span class="shortcut">G O</span>
     </button>
+    <button class="nav-item" data-go="agent">
+      <svg class="nav-icon" viewBox="0 0 16 16"><path d="M8 2a5.5 5.5 0 0 1 5 7.93V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.93A5.5 5.5 0 0 1 8 2z"/><circle cx="6" cy="7.5" r=".8" fill="currentColor"/><circle cx="10" cy="7.5" r=".8" fill="currentColor"/></svg>
+      Agent Workspace<span class="shortcut">G A</span>
+    </button>
 
-    <div class="nav-group">Ingest<span class="sub">Schema &amp; Knowledge</span></div>
+    <div class="nav-group">Ground<span class="sub">Connect sources</span></div>
     <button class="nav-item" data-go="sources">
       <svg class="nav-icon" viewBox="0 0 16 16"><ellipse cx="8" cy="4" rx="6" ry="2.5"/><path d="M2 4v8c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5V4"/><path d="M2 8c0 1.38 2.69 2.5 6 2.5s6-1.12 6-2.5"/></svg>
       Data Sources<span class="count">2</span>
     </button>
-    <button class="nav-item" data-go="model">
-      <svg class="nav-icon" viewBox="0 0 16 16"><path d="M3 1.5h10a.5.5 0 0 1 .5.5v12a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z"/><path d="M5 5h6M5 8h4"/></svg>
-      Semantic Model<span class="count">32</span>
+
+    <div class="nav-group">Explore<span class="sub">Graph &amp; Documents</span></div>
+    <button class="nav-item" data-go="graph">
+      <svg class="nav-icon" viewBox="0 0 16 16"><circle cx="8" cy="3" r="2"/><circle cx="3" cy="10" r="2"/><circle cx="13" cy="10" r="2"/><circle cx="8" cy="13" r="1.5"/><path d="M6.5 4L4 8.5M9.5 4L12 8.5M5 10h6"/></svg>
+      Knowledge Graph<span class="shortcut">G G</span>
     </button>
     <button class="nav-item" data-go="documents">
       <svg class="nav-icon" viewBox="0 0 16 16"><path d="M3 1.5h7l3 3V14.5a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z"/><path d="M10 1.5v3h3"/></svg>
       Documents<span class="count">3</span>
     </button>
+    <button class="nav-item" data-go="console">
+      <svg class="nav-icon" viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path d="M5 6l-2 2 2 2M11 6l2 2-2 2"/></svg>
+      Query Console<span class="shortcut">G Q</span>
+    </button>
 
-    <div class="nav-group">Validate<span class="sub">Rules &amp; Compliance</span></div>
+    <div class="nav-group">Govern<span class="sub">Rules &amp; Compliance</span></div>
+    <button class="nav-item" data-go="model">
+      <svg class="nav-icon" viewBox="0 0 16 16"><path d="M3 1.5h10a.5.5 0 0 1 .5.5v12a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z"/><path d="M5 5h6M5 8h4"/></svg>
+      Semantic Model<span class="count">32</span>
+    </button>
     <button class="nav-item" data-go="rules">
       <svg class="nav-icon" viewBox="0 0 16 16"><path d="M8 1.5L2 4.5v4c0 3.5 2.6 6.1 6 6.5 3.4-.4 6-3 6-6.5v-4z"/></svg>
       Business Rules<span class="count">4</span>
@@ -484,55 +530,21 @@
       Changes<span class="count">✕ 2 blocked</span>
     </button>
 
-    <div class="nav-group">Run<span class="sub">Agent &amp; Queries</span></div>
-    <button class="nav-item" data-go="agent">
-      <svg class="nav-icon" viewBox="0 0 16 16"><path d="M8 2a5.5 5.5 0 0 1 5 7.93V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.93A5.5 5.5 0 0 1 8 2z"/><circle cx="6" cy="7.5" r=".8" fill="currentColor"/><circle cx="10" cy="7.5" r=".8" fill="currentColor"/></svg>
-      Agent Workspace<span class="shortcut">G A</span>
+    <div class="nav-group">Insights<span class="sub">Experimental analysis</span></div>
+    <button class="nav-item" data-go="insights">
+      <svg class="nav-icon" viewBox="0 0 16 16"><path d="M2 12V6M6 12V3M10 12V5M14 12V2"/></svg>
+      Graph Insights<span class="shortcut">G I</span>
     </button>
-    <button class="nav-item nested" data-go="practices">
-      <svg class="nav-icon" viewBox="0 0 16 16"><path d="M2 4h12M2 8h8M2 12h10"/></svg>
-      Practices<span class="count">3</span><span class="shortcut">G P</span>
-    </button>
-    <button class="nav-item nested" data-go="evals">
+
+    <div class="nav-group">System<span class="sub">Ops &amp; Config</span></div>
+    <button class="nav-item" data-go="evals">
       <svg class="nav-icon" viewBox="0 0 16 16"><path d="M5.5 2v4l-2 6.5a1 1 0 0 0 1 1.5h7a1 1 0 0 0 1-1.5L10.5 6V2"/><path d="M4 2h8"/></svg>
       Evaluations<span class="count">3</span><span class="shortcut">G E</span>
-    </button>
-    <button class="nav-item" data-go="graph">
-      <svg class="nav-icon" viewBox="0 0 16 16"><circle cx="8" cy="3" r="2"/><circle cx="3" cy="10" r="2"/><circle cx="13" cy="10" r="2"/><circle cx="8" cy="13" r="1.5"/><path d="M6.5 4L4 8.5M9.5 4L12 8.5M5 10h6"/></svg>
-      Knowledge Graph<span class="shortcut">G G</span>
-    </button>
-    <button class="nav-item" data-go="console">
-      <svg class="nav-icon" viewBox="0 0 16 16"><rect x="1.5" y="1.5" width="13" height="13" rx="2"/><path d="M5 6l-2 2 2 2M11 6l2 2-2 2"/></svg>
-      Query Console<span class="shortcut">G Q</span>
     </button>
     <button class="nav-item" data-go="activity">
       <svg class="nav-icon" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><path d="M8 4v4.5l3 1.5"/></svg>
       Activity
     </button>
-
-    <div class="nav-group">Intelligence<span class="sub">GNN Analysis</span></div>
-    <button class="nav-item" data-go="insights">
-      <svg class="nav-icon" viewBox="0 0 16 16"><circle cx="8" cy="3" r="2"/><circle cx="3" cy="10" r="2"/><circle cx="13" cy="10" r="2"/><path d="M6.5 4L4 8.5M9.5 4L12 8.5M5 10h6"/></svg>
-      Graph Insights<span class="count">4</span><span class="shortcut">G I</span>
-    </button>
-    <button class="nav-item" data-go="anomaly">
-      <svg class="nav-icon" viewBox="0 0 16 16"><path d="M8 1.5L1.5 14h13z"/><path d="M8 6v3M8 11.5v.5"/></svg>
-      Anomaly Scores<span class="shortcut">G N</span>
-    </button>
-    <button class="nav-item" data-go="alignment">
-      <svg class="nav-icon" viewBox="0 0 16 16"><path d="M2 8h12M8 2v12"/><circle cx="8" cy="8" r="6.5"/></svg>
-      Alignment Quality<span class="shortcut">G L</span>
-    </button>
-    <button class="nav-item" data-go="analytics">
-      <svg class="nav-icon" viewBox="0 0 16 16"><path d="M2 12V6M6 12V3M10 12V5M14 12V2"/></svg>
-      Graph Analytics<span class="shortcut">G T</span>
-    </button>
-    <button class="nav-item" data-go="vector">
-      <svg class="nav-icon" viewBox="0 0 16 16"><circle cx="5" cy="5" r="2"/><circle cx="11" cy="5" r="2"/><circle cx="8" cy="11" r="2"/><path d="M6.5 6.5L8 9M9.5 6.5L8 9"/></svg>
-      Vector Search<span class="shortcut">G U</span>
-    </button>
-
-    <div class="nav-group">System<span class="sub">Config &amp; Audit</span></div>
     <button class="nav-item" data-go="capabilities">
       <svg class="nav-icon" viewBox="0 0 16 16"><path d="M10.5 3.5l2 2M5.5 3.5l-2 2M3.5 10.5l2-2M12.5 10.5l-2-2"/><circle cx="8" cy="8" r="2.5"/></svg>
       Registry &amp; Extensions
@@ -1154,7 +1166,7 @@
           <h1>Validator</h1>
           <p class="sub">Check any SQL against the declared rules. Deterministic verdict — no model involved. The same gate runs on every query the agent writes.</p>
         </div>
-        <div class="actions"><span class="chip chip-moss"><span class="g">⬢</span> symbolic · no LLM</span></div>
+        <div class="actions"><span class="chip chip-moss"><span class="g">⬢</span> symbolic · no LLM</span><a href="#agent" class="btn btn-sm">Ask about this →</a></div>
       </div>
 
       <div class="seam">
@@ -2011,168 +2023,6 @@ RETURN d.title, m.text LIMIT 5</pre>
       </div>
     </section>
 
-    <!-- ================= PRACTICES ================= -->
-    <section class="view" id="view-practices">
-      <div class="view-head">
-        <div>
-          <h1>Practices</h1>
-          <p class="sub">Institutional knowledge: how experts actually work, distilled into patterns the agent can follow. Built from sessions, declared by humans, scored by recency, breadth, freshness, and provenance density.</p>
-        </div>
-        <div class="actions"><button class="btn demo">Export practices</button><button class="btn btn-primary demo">+ Declare practice</button></div>
-      </div>
-
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
-        <span style="font-size:12px;color:var(--ink-3)">Source:</span>
-        <div class="seg" role="group" aria-label="Practice source">
-          <button aria-pressed="true">All <span class="count" style="font-size:10px;margin-left:2px">5</span></button>
-          <button aria-pressed="false">Extracted <span class="count" style="font-size:10px;margin-left:2px">3</span></button>
-          <button aria-pressed="false">Declared <span class="count" style="font-size:10px;margin-left:2px">2</span></button>
-        </div>
-        <span style="margin-left:16px;font-size:12px;color:var(--ink-3)">Sort:</span>
-        <div class="seg" role="group" aria-label="Practice sort">
-          <button aria-pressed="true">Score</button>
-          <button aria-pressed="false">Last used</button>
-          <button aria-pressed="false">Name A→Z</button>
-        </div>
-      </div>
-
-      <div class="panel" style="margin-bottom:18px">
-        <div class="panel-h"><h2>Desk Risk Review Pattern</h2><span class="hint">extracted · score 87</span>
-          <div class="actions"><span class="chip chip-neural" style="font-size:10.5px"><span class="g">✦</span> from 6 sessions</span><button class="btn btn-sm demo">View sessions</button></div></div>
-        <div style="padding:14px">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
-            <div class="field"><div class="k">Score components</div>
-              <div class="v">
-                <div class="meter" style="margin-bottom:5px"><span class="lbl" style="font-size:11px">Recency</span><span class="val" style="font-size:11px">8/10</span><span class="track" style="height:4px"><span class="fill" style="width:80%;background:var(--moss)"></span></span></div>
-                <div class="meter" style="margin-bottom:5px"><span class="lbl" style="font-size:11px">Breadth</span><span class="val" style="font-size:11px">7/10</span><span class="track" style="height:4px"><span class="fill" style="width:70%;background:var(--moss)"></span></span></div>
-                <div class="meter" style="margin-bottom:0"><span class="lbl" style="font-size:11px">Freshness</span><span class="val" style="font-size:11px">9/10</span><span class="track" style="height:4px"><span class="fill" style="width:90%;background:var(--moss)"></span></span></div>
-              </div>
-            </div>
-            <div class="field"><div class="k">Confidence</div>
-              <div class="v">
-                <div style="font-size:13px;font-weight:600;color:var(--moss);margin-bottom:6px">0.87</div>
-                <div style="font-size:12px;color:var(--ink-2)">Well-calibrated · 6 sessions over 32 days · last used 2d ago</div>
-              </div>
-            </div>
-            <div class="field"><div class="k">Pattern type</div>
-              <div class="v">
-                <span class="chip chip-moss" style="font-size:10.5px">analytical</span>
-                <span class="chip" style="font-size:10.5px;margin-top:4px">sequential</span>
-                <div style="font-size:12px;color:var(--ink-2);margin-top:6px">SQL-driven · compliance-oriented</div>
-              </div>
-            </div>
-          </div>
-          <div class="field"><div class="k">Typical workflow</div>
-            <div class="v" style="font-size:12px">
-              <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
-                <span class="chip chip-moss" style="font-size:10.5px">InspectSchema</span><span class="larrow">→</span>
-                <span class="chip" style="font-size:10.5px">ExecuteSQL</span><span class="larrow">→</span>
-                <span class="chip chip-warn" style="font-size:10.5px">ValidateSQL</span><span class="larrow">→</span>
-                <span class="chip chip-neural" style="font-size:10.5px">SearchOntology</span><span class="larrow">→</span>
-                <span class="chip chip-bad" style="font-size:10.5px">EnforcePolicy</span><span class="larrow">→</span>
-                <span class="chip chip-good" style="font-size:10.5px">Respond</span>
-              </div>
-            </div>
-          </div>
-          <div class="field"><div class="k">Associated AKUs</div>
-            <div class="v fchips">
-              <span class="chip chip-moss" style="font-size:10.5px">counterparty-risk-check</span>
-              <span class="chip" style="font-size:10.5px">revenue-reconciliation</span>
-            </div>
-          </div>
-          <div class="field"><div class="k">Recent sessions</div>
-            <div class="v" style="font-size:12px">
-              <div class="ledgeritem" style="padding:5px 0"><time>2d ago</time><span class="q">desk-risk-review · 5 counterparties exposed</span></div>
-              <div class="ledgeritem" style="padding:5px 0"><time>9d ago</time><span class="q">desk-risk-review · 2 sanctioned entities filtered</span></div>
-              <div class="ledgeritem" style="padding:5px 0"><time>18d ago</time><span class="q">desk-risk-review · first use · baseline established</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel" style="margin-bottom:18px">
-        <div class="panel-h"><h2>Revenue Reconciliation Pattern</h2><span class="hint">extracted · score 72</span>
-          <div class="actions"><span class="chip chip-neural" style="font-size:10.5px"><span class="g">✦</span> from 3 sessions</span><button class="btn btn-sm demo">View sessions</button></div></div>
-        <div style="padding:14px">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
-            <div class="field"><div class="k">Score components</div>
-              <div class="v">
-                <div class="meter" style="margin-bottom:5px"><span class="lbl" style="font-size:11px">Recency</span><span class="val" style="font-size:11px">6/10</span><span class="track" style="height:4px"><span class="fill" style="width:60%;background:var(--ink-3)"></span></span></div>
-                <div class="meter" style="margin-bottom:5px"><span class="lbl" style="font-size:11px">Breadth</span><span class="val" style="font-size:11px">5/10</span><span class="track" style="height:4px"><span class="fill" style="width:50%;background:var(--ink-3)"></span></span></div>
-                <div class="meter" style="margin-bottom:0"><span class="lbl" style="font-size:11px">Freshness</span><span class="val" style="font-size:11px">8/10</span><span class="track" style="height:4px"><span class="fill" style="width:80%;background:var(--moss)"></span></span></div>
-              </div>
-            </div>
-            <div class="field"><div class="k">Confidence</div>
-              <div class="v">
-                <div style="font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:6px">0.72</div>
-                <div style="font-size:12px;color:var(--ink-2)">Reasonably calibrated · 3 sessions over 14 days · last used 5d ago</div>
-              </div>
-            </div>
-            <div class="field"><div class="k">Pattern type</div>
-              <div class="v">
-                <span class="chip chip-neural" style="font-size:10.5px">analytical</span>
-                <span class="chip" style="font-size:10.5px;margin-top:4px">parallel</span>
-                <div style="font-size:12px;color:var(--ink-2);margin-top:6px">SQL-driven · financial reconciliation</div>
-              </div>
-            </div>
-          </div>
-          <div class="field"><div class="k">Typical workflow</div>
-            <div class="v" style="font-size:12px">
-              <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
-                <span class="chip" style="font-size:10.5px">ExecuteSQL</span><span class="larrow">→</span>
-                <span class="chip chip-warn" style="font-size:10.5px">ConvertCurrency</span><span class="larrow">→</span>
-                <span class="chip chip-bad" style="font-size:10.5px">ValidateSQL</span><span class="larrow">→</span>
-                <span class="chip chip-good" style="font-size:10.5px">Respond</span>
-              </div>
-            </div>
-          </div>
-          <div class="field"><div class="k">Associated AKUs</div>
-            <div class="v fchips">
-              <span class="chip" style="font-size:10.5px">revenue-reconciliation</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel" style="margin-bottom:18px">
-        <div class="panel-h"><h2>FIBO Alignment Strategy</h2><span class="hint">declared · score 65</span>
-          <div class="actions"><span class="chip chip-moss" style="font-size:10.5px"><span class="g">§</span> declared by akash</span></div></div>
-        <div style="padding:14px">
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
-            <div class="field"><div class="k">Score components</div>
-              <div class="v">
-                <div class="meter" style="margin-bottom:5px"><span class="lbl" style="font-size:11px">Recency</span><span class="val" style="font-size:11px">4/10</span><span class="track" style="height:4px"><span class="fill" style="width:40%;background:var(--ink-3)"></span></span></div>
-                <div class="meter" style="margin-bottom:5px"><span class="lbl" style="font-size:11px">Breadth</span><span class="val" style="font-size:11px">9/10</span><span class="track" style="height:4px"><span class="fill" style="width:90%;background:var(--moss)"></span></span></div>
-                <div class="meter" style="margin-bottom:0"><span class="lbl" style="font-size:11px">Freshness</span><span class="val" style="font-size:11px">3/10</span><span class="track" style="height:4px"><span class="fill" style="width:30%;background:var(--ink-3)"></span></span></div>
-              </div>
-            </div>
-            <div class="field"><div class="k">Confidence</div>
-              <div class="v">
-                <div style="font-size:13px;font-weight:600;color:var(--ink-3);margin-bottom:6px">0.65</div>
-                <div style="font-size:12px;color:var(--ink-2)">Low confidence · no recent sessions · consider refreshing</div>
-              </div>
-            </div>
-            <div class="field"><div class="k">Pattern type</div>
-              <div class="v">
-                <span class="chip chip-moss" style="font-size:10.5px">ontological</span>
-                <div style="font-size:12px;color:var(--ink-2);margin-top:6px">human-curated · precision-first</div>
-              </div>
-            </div>
-          </div>
-          <div class="field"><div class="k">Workflow</div>
-            <div class="v" style="font-size:12px">
-              <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">
-                <span class="chip chip-moss" style="font-size:10.5px">SearchOntology</span><span class="larrow">→</span>
-                <span class="chip" style="font-size:10.5px">ExpandOntology</span><span class="larrow">→</span>
-                <span class="chip chip-bad" style="font-size:10.5px">EnforcePolicy</span><span class="larrow">→</span>
-                <span class="chip chip-good" style="font-size:10.5px">Respond</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- ================= EVALUATIONS ================= -->
     <section class="view" id="view-evals">
       <div class="view-head">
@@ -2243,575 +2093,167 @@ RETURN d.title, m.text LIMIT 5</pre>
       </div>
     </section>
 
-    <!-- ================= GNN INSIGHTS ================= -->
+    <!-- ================= GRAPH INSIGHTS (consolidated) ================= -->
     <section class="view" id="view-insights">
       <div class="view-head">
         <div>
           <h1>Graph Insights</h1>
-          <p class="sub">GNN-powered analysis — link suggestions, drift detection, communities, governance gaps. Powered by Node2Vec + GCN.</p>
+          <p class="sub">Analysis over the Neo4j projection — link suggestions, drift, communities, similarity search. One page, because a business user doesn't need five destinations for what is one health check on one graph.</p>
         </div>
-        <button class="btn btn-outline" onclick="alert('Export insights as JSON')">Export</button>
+        <div class="actions"><button class="btn demo">Export report</button></div>
       </div>
 
-      <!-- grounding score hero — big visual card -->
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:28px">
-        <div style="background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:1px solid #bbf7d0;border-radius:12px;padding:20px;text-align:center">
-          <div style="font-size:11px;font-weight:600;color:#166534;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Grounding Score</div>
-          <div style="font-size:36px;font-weight:700;color:#14532d;line-height:1">0.73</div>
-          <div style="margin-top:6px"><span style="display:inline-block;background:#166534;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px">HEALTHY</span></div>
-          <div style="font-size:10px;color:#166534;margin-top:8px;opacity:.8">alignment 40% · coverage 30% · drift 20% · connectivity 10%</div>
-        </div>
-        <div style="background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #bfdbfe;border-radius:12px;padding:20px;text-align:center">
-          <div style="font-size:11px;font-weight:600;color:#1e40af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Model Accuracy</div>
-          <div style="font-size:36px;font-weight:700;color:#1e3a8a;line-height:1">0.847</div>
-          <div style="margin-top:6px"><span style="display:inline-block;background:#1e40af;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px">GCN</span></div>
-          <div style="font-size:10px;color:#1e40af;margin-top:8px;opacity:.8">trained on 12 positive · 36 negative edges</div>
-        </div>
-        <div style="background:linear-gradient(135deg,#fefce8 0%,#fef9c3 100%);border:1px solid #fde68a;border-radius:12px;padding:20px;text-align:center">
-          <div style="font-size:11px;font-weight:600;color:#854d0e;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Drift Alerts</div>
-          <div style="font-size:36px;font-weight:700;color:#713f12;line-height:1">3</div>
-          <div style="margin-top:6px"><span style="display:inline-block;background:#ca8a04;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px">1 HIGH · 1 MED</span></div>
-          <div style="font-size:10px;color:#854d0e;margin-top:8px;opacity:.8">embedding distance &gt; 0.3 threshold</div>
-        </div>
-        <div style="background:linear-gradient(135deg,#faf5ff 0%,#f3e8ff 100%);border:1px solid #e9d5ff;border-radius:12px;padding:20px;text-align:center">
-          <div style="font-size:11px;font-weight:600;color:#6b21a8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Governance Gaps</div>
-          <div style="font-size:36px;font-weight:700;color:#581c87;line-height:1">4</div>
-          <div style="margin-top:6px"><span style="display:inline-block;background:#7c3aed;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px">2 UNALIGNED · 2 UNCOVERED</span></div>
-          <div style="font-size:10px;color:#6b21a8;margin-top:8px;opacity:.8">terms without FIBO · entities without glossary</div>
+      <div class="callout callout-warn">
+        <div>⚠</div>
+        <div>
+          <div class="ttl">Experimental — not wired to the API yet</div>
+          <div><code>packages/gnn-runtime</code> is a research spike: hand-rolled Node2Vec-style embeddings in NumPy, no Neo4j GDS calls, no vector index, no tests, and it isn't declared in the root <code>pyproject.toml</code> — so it isn't part of the shipped distribution today. Everything below is a design target, not a live status. Treat green/healthy badges elsewhere in this prototype as aspirational until this is actually wired and measured.</div>
         </div>
       </div>
 
-      <!-- link suggestions — prominent card -->
-      <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:20px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-          <div style="width:32px;height:32px;background:linear-gradient(135deg,#dbeafe,#bfdbfe);border-radius:8px;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#1e40af" stroke-width="1.5"><path d="M4 8h8M8 4v8"/></svg></div>
-          <div>
-            <h2 style="margin:0;font-size:15px">Link Suggestions</h2>
-            <p class="hint" style="margin:0">Predicted ALIGNED_TO edges — review before confirming</p>
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="ins-overview">Overview</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="ins-anomaly">Anomalies</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="ins-analytics">Communities &amp; Centrality</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="ins-vector">Similarity Search</button>
+      </div>
+
+      <div class="tabpane active" id="tab-ins-overview">
+        <div class="cols cols-half" style="margin-bottom:18px">
+          <div class="panel">
+            <div class="panel-h"><h2>Graph health</h2></div>
+            <div style="padding:14px 14px 4px">
+              <div class="meter"><span class="lbl">Connectivity &amp; governance</span><span class="val">73%</span><span class="track"><span class="fill" style="width:73%"></span></span></div>
+              <div class="meter"><span class="lbl">Link-prediction confidence (model self-reported)</span><span class="val">84.7%</span><span class="track"><span class="fill" style="width:84.7%;background:var(--neural)"></span></span></div>
+            </div>
+            <div style="padding:0 14px 14px;display:flex;gap:8px;flex-wrap:wrap">
+              <span class="chip chip-warn">3 concept-drift alerts</span>
+              <span class="chip chip-warn">4 governance gaps</span>
+              <span class="chip">2 isolated mentions</span>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Governance gaps</h2><span class="hint">actionable — link straight to the fix</span></div>
+            <div class="tblwrap"><table class="tbl">
+              <tbody>
+                <tr><td><span class="chip chip-warn">term</span> NettingAgreement</td><td class="dim">no FIBO alignment</td><td class="num"><a href="#ontology" class="btn btn-sm">Align →</a></td></tr>
+                <tr><td><span class="chip chip-warn">term</span> PaymentObligation</td><td class="dim">no FIBO alignment</td><td class="num"><a href="#ontology" class="btn btn-sm">Align →</a></td></tr>
+                <tr><td><span class="chip chip-bad">entity</span> SETTLEMENT_RISK</td><td class="dim">no glossary term</td><td class="num"><a href="#model" class="btn btn-sm">Define →</a></td></tr>
+                <tr><td><span class="chip chip-bad">entity</span> OPERATIONAL_LOSS</td><td class="dim">no glossary term</td><td class="num"><a href="#model" class="btn btn-sm">Define →</a></td></tr>
+              </tbody>
+            </table></div>
           </div>
         </div>
-        <div style="overflow-x:auto">
-          <table style="width:100%;font-size:12px;border-collapse:collapse">
-            <thead><tr style="border-bottom:2px solid var(--line)"><th style="text-align:left;padding:8px 10px;color:var(--ink-2);font-weight:600">Source Term</th><th style="text-align:left;padding:8px 10px;color:var(--ink-2);font-weight:600">Target Entity</th><th style="text-align:center;padding:8px 10px;color:var(--ink-2);font-weight:600">Score</th><th style="text-align:right;padding:8px 10px;color:var(--ink-2);font-weight:600">Action</th></tr></thead>
+
+        <div class="panel" style="margin-bottom:18px">
+          <div class="panel-h"><h2>Link suggestions</h2><span class="hint">predicted edges — review before confirming, never auto-applied</span></div>
+          <div class="tblwrap"><table class="tbl">
+            <thead><tr><th>Source term</th><th>Suggested entity</th><th class="num">Score</th><th></th></tr></thead>
             <tbody>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-weight:500;font-family:var(--mono);font-size:11.5px">CounterpartyCreditExposure</td><td style="padding:8px 10px"><span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500">COUNTERPARTY_RISK</span></td><td style="padding:8px 10px;text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600">0.89</span></td><td style="padding:8px 10px;text-align:right"><button class="btn btn-sm btn-primary" onclick="alert('Confirm')">Confirm</button> <button class="btn btn-sm btn-ghost">Dismiss</button></td></tr>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-weight:500;font-family:var(--mono);font-size:11.5px">CollateralizedLoan</td><td style="padding:8px 10px"><span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500">SECURED_DEBT</span></td><td style="padding:8px 10px;text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600">0.82</span></td><td style="padding:8px 10px;text-align:right"><button class="btn btn-sm btn-primary">Confirm</button> <button class="btn btn-sm btn-ghost">Dismiss</button></td></tr>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-weight:500;font-family:var(--mono);font-size:11.5px">NettingAgreement</td><td style="padding:8px 10px"><span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500">NETTING</span></td><td style="padding:8px 10px;text-align:center"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600">0.76</span></td><td style="padding:8px 10px;text-align:right"><button class="btn btn-sm btn-primary">Confirm</button> <button class="btn btn-sm btn-ghost">Dismiss</button></td></tr>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-weight:500;font-family:var(--mono);font-size:11.5px">PaymentObligation</td><td style="padding:8px 10px"><span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500">CASH_FLOW</span></td><td style="padding:8px 10px;text-align:center"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600">0.71</span></td><td style="padding:8px 10px;text-align:right"><button class="btn btn-sm btn-primary">Confirm</button> <button class="btn btn-sm btn-ghost">Dismiss</button></td></tr>
-              <tr><td style="padding:8px 10px;font-weight:500;font-family:var(--mono);font-size:11.5px">InterestRateSwap</td><td style="padding:8px 10px"><span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:500">DERIVATIVE_CONTRACT</span></td><td style="padding:8px 10px;text-align:center"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600">0.68</span></td><td style="padding:8px 10px;text-align:right"><button class="btn btn-sm btn-primary">Confirm</button> <button class="btn btn-sm btn-ghost">Dismiss</button></td></tr>
+              <tr><td class="mono">CounterpartyCreditExposure</td><td><span class="chip chip-doc">COUNTERPARTY_RISK</span></td><td class="num">0.89</td><td class="num"><button class="btn btn-sm demo">Confirm</button> <button class="btn btn-sm demo">Dismiss</button></td></tr>
+              <tr><td class="mono">CollateralizedLoan</td><td><span class="chip chip-doc">SECURED_DEBT</span></td><td class="num">0.82</td><td class="num"><button class="btn btn-sm demo">Confirm</button> <button class="btn btn-sm demo">Dismiss</button></td></tr>
+              <tr><td class="mono">NettingAgreement</td><td><span class="chip chip-doc">NETTING</span></td><td class="num">0.76</td><td class="num"><button class="btn btn-sm demo">Confirm</button> <button class="btn btn-sm demo">Dismiss</button></td></tr>
             </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- communities + drift side by side -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
-        <!-- communities -->
-        <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-            <div style="width:32px;height:32px;background:linear-gradient(135deg,#fae8ff,#f5d0fe);border-radius:8px;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#7c3aed" stroke-width="1.5"><circle cx="5" cy="5" r="3"/><circle cx="11" cy="5" r="3"/><circle cx="8" cy="11" r="3"/></svg></div>
-            <div>
-              <h2 style="margin:0;font-size:15px">Communities</h2>
-              <p class="hint" style="margin:0">K-means clusters on Node2Vec embeddings</p>
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:12px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                <span style="font-weight:600;font-size:13px;color:#581c87">Community 0 · Terms</span>
-                <span style="background:#7c3aed;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px">0.82</span>
-              </div>
-              <div style="font-size:11px;color:#6b21a8">6 terms · <span style="font-family:var(--mono)">CounterpartyCreditExposure, CollateralizedLoan, NettingAgreement...</span></div>
-            </div>
-            <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                <span style="font-weight:600;font-size:13px;color:#1e3a8a">Community 1 · Entities</span>
-                <span style="background:#1e40af;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px">0.76</span>
-              </div>
-              <div style="font-size:11px;color:#1e40af">5 entities · <span style="font-family:var(--mono)">COUNTERPARTY_RISK, MARKET_RISK, OPERATIONAL_LOSS...</span></div>
-            </div>
-            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                <span style="font-weight:600;font-size:13px;color:#14532d">Community 2 · Documents</span>
-                <span style="background:#166534;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px">0.71</span>
-              </div>
-              <div style="font-size:11px;color:#166534">3 documents · <span style="font-family:var(--mono)">Basel_III_Regulation.pdf, IFRS_9_Standard.pdf...</span></div>
-            </div>
-          </div>
+          </table></div>
         </div>
 
-        <!-- drift alerts -->
-        <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-            <div style="width:32px;height:32px;background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:8px;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#92400e" stroke-width="1.5"><path d="M8 2L2 14h12z"/><path d="M8 6v3M8 11.5v.5"/></svg></div>
-            <div>
-              <h2 style="margin:0;font-size:15px">Drift Alerts</h2>
-              <p class="hint" style="margin:0">Embedding shifts from baseline</p>
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:10px">
-            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                <span style="font-weight:600;font-size:13px;color:#991b1b">COUNTERPARTY_RISK</span>
-                <span style="background:#dc2626;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px">HIGH · 0.41</span>
-              </div>
-              <div style="font-size:11px;color:#991b1b">Entity shifted 0.41 from baseline embedding</div>
-            </div>
-            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                <span style="font-weight:600;font-size:13px;color:#92400e">OPERATIONAL_LOSS</span>
-                <span style="background:#d97706;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px">MED · 0.34</span>
-              </div>
-              <div style="font-size:11px;color:#92400e">Entity shifted 0.34 from baseline embedding</div>
-            </div>
-            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-                <span style="font-weight:600;font-size:13px;color:#166534">NETTING</span>
-                <span style="background:#16a34a;color:#fff;font-size:10px;font-weight:600;padding:2px 8px;border-radius:99px">LOW · z=2.81</span>
-              </div>
-              <div style="font-size:11px;color:#166534">Structural anomaly: degree 9 (z-score 2.81)</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- governance gaps + isolated -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
-        <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-            <div style="width:32px;height:32px;background:linear-gradient(135deg,#fef3c7,#fde68a);border-radius:8px;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#92400e" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M8 5v3M8 11v.5"/></svg></div>
-            <div>
-              <h2 style="margin:0;font-size:15px">Governance Gaps</h2>
-              <p class="hint" style="margin:0">Terms without FIBO · entities without glossary</p>
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:8px">
-            <div style="background:#fffbeb;border-left:3px solid #d97706;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px">
-              <strong style="color:#92400e">Term</strong> <span style="font-family:var(--mono);font-size:11px">NettingAgreement</span> — no ALIGNED_TO FIBO
-            </div>
-            <div style="background:#fffbeb;border-left:3px solid #d97706;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px">
-              <strong style="color:#92400e">Term</strong> <span style="font-family:var(--mono);font-size:11px">PaymentObligation</span> — no ALIGNED_TO FIBO
-            </div>
-            <div style="background:#fef2f2;border-left:3px solid #dc2626;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px">
-              <strong style="color:#991b1b">Entity</strong> <span style="font-family:var(--mono);font-size:11px">SETTLEMENT_RISK</span> — no glossary term
-            </div>
-            <div style="background:#fef2f2;border-left:3px solid #dc2626;padding:8px 12px;border-radius:0 6px 6px 0;font-size:12px">
-              <strong style="color:#991b1b">Entity</strong> <span style="font-family:var(--mono);font-size:11px">OPERATIONAL_LOSS</span> — no glossary term
-            </div>
-          </div>
-        </div>
-
-        <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-            <div style="width:32px;height:32px;background:linear-gradient(135deg,#f1f5f9,#e2e8f0);border-radius:8px;display:flex;align-items:center;justify-content:center"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#475569" stroke-width="1.5"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6M8 5v6"/></svg></div>
-            <div>
-              <h2 style="margin:0;font-size:15px">Isolated Nodes</h2>
-              <p class="hint" style="margin:0">Disconnected from the knowledge graph</p>
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:8px">
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;font-size:12px">
-              <span style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase">Mention</span>
-              <div style="font-family:var(--mono);font-size:11.5px;font-weight:500;color:#334155">audit-finding-1</div>
-              <div style="font-size:10px;color:#94a3b8;margin-top:2px">0 edges · no REFERS_TO connection</div>
-            </div>
-            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;font-size:12px">
-              <span style="font-size:10px;font-weight:600;color:#64748b;text-transform:uppercase">Mention</span>
-              <div style="font-family:var(--mono);font-size:11.5px;font-weight:500;color:#334155">risk-event-2024</div>
-              <div style="font-size:10px;color:#94a3b8;margin-top:2px">0 edges · no REFERS_TO connection</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= ANOMALY SCORES ================= -->
-    <section class="view" id="view-anomaly">
-      <div class="view-head">
-        <div>
-          <h1>Anomaly Scores</h1>
-          <p class="sub">GNN-detected structural and semantic anomalies — heatmap of node-level risk scores across the knowledge graph.</p>
-        </div>
-        <button class="btn btn-outline" onclick="alert('Export anomaly report')">Export</button>
-      </div>
-
-      <!-- severity summary -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px">
-        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px;text-align:center">
-          <div style="font-size:28px;font-weight:700;color:#991b1b">1</div>
-          <div style="font-size:11px;font-weight:600;color:#991b1b;text-transform:uppercase;letter-spacing:.05em">High Severity</div>
-        </div>
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:16px;text-align:center">
-          <div style="font-size:28px;font-weight:700;color:#92400e">1</div>
-          <div style="font-size:11px;font-weight:600;color:#92400e;text-transform:uppercase;letter-spacing:.05em">Medium</div>
-        </div>
-        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:16px;text-align:center">
-          <div style="font-size:28px;font-weight:700;color:#166534">1</div>
-          <div style="font-size:11px;font-weight:600;color:#166534;text-transform:uppercase;letter-spacing:.05em">Low (Structural)</div>
-        </div>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;text-align:center">
-          <div style="font-size:28px;font-weight:700;color:#334155">44</div>
-          <div style="font-size:11px;font-weight:600;color:#334155;text-transform:uppercase;letter-spacing:.05em">Normal</div>
-        </div>
-      </div>
-
-      <!-- heatmap -->
-      <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:20px">
-        <h2 style="margin:0 0 14px;font-size:15px">Node Anomaly Heatmap</h2>
-        <p class="hint" style="margin:0 0 16px">Color intensity = anomaly score (red = high, green = low). Based on Node2Vec embedding distance from baseline + structural z-score.</p>
-        <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px">
-          <!-- row 1: high anomalies -->
-          <div style="background:#dc2626;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">COUNTERPARTY_RISK<br><span style="opacity:.8;font-weight:400">0.41</span></div>
-          <div style="background:#d97706;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">OPERATIONAL_LOSS<br><span style="opacity:.8;font-weight:400">0.34</span></div>
-          <div style="background:#16a34a;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">NETTING<br><span style="opacity:.8;font-weight:400">z=2.81</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">MARKET_RISK<br><span style="opacity:.8;font-weight:400">0.12</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">CREDIT_RISK<br><span style="opacity:.8;font-weight:400">0.11</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">LIQUIDITY_RISK<br><span style="opacity:.8;font-weight:400">0.09</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">SETTLEMENT_RISK<br><span style="opacity:.8;font-weight:400">0.08</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">COMPLIANCE_RISK<br><span style="opacity:.8;font-weight:400">0.07</span></div>
-          <!-- row 2: normal -->
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">CounterpartyCreditExposure<br><span style="opacity:.8;font-weight:400">0.06</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">CollateralizedLoan<br><span style="opacity:.8;font-weight:400">0.05</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">InterestRateSwap<br><span style="opacity:.8;font-weight:400">0.05</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">CreditDefaultSwap<br><span style="opacity:.8;font-weight:400">0.04</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">PaymentObligation<br><span style="opacity:.8;font-weight:400">0.04</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">NettingAgreement<br><span style="opacity:.8;font-weight:400">0.03</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">OperationalRiskEvent<br><span style="opacity:.8;font-weight:400">0.03</span></div>
-          <div style="background:#22c55e;color:#fff;padding:8px;border-radius:6px;text-align:center;font-size:10px;font-weight:600">TradeConfirmation<br><span style="opacity:.8;font-weight:400">0.02</span></div>
-        </div>
-      </div>
-
-      <!-- detailed table -->
-      <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px">
-        <h2 style="margin:0 0 14px;font-size:15px">Detailed Anomaly Log</h2>
-        <div style="overflow-x:auto">
-          <table style="width:100%;font-size:12px;border-collapse:collapse">
-            <thead><tr style="border-bottom:2px solid var(--line)"><th style="text-align:left;padding:8px 10px;color:var(--ink-2);font-weight:600">Node</th><th style="text-align:left;padding:8px 10px;color:var(--ink-2);font-weight:600">Type</th><th style="text-align:center;padding:8px 10px;color:var(--ink-2);font-weight:600">Severity</th><th style="text-align:center;padding:8px 10px;color:var(--ink-2);font-weight:600">Score</th><th style="text-align:left;padding:8px 10px;color:var(--ink-2);font-weight:600">Detection Method</th><th style="text-align:left;padding:8px 10px;color:var(--ink-2);font-weight:600">Description</th></tr></thead>
+        <div class="panel">
+          <div class="panel-h"><h2>Communities</h2><span class="hint">clusters on node embeddings — same data as the Communities tab, entity-level view</span></div>
+          <div class="tblwrap"><table class="tbl">
             <tbody>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-weight:500;font-family:var(--mono);font-size:11.5px">COUNTERPARTY_RISK</td><td style="padding:8px 10px">Entity</td><td style="padding:8px 10px;text-align:center"><span style="background:#dc2626;color:#fff;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600">HIGH</span></td><td style="padding:8px 10px;text-align:center;font-family:var(--mono);font-weight:600;color:#991b1b">0.41</td><td style="padding:8px 10px">Embedding drift</td><td style="padding:8px 10px;color:var(--ink-2)">Shifted from baseline by 0.41 cosine distance</td></tr>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-weight:500;font-family:var(--mono);font-size:11.5px">OPERATIONAL_LOSS</td><td style="padding:8px 10px">Entity</td><td style="padding:8px 10px;text-align:center"><span style="background:#d97706;color:#fff;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600">MED</span></td><td style="padding:8px 10px;text-align:center;font-family:var(--mono);font-weight:600;color:#92400e">0.34</td><td style="padding:8px 10px">Embedding drift</td><td style="padding:8px 10px;color:var(--ink-2)">Shifted from baseline by 0.34 cosine distance</td></tr>
-              <tr><td style="padding:8px 10px;font-weight:500;font-family:var(--mono);font-size:11.5px">NETTING</td><td style="padding:8px 10px">Entity</td><td style="padding:8px 10px;text-align:center"><span style="background:#16a34a;color:#fff;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600">LOW</span></td><td style="padding:8px 10px;text-align:center;font-family:var(--mono);font-weight:600;color:#166534">z=2.81</td><td style="padding:8px 10px">Structural (degree)</td><td style="padding:8px 10px;color:var(--ink-2)">Degree 9, z-score 2.81 — unusually connected</td></tr>
+              <tr><td><span class="chip chip-moss">Community 0 · Terms</span></td><td class="dim mono" style="font-size:11.5px">CounterpartyCreditExposure, CollateralizedLoan, NettingAgreement…</td><td class="num">6 terms</td></tr>
+              <tr><td><span class="chip chip-neural">Community 1 · Entities</span></td><td class="dim mono" style="font-size:11.5px">COUNTERPARTY_RISK, MARKET_RISK, OPERATIONAL_LOSS…</td><td class="num">5 entities</td></tr>
+              <tr><td><span class="chip chip-doc">Community 2 · Documents</span></td><td class="dim mono" style="font-size:11.5px">Basel_III_Regulation.pdf, IFRS_9_Standard.pdf…</td><td class="num">3 documents</td></tr>
             </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= ALIGNMENT QUALITY ================= -->
-    <section class="view" id="view-alignment">
-      <div class="view-head">
-        <div>
-          <h1>Alignment Quality</h1>
-          <p class="sub">FIBO ontology coverage and semantic alignment metrics — which terms are grounded, which drift, which are missing.</p>
-        </div>
-        <button class="btn btn-outline" onclick="alert('Export alignment report')">Export</button>
-      </div>
-
-      <!-- coverage gauges -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px">
-        <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;text-align:center">
-          <div style="font-size:11px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">FIBO Alignment</div>
-          <div style="position:relative;width:100px;height:100px;margin:0 auto 12px">
-            <svg viewBox="0 0 100 100" style="transform:rotate(-90deg)">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" stroke-width="8"/>
-              <circle cx="50" cy="50" r="42" fill="none" stroke="#16a34a" stroke-width="8" stroke-dasharray="211 264" stroke-linecap="round"/>
-            </svg>
-            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#14532d">80%</div>
-          </div>
-          <div style="font-size:11px;color:var(--ink-2)">8 of 10 terms aligned to FIBO</div>
-        </div>
-        <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;text-align:center">
-          <div style="font-size:11px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Glossary Coverage</div>
-          <div style="position:relative;width:100px;height:100px;margin:0 auto 12px">
-            <svg viewBox="0 0 100 100" style="transform:rotate(-90deg)">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" stroke-width="8"/>
-              <circle cx="50" cy="50" r="42" fill="none" stroke="#2563eb" stroke-width="8" stroke-dasharray="198 264" stroke-linecap="round"/>
-            </svg>
-            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#1e3a8a">75%</div>
-          </div>
-          <div style="font-size:11px;color:var(--ink-2)">15 of 20 entities have glossary terms</div>
-        </div>
-        <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;text-align:center">
-          <div style="font-size:11px;font-weight:600;color:var(--ink-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Semantic Stability</div>
-          <div style="position:relative;width:100px;height:100px;margin:0 auto 12px">
-            <svg viewBox="0 0 100 100" style="transform:rotate(-90deg)">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" stroke-width="8"/>
-              <circle cx="50" cy="50" r="42" fill="none" stroke="#d97706" stroke-width="8" stroke-dasharray="158 264" stroke-linecap="round"/>
-            </svg>
-            <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#92400e">60%</div>
-          </div>
-          <div style="font-size:11px;color:var(--ink-2)">3 of 5 embeddings stable (drift &lt; 0.3)</div>
+          </table></div>
         </div>
       </div>
 
-      <!-- per-term alignment table -->
-      <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:20px">
-        <h2 style="margin:0 0 14px;font-size:15px">Term Alignment Detail</h2>
-        <div style="overflow-x:auto">
-          <table style="width:100%;font-size:12px;border-collapse:collapse">
-            <thead><tr style="border-bottom:2px solid var(--line)"><th style="text-align:left;padding:8px 10px;color:var(--ink-2);font-weight:600">Internal Term</th><th style="text-align:left;padding:8px 10px;color:var(--ink-2);font-weight:600">FIBO Class</th><th style="text-align:center;padding:8px 10px;color:var(--ink-2);font-weight:600">Status</th><th style="text-align:center;padding:8px 10px;color:var(--ink-2);font-weight:600">Confidence</th><th style="text-align:left;padding:8px 10px;color:var(--ink-2);font-weight:600">Source</th></tr></thead>
+      <div class="tabpane" id="tab-ins-anomaly">
+        <div class="panel" style="margin-bottom:18px">
+          <div class="panel-h"><h2>Severity summary</h2></div>
+          <div class="tblwrap"><table class="tbl">
             <tbody>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-family:var(--mono);font-size:11.5px">CounterpartyCreditExposure</td><td style="padding:8px 10px">fibop:CreditExposure</td><td style="padding:8px 10px;text-align:center"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600">ALIGNED</span></td><td style="padding:8px 10px;text-align:center;font-family:var(--mono)">0.92</td><td style="padding:8px 10px"><span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:10px">Schema</span></td></tr>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-family:var(--mono);font-size:11.5px">CollateralizedLoan</td><td style="padding:8px 10px">fibop:Collateral</td><td style="padding:8px 10px;text-align:center"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600">ALIGNED</span></td><td style="padding:8px 10px;text-align:center;font-family:var(--mono)">0.87</td><td style="padding:8px 10px"><span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-size:10px">GNN</span></td></tr>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-family:var(--mono);font-size:11.5px">InterestRateSwap</td><td style="padding:8px 10px">fibop:InterestRateContract</td><td style="padding:8px 10px;text-align:center"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600">ALIGNED</span></td><td style="padding:8px 10px;text-align:center;font-family:var(--mono)">0.85</td><td style="padding:8px 10px"><span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:10px">Schema</span></td></tr>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-family:var(--mono);font-size:11.5px">CreditDefaultSwap</td><td style="padding:8px 10px">fibop:CreditDerivative</td><td style="padding:8px 10px;text-align:center"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600">ALIGNED</span></td><td style="padding:8px 10px;text-align:center;font-family:var(--mono)">0.81</td><td style="padding:8px 10px"><span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-size:10px">GNN</span></td></tr>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-family:var(--mono);font-size:11.5px">NettingAgreement</td><td style="padding:8px 10px;color:#94a3b8">—</td><td style="padding:8px 10px;text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600">SUGGESTED</span></td><td style="padding:8px 10px;text-align:center;font-family:var(--mono)">0.76</td><td style="padding:8px 10px"><span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-size:10px">GNN</span></td></tr>
-              <tr style="border-bottom:1px solid var(--line)"><td style="padding:8px 10px;font-family:var(--mono);font-size:11.5px">PaymentObligation</td><td style="padding:8px 10px;color:#94a3b8">—</td><td style="padding:8px 10px;text-align:center"><span style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600">SUGGESTED</span></td><td style="padding:8px 10px;text-align:center;font-family:var(--mono)">0.71</td><td style="padding:8px 10px"><span style="background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-size:10px">GNN</span></td></tr>
-              <tr><td style="padding:8px 10px;font-family:var(--mono);font-size:11.5px">TradeConfirmation</td><td style="padding:8px 10px">fibop:TradeConfirmation</td><td style="padding:8px 10px;text-align:center"><span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600">ALIGNED</span></td><td style="padding:8px 10px;text-align:center;font-family:var(--mono)">0.94</td><td style="padding:8px 10px"><span style="background:#dbeafe;color:#1e40af;padding:2px 6px;border-radius:4px;font-size:10px">Schema</span></td></tr>
+              <tr><td><span class="stamp stamp-block">HIGH</span></td><td>Needs review now</td><td class="num">1</td><td class="dim">shifted significantly from baseline</td></tr>
+              <tr><td><span class="stamp stamp-warn">MED</span></td><td>Worth investigating</td><td class="num">1</td><td class="dim">moderate embedding shift</td></tr>
+              <tr><td><span class="stamp stamp-pass">LOW</span></td><td>Minor / structural</td><td class="num">1</td><td class="dim">unusual connection count</td></tr>
+              <tr><td><span class="chip">—</span></td><td>Normal — no action</td><td class="num">44</td><td class="dim">behaving as expected</td></tr>
             </tbody>
-          </table>
+          </table></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h"><h2>Detailed anomaly log</h2><span class="hint">embedding drift · structural (degree) detection</span></div>
+          <div class="tblwrap"><table class="tbl">
+            <thead><tr><th>Node</th><th>Type</th><th>Severity</th><th class="num">Score</th><th>Method</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">COUNTERPARTY_RISK</td><td class="dim">Entity</td><td><span class="stamp stamp-block">HIGH</span></td><td class="num">0.41</td><td class="dim">Embedding drift</td><td class="dim">Shifted from baseline by 0.41 cosine distance</td></tr>
+              <tr><td class="mono">OPERATIONAL_LOSS</td><td class="dim">Entity</td><td><span class="stamp stamp-warn">MED</span></td><td class="num">0.34</td><td class="dim">Embedding drift</td><td class="dim">Shifted from baseline by 0.34 cosine distance</td></tr>
+              <tr><td class="mono">NETTING</td><td class="dim">Entity</td><td><span class="stamp stamp-pass">LOW</span></td><td class="num">z=2.81</td><td class="dim">Structural (degree)</td><td class="dim">Degree 9 — unusually connected</td></tr>
+            </tbody>
+          </table></div>
         </div>
       </div>
 
-      <!-- drift timeline -->
-      <div style="background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px">
-        <h2 style="margin:0 0 14px;font-size:15px">Semantic Drift Timeline</h2>
-        <p class="hint" style="margin:0 0 16px">Embedding cosine distance from baseline over the last 7 runs. Threshold at 0.3 (red dashed line).</p>
-        <div style="position:relative;height:160px;border:1px solid var(--line);border-radius:8px;background:#fafafa;overflow:hidden">
-          <!-- threshold line -->
-          <div style="position:absolute;top:40px;left:0;right:0;border-top:2px dashed #dc2626;opacity:.3"></div>
-          <div style="position:absolute;top:28px;right:8px;font-size:9px;color:#dc2626;font-weight:600">threshold 0.3</div>
-          <!-- grid lines -->
-          <div style="position:absolute;top:25%;left:0;right:0;border-top:1px solid #e2e8f0;opacity:.5"></div>
-          <div style="position:absolute;top:50%;left:0;right:0;border-top:1px solid #e2e8f0;opacity:.5"></div>
-          <div style="position:absolute;top:75%;left:0;right:0;border-top:1px solid #e2e8f0;opacity:.5"></div>
-          <!-- COUNTERPARTY_RISK line -->
-          <svg style="position:absolute;inset:0" viewBox="0 0 700 160" preserveAspectRatio="none">
-            <polyline points="0,120 100,115 200,110 300,100 400,85 500,60 600,40" fill="none" stroke="#dc2626" stroke-width="2"/>
-            <circle cx="600" cy="40" r="4" fill="#dc2626"/>
-          </svg>
-          <!-- OPERATIONAL_LOSS line -->
-          <svg style="position:absolute;inset:0" viewBox="0 0 700 160" preserveAspectRatio="none">
-            <polyline points="0,130 100,128 200,125 300,118 400,108 500,95 600,80" fill="none" stroke="#d97706" stroke-width="2"/>
-            <circle cx="600" cy="80" r="4" fill="#d97706"/>
-          </svg>
-          <!-- stable line -->
-          <svg style="position:absolute;inset:0" viewBox="0 0 700 160" preserveAspectRatio="none">
-            <polyline points="0,140 100,139 200,138 300,137 400,136 500,135 600,134" fill="none" stroke="#22c55e" stroke-width="2"/>
-            <circle cx="600" cy="134" r="4" fill="#22c55e"/>
-          </svg>
-          <!-- labels -->
-          <div style="position:absolute;bottom:4px;left:8px;font-size:9px;color:var(--ink-3)">Run 1</div>
-          <div style="position:absolute;bottom:4px;left:100px;font-size:9px;color:var(--ink-3)">Run 2</div>
-          <div style="position:absolute;bottom:4px;left:200px;font-size:9px;color:var(--ink-3)">Run 3</div>
-          <div style="position:absolute;bottom:4px;left:300px;font-size:9px;color:var(--ink-3)">Run 4</div>
-          <div style="position:absolute;bottom:4px;left:400px;font-size:9px;color:var(--ink-3)">Run 5</div>
-          <div style="position:absolute;bottom:4px;left:500px;font-size:9px;color:var(--ink-3)">Run 6</div>
-          <div style="position:absolute;bottom:4px;left:600px;font-size:9px;color:var(--ink-3)">Run 7</div>
-          <!-- legend -->
-          <div style="position:absolute;top:8px;left:12px;display:flex;gap:12px;font-size:9px">
-            <span style="color:#dc2626">● COUNTERPARTY_RISK</span>
-            <span style="color:#d97706">● OPERATIONAL_LOSS</span>
-            <span style="color:#22c55e">● stable nodes</span>
+      <div class="tabpane" id="tab-ins-analytics">
+        <div class="cols cols-2" style="margin-bottom:18px">
+          <div class="panel">
+            <div class="panel-h"><h2>Betweenness centrality — top nodes</h2><span class="hint">bridge concepts; removing them fragments the graph</span></div>
+            <div class="tblwrap"><table class="tbl">
+              <tbody>
+                <tr><td>FinancialInstrument</td><td class="num"><span class="stamp stamp-block">0.31</span></td></tr>
+                <tr><td>LegalEntity</td><td class="num"><span class="stamp stamp-warn">0.22</span></td></tr>
+                <tr><td>Contract</td><td class="num"><span class="stamp stamp-warn">0.18</span></td></tr>
+                <tr><td>Obligation</td><td class="num"><span class="stamp stamp-pass">0.09</span></td></tr>
+                <tr><td>Payment</td><td class="num"><span class="stamp stamp-pass">0.07</span></td></tr>
+              </tbody>
+            </table></div>
+          </div>
+          <div class="panel">
+            <div class="panel-h"><h2>Louvain communities</h2><span class="hint">modularity 0.68 · 5 communities · 8 iterations</span></div>
+            <div class="tblwrap"><table class="tbl">
+              <tbody>
+                <tr><td><span class="chip chip-moss">1</span></td><td class="dim">FinancialInstrument, Payment, InterestRate</td></tr>
+                <tr><td><span class="chip chip-neural">2</span></td><td class="dim">LegalEntity, Contract, Obligation</td></tr>
+                <tr><td><span class="chip chip-good">3</span></td><td class="dim">Regulation, Compliance, Reporting</td></tr>
+                <tr><td><span class="chip chip-warn">4</span></td><td class="dim">Counterparty, Risk, Exposure</td></tr>
+                <tr><td><span class="chip chip-bad">5</span></td><td class="dim">Currency, Exchange, Valuation</td></tr>
+              </tbody>
+            </table></div>
           </div>
         </div>
-      </div>
-    </section>
-
-    <!-- ================= GRAPH ANALYTICS ================= -->
-    <section class="view" id="view-analytics">
-      <div class="view-head">
-        <div>
-          <h1>Graph Analytics</h1>
-          <p class="sub">Neo4j GDS algorithms — PageRank, Louvain community detection, betweenness centrality, graph density. Computed natively in-graph.</p>
-        </div>
-        <div class="actions"><span class="chip">GDS Projection: <b style="color:#16a34a">active</b> · 3m ago</span></div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px">
-        <div class="kpi-card" style="--accent:var(--moss)">
-          <div class="kpi-title">PageRank Mean</div>
-          <div class="kpi-val" style="color:var(--moss)">0.042</div>
-          <div class="kpi-sub" style="color:var(--moss)">+2.1% from last run</div>
-        </div>
-        <div class="kpi-card" style="--accent:#6366f1">
-          <div class="kpi-title">Louvain Communities</div>
-          <div class="kpi-val" style="color:#6366f1">5</div>
-          <div class="kpi-sub" style="color:#6366f1">modularity: 0.68</div>
-        </div>
-        <div class="kpi-card" style="--accent:#0ea5e9">
-          <div class="kpi-title">Betweenness Max</div>
-          <div class="kpi-val" style="color:#0ea5e9">0.31</div>
-          <div class="kpi-sub" style="color:#0ea5e9">FinancialInstrument bridge node</div>
-        </div>
-        <div class="kpi-card" style="--accent:var(--ink-2)">
-          <div class="kpi-title">Graph Density</div>
-          <div class="kpi-val">0.087</div>
-          <div class="kpi-sub">18% of theoretical max</div>
+        <div class="panel">
+          <div class="panel-h"><h2>Graph statistics</h2></div>
+          <div class="tblwrap"><table class="tbl">
+            <tbody>
+              <tr><td>Nodes</td><td class="num">47</td><td>Relationships</td><td class="num">192</td></tr>
+              <tr><td>Avg degree</td><td class="num">4.08</td><td>Components</td><td class="num">3</td></tr>
+              <tr><td>Diameter</td><td class="num">6</td><td>Clustering coefficient</td><td class="num">0.34</td></tr>
+            </tbody>
+          </table></div>
+          <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">70% of PageRank mass sits on the top 3 nodes — a hub-and-spoke topology, consistent with a small demo graph. Real GDS (PageRank, Louvain, betweenness) would replace the hand-rolled NumPy version this is currently mocked against.</div>
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:24px">
-        <div class="card">
-          <h3 class="card-head">Betweenness Centrality — Top Nodes</h3>
-          <div style="font-family:var(--mono);font-size:12px;line-height:2">
-            <div style="display:flex;justify-content:space-between;padding:0 4px;border-bottom:1px solid var(--line)"><span>FinancialInstrument</span><span class="pill" style="background:#dc262615;color:#dc2626">0.31</span></div>
-            <div style="display:flex;justify-content:space-between;padding:0 4px;border-bottom:1px solid var(--line)"><span>LegalEntity</span><span class="pill" style="background:#d9770615;color:#d97706">0.22</span></div>
-            <div style="display:flex;justify-content:space-between;padding:0 4px;border-bottom:1px solid var(--line)"><span>Contract</span><span class="pill" style="background:#d9770615;color:#d97706">0.18</span></div>
-            <div style="display:flex;justify-content:space-between;padding:0 4px;border-bottom:1px solid var(--line)"><span>Obligation</span><span class="pill" style="background:#16a34a15;color:#16a34a">0.09</span></div>
-            <div style="display:flex;justify-content:space-between;padding:0 4px;border-bottom:1px solid var(--line)"><span>Payment</span><span class="pill" style="background:#16a34a15;color:#16a34a">0.07</span></div>
-            <div style="display:flex;justify-content:space-between;padding:0 4px"><span>InterestRate</span><span class="pill" style="background:#16a34a15;color:#16a34a">0.04</span></div>
+      <div class="tabpane" id="tab-ins-vector">
+        <div class="panel" style="margin-bottom:18px">
+          <div class="panel-h"><h2>Search by meaning</h2></div>
+          <div style="padding:14px;display:flex;gap:8px;align-items:center">
+            <input type="text" placeholder='e.g. "interest rate swap" or "obligation to pay"' style="flex:1;padding:7px 12px;border:1px solid var(--line-2);border-radius:6px;font-family:var(--mono);font-size:12.5px;background:var(--bg);color:var(--ink)">
+            <button class="btn btn-primary demo">Search</button>
           </div>
-          <div style="margin-top:8px;font-size:11px;color:var(--ink-3)">
-            <span style="color:#dc2626">■ high</span> · <span style="color:#d97706">■ medium</span> · <span style="color:#16a34a">■ low</span>
-          </div>
+          <div style="padding:0 14px 14px;font-size:12px;color:var(--ink-3)">Would search a Neo4j vector index over node embeddings · cosine similarity · top 10, threshold 0.7 — no such index exists yet.</div>
         </div>
-
-        <div class="card">
-          <h3 class="card-head">Louvain Community Map</h3>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            <div style="padding:8px 12px;border-radius:8px;background:#7c3aed15;border:1px solid #7c3aed30">
-              <div style="font-size:10px;font-weight:600;color:#7c3aed">Community 1</div>
-              <div style="font-size:11px;color:var(--ink-1);margin-top:2px">FinancialInstrument, Payment, InterestRate</div>
-            </div>
-            <div style="padding:8px 12px;border-radius:8px;background:#2563eb15;border:1px solid #2563eb30">
-              <div style="font-size:10px;font-weight:600;color:#2563eb">Community 2</div>
-              <div style="font-size:11px;color:var(--ink-1);margin-top:2px">LegalEntity, Contract, Obligation</div>
-            </div>
-            <div style="padding:8px 12px;border-radius:8px;background:#16a34a15;border:1px solid #16a34a30">
-              <div style="font-size:10px;font-weight:600;color:#16a34a">Community 3</div>
-              <div style="font-size:11px;color:var(--ink-1);margin-top:2px">Regulation, Compliance, Reporting</div>
-            </div>
-            <div style="padding:8px 12px;border-radius:8px;background:#d9770615;border:1px solid #d9770630">
-              <div style="font-size:10px;font-weight:600;color:#d97706">Community 4</div>
-              <div style="font-size:11px;color:var(--ink-1);margin-top:2px">Counterparty, Risk, Exposure</div>
-            </div>
-            <div style="padding:8px 12px;border-radius:8px;background:#dc262615;border:1px solid #dc262630">
-              <div style="font-size:10px;font-weight:600;color:#dc2626">Community 5</div>
-              <div style="font-size:11px;color:var(--ink-1);margin-top:2px">Currency, Exchange, Valuation</div>
-            </div>
-          </div>
-          <div style="margin-top:10px;font-size:11px;color:var(--ink-3)">Modularity: <b style="color:var(--ink-1)">0.68</b> — 5 communities detected in 8 iterations</div>
+        <div class="panel">
+          <div class="panel-h"><h2>Results · "interest rate swap"</h2></div>
+          <div class="tblwrap"><table class="tbl">
+            <tbody>
+              <tr><td class="mono">InterestRateSwap</td><td class="dim">FIBO derivative · fixed-for-floating</td><td class="num"><span class="stamp stamp-pass">0.94</span></td></tr>
+              <tr><td class="mono">FloatingRateNote</td><td class="dim">FIBO debt · reference rate</td><td class="num"><span class="stamp stamp-pass">0.87</span></td></tr>
+              <tr><td class="mono">InterestPayment</td><td class="dim">Derived · accrued interest</td><td class="num"><span class="stamp stamp-pass">0.82</span></td></tr>
+              <tr><td class="mono">CounterpartyCreditRisk</td><td class="dim">LLM-enriched · CVA exposure</td><td class="num"><span class="stamp stamp-warn">0.73</span></td></tr>
+            </tbody>
+          </table></div>
         </div>
-      </div>
-
-      <div class="card mb">
-        <h3 class="card-head">PageRank Distribution</h3>
-        <div style="display:flex;gap:8px;align-items:end;height:80px;padding:8px 0">
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><div style="width:100%;background:var(--moss);border-radius:3px 3px 0 0;height:32px"></div><span style="font-size:10px;color:var(--ink-3)">Inst</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><div style="width:100%;background:var(--moss);border-radius:3px 3px 0 0;height:24px"></div><span style="font-size:10px;color:var(--ink-3)">Entity</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><div style="width:100%;background:var(--moss);border-radius:3px 3px 0 0;height:20px"></div><span style="font-size:10px;color:var(--ink-3)">Contract</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><div style="width:100%;background:var(--moss);border-radius:3px 3px 0 0;height:16px"></div><span style="font-size:10px;color:var(--ink-3)">Oblig</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><div style="width:100%;background:var(--moss);border-radius:3px 3px 0 0;height:12px"></div><span style="font-size:10px;color:var(--ink-3)">Payment</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><div style="width:100%;background:var(--moss);border-radius:3px 3px 0 0;height:10px"></div><span style="font-size:10px;color:var(--ink-3)">Rate</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><div style="width:100%;background:var(--moss);border-radius:3px 3px 0 0;height:8px"></div><span style="font-size:10px;color:var(--ink-3)">Reg</span></div>
-          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1"><div style="width:100%;background:var(--moss);border-radius:3px 3px 0 0;height:6px"></div><span style="font-size:10px;color:var(--ink-3)">Risk</span></div>
-        </div>
-        <div style="font-size:11px;color:var(--ink-3);margin-top:6px">Distribution: 70% mass on top 3 nodes — <b style="color:var(--ink-1)">skewed</b>, consistent with hub-and-spoke topology</div>
-      </div>
-
-      <div class="card">
-        <h3 class="card-head">GDS Graph Statistics</h3>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-family:var(--mono);font-size:12px">
-          <div><span style="color:var(--ink-3)">Nodes:</span> <b>47</b></div>
-          <div><span style="color:var(--ink-3)">Relationships:</span> <b>192</b></div>
-          <div><span style="color:var(--ink-3)">Avg degree:</span> <b>4.08</b></div>
-          <div><span style="color:var(--ink-3)">Components:</span> <b>3</b></div>
-          <div><span style="color:var(--ink-3)">Diameter:</span> <b>6</b></div>
-          <div><span style="color:var(--ink-3)">Clustering:</span> <b>0.34</b></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ================= VECTOR SEARCH ================= -->
-    <section class="view" id="view-vector">
-      <div class="view-head">
-        <div>
-          <h1>Vector Search</h1>
-          <p class="sub">Neo4j vector index — cosine similarity over embeddings. Find structurally similar entities across your knowledge graph.</p>
-        </div>
-        <div class="actions"><span class="chip">Vector Index: <b style="color:#16a34a">healthy</b> · 47 vectors indexed</span></div>
-      </div>
-
-      <div class="card mb">
-        <h3 class="card-head">Search Embeddings</h3>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input type="text" placeholder="e.g. &quot;interest rate swap&quot; or &quot;obligation to pay&quot;" style="flex:1;padding:8px 12px;border:1px solid var(--line);border-radius:6px;font-family:var(--mono);font-size:13px;background:var(--canvas);color:var(--ink-1)">
-          <button class="kbtn"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6.5" cy="6.5" r="5"/><path d="M10.5 10.5L14.5 14.5"/></svg> Search</button>
-          <select style="padding:8px 10px;border:1px solid var(--line);border-radius:6px;font-size:12px;background:var(--canvas);color:var(--ink-1)">
-            <option>Cosine</option>
-            <option>Euclidean</option>
-            <option>Dot Product</option>
-          </select>
-        </div>
-        <div style="margin-top:8px;font-size:11px;color:var(--ink-3)">Searches the <code style="background:var(--canvas);border:1px solid var(--line);border-radius:3px;padding:0 4px">entity_embedding</code> vector index · top-k: <b>10</b> · threshold: <b>0.7</b></div>
-      </div>
-
-      <div class="card mb">
-        <h3 class="card-head">Results — <span style="font-weight:400;color:var(--ink-2)">"interest rate swap"</span></h3>
-        <table style="width:100%;font-size:12px;font-family:var(--mono)">
-          <tr style="border-bottom:1px solid var(--line)">
-            <td style="padding:8px 4px;font-weight:600;color:var(--ink-1)">InterestRateSwap</td>
-            <td style="padding:8px 4px;color:var(--ink-2)">FIBO derivative · fixed-for-floating</td>
-            <td style="padding:8px 4px;text-align:right"><span class="pill" style="background:#16a34a15;color:#16a34a">0.94</span></td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--line)">
-            <td style="padding:8px 4px;font-weight:600;color:var(--ink-1)">FloatingRateNote</td>
-            <td style="padding:8px 4px;color:var(--ink-2)">FIBO debt · reference rate</td>
-            <td style="padding:8px 4px;text-align:right"><span class="pill" style="background:#16a34a15;color:#16a34a">0.87</span></td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--line)">
-            <td style="padding:8px 4px;font-weight:600;color:var(--ink-1)">InterestPayment</td>
-            <td style="padding:8px 4px;color:var(--ink-2)">Derived · accrued interest</td>
-            <td style="padding:8px 4px;text-align:right"><span class="pill" style="background:#16a34a15;color:#16a34a">0.82</span></td>
-          </tr>
-          <tr style="border-bottom:1px solid var(--line)">
-            <td style="padding:8px 4px;font-weight:600;color:var(--ink-1)">CounterpartyCreditRisk</td>
-            <td style="padding:8px 4px;color:var(--ink-2)">LLM-enriched · CVA exposure</td>
-            <td style="padding:8px 4px;text-align:right"><span class="pill" style="background:#d9770615;color:#d97706">0.73</span></td>
-          </tr>
-          <tr>
-            <td style="padding:8px 4px;font-weight:600;color:var(--ink-1)">DayCountConvention</td>
-            <td style="padding:8px 4px;color:var(--ink-2)">Derived · accrual basis</td>
-            <td style="padding:8px 4px;text-align:right"><span class="pill" style="background:#d9770615;color:#d97706">0.71</span></td>
-          </tr>
-        </table>
-        <div style="margin-top:8px;font-size:11px;color:var(--ink-3)">Showing 5 of 10 results · <span style="color:#16a34a">● high (>0.8)</span> · <span style="color:#d97706">● medium (0.5–0.8)</span> · <span style="color:#dc2626">● low (<0.5)</span></div>
-      </div>
-
-      <div class="grid cols-2 mb">
-        <div class="card">
-          <h3 class="card-head">Recent Searches</h3>
-          <div style="font-family:var(--mono);font-size:12px;line-height:2.2">
-            <div style="padding:0 4px;border-bottom:1px solid var(--line)">"interest rate swap" <span class="mono" style="color:var(--ink-3)">· 5 results</span></div>
-            <div style="padding:0 4px;border-bottom:1px solid var(--line)">"counterparty credit exposure" <span class="mono" style="color:var(--ink-3)">· 8 results</span></div>
-            <div style="padding:0 4px;border-bottom:1px solid var(--line)">"payment obligation deadline" <span class="mono" style="color:var(--ink-3)">· 4 results</span></div>
-            <div style="padding:0 4px">"regulatory reporting requirement" <span class="mono" style="color:var(--ink-3)">· 6 results</span></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3 class="card-head">Index Health</h3>
-          <div style="font-family:var(--mono);font-size:12px;line-height:2.2">
-            <div style="padding:0 4px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between"><span>Vectors indexed</span><b>47</b></div>
-            <div style="padding:0 4px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between"><span>Dimension</span><b>384</b></div>
-            <div style="padding:0 4px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between"><span>Similarity function</span><b>cosine</b></div>
-            <div style="padding:0 4px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between"><span>Index size</span><b>72 KB</b></div>
-            <div style="padding:0 4px;display:flex;justify-content:space-between"><span>Last rebuilt</span><b>3m ago</b></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3 class="card-head">Embedding Space — 2D Projection (t-SNE)</h3>
-        <svg width="100%" height="160" viewBox="0 0 400 160" style="border:1px solid var(--line);border-radius:6px;background:var(--canvas)">
-          <circle cx="50" cy="40" r="4" fill="#6366f1" opacity="0.7"/><circle cx="58" cy="35" r="3" fill="#6366f1" opacity="0.6"/>
-          <circle cx="45" cy="48" r="3.5" fill="#6366f1" opacity="0.65"/>
-          <circle cx="120" cy="90" r="4" fill="#22c55e" opacity="0.7"/><circle cx="128" cy="95" r="3" fill="#22c55e" opacity="0.6"/>
-          <circle cx="115" cy="100" r="3.5" fill="#22c55e" opacity="0.65"/>
-          <circle cx="200" cy="60" r="5" fill="#dc2626" opacity="0.7"/><circle cx="210" cy="55" r="3.5" fill="#dc2626" opacity="0.6"/>
-          <circle cx="195" cy="68" r="3" fill="#dc2626" opacity="0.6"/>
-          <circle cx="280" cy="120" r="4" fill="#d97706" opacity="0.7"/><circle cx="288" cy="115" r="3" fill="#d97706" opacity="0.6"/>
-          <circle cx="275" cy="128" r="3.5" fill="#d97706" opacity="0.65"/>
-          <circle cx="350" cy="50" r="4" fill="#0ea5e9" opacity="0.7"/><circle cx="358" cy="55" r="3" fill="#0ea5e9" opacity="0.6"/>
-          <circle cx="345" cy="42" r="3.5" fill="#0ea5e9" opacity="0.65"/>
-          <text x="40" y="28" fill="var(--ink-3)" font-size="9" font-family="var(--mono)">derivatives</text>
-          <text x="105" y="80" fill="var(--ink-3)" font-size="9" font-family="var(--mono)">entities</text>
-          <text x="185" y="48" fill="var(--ink-3)" font-size="9" font-family="var(--mono)">obligations</text>
-          <text x="268" y="108" fill="var(--ink-3)" font-size="9" font-family="var(--mono)">counterparties</text>
-          <text x="338" y="38" fill="var(--ink-3)" font-size="9" font-family="var(--mono)">rates</text>
-        </svg>
-        <div style="font-size:11px;color:var(--ink-3);margin-top:6px">5 clusters visible — t-SNE projection of 384-dim embeddings · <span style="color:var(--ink-2)">hover for entity details</span></div>
       </div>
     </section>
 
@@ -3164,7 +2606,7 @@ query is blocked, read the rule text and revise.</pre>
               </tr>
             </tbody>
           </table></div>
-          <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">AKUs bridge the Practices view with the agent runtime. Each unit is an institutional knowledge primitive: intent, procedure, tools, governance constraints, continuations, and validators.</div>
+          <div style="padding:9px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)">AKUs are institutional knowledge primitives distilled from agent sessions and human declaration: intent, procedure, tools, governance constraints, continuations, and validators.</div>
         </div>
       </div>
     </section>
@@ -3175,16 +2617,6 @@ query is blocked, read the rule text and revise.</pre>
         <div>
           <h1>Settings</h1>
           <p class="sub">Everything is optional except the schema: without an LLM key the deterministic engine still generates context, and validation always runs.</p>
-        </div>
-      </div>
-
-      <div class="panel" style="margin-bottom:20px;border:1px dashed var(--line-2);background:var(--canvas)">
-        <div style="padding:20px;text-align:center">
-          <div style="font-size:22px;margin-bottom:8px;opacity:.4">📄</div>
-          <div style="font-weight:600;font-size:13px;margin-bottom:4px">No documents yet</div>
-          <div style="font-size:12.5px;color:var(--ink-2);margin-bottom:12px;max-width:360px;margin-left:auto;margin-right:auto">Ingest documents to feed the semantic layer. The extractor parses content, extracts mentions, resolves them to your glossary, and gates through SHACL validation before publishing.</div>
-          <button class="btn btn-primary demo">Ingest your first document</button>
-          <div style="margin-top:12px;font-size:11.5px;color:var(--ink-3)">Supported: Markdown, PDF, DOCX, plain text · Max 50 MB</div>
         </div>
       </div>
 
@@ -3210,7 +2642,6 @@ query is blocked, read the rule text and revise.</pre>
             </tbody>
           </table></div>
         </div>
-      </div>
     </section>
   </div>
 </div>
@@ -3268,14 +2699,10 @@ query is blocked, read the rule text and revise.</pre>
     <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Schema</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G S</kbd></div>
     <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Validator</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G V</kbd></div>
     <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Business Rules</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G R</kbd></div>
-    <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Agent</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G A</kbd></div>
-    <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Practices</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G P</kbd></div>
+    <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Agent Workspace</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G A</kbd></div>
     <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Knowledge Graph</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G G</kbd></div>
-    <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Graph Insights</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G I</kbd></div>
-    <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Anomaly Scores</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G N</kbd></div>
-    <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Alignment Quality</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G L</kbd></div>
-    <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Graph Analytics</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G T</kbd></div>
-    <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Vector Search</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G U</kbd></div>
+    <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Graph Insights <em style="font-style:normal;color:var(--warn)">· experimental</em></span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G I</kbd></div>
+    <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Query Console</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G Q</kbd></div>
     <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-3)">Evaluations</span><kbd style="background:var(--canvas);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:11px">G E</kbd></div>
   </div>
   <div style="text-align:right;margin-top:18px"><button class="btn btn-sm demo" onclick="document.getElementById('shortcuts').close()">Close</button></div>
@@ -3285,7 +2712,7 @@ query is blocked, read the rule text and revise.</pre>
 
 <script>
 (function(){
-  var VIEWS = ["overview","sources","model","documents","rules","ontology","validator","changes","agent","practices","evals","graph","insights","anomaly","alignment","analytics","vector","console","activity","capabilities","settings"];
+  var VIEWS = ["overview","sources","model","documents","rules","ontology","validator","changes","agent","evals","graph","insights","console","activity","capabilities","settings"];
 
   function go(id){
     if(VIEWS.indexOf(id) < 0) id = "overview";
@@ -3373,14 +2800,9 @@ query is blocked, read the rule text and revise.</pre>
     {t:"Validator", k:"page", go:"validator"},
     {t:"Changes — versions & review", k:"page", go:"changes"},
     {t:"Agent Workspace", k:"page", go:"agent"},
-    {t:"Practices — institutional knowledge patterns", k:"page", go:"practices"},
     {t:"Evaluations", k:"page", go:"evals"},
     {t:"Knowledge Graph", k:"page", go:"graph"},
-    {t:"Graph Insights — GNN analysis", k:"page", go:"insights"},
-    {t:"Anomaly Scores — GNN-detected", k:"page", go:"anomaly"},
-    {t:"Alignment Quality — FIBO coverage", k:"page", go:"alignment"},
-    {t:"Graph Analytics — GDS algorithms", k:"page", go:"analytics"},
-    {t:"Vector Search — similarity lookup", k:"page", go:"vector"},
+    {t:"Graph Insights — experimental, unwired GNN analysis", k:"page", go:"insights"},
     {t:"Query Console — SPARQL · Cypher · SQL", k:"page", go:"console"},
     {t:"Activity — runs & jobs", k:"page", go:"activity"},
     {t:"Registry & Extensions", k:"page", go:"capabilities"},
@@ -3421,7 +2843,7 @@ query is blocked, read the rule text and revise.</pre>
     if(e.key === "Escape"){ shortcutsDlg.close(); return; }
     if(gPending){
       clearTimeout(gPending); gPending = false;
-      var map = {o:"overview",s:"model",v:"validator",r:"rules",a:"agent",p:"practices",g:"graph",i:"insights",n:"anomaly",l:"alignment",t:"analytics",u:"vector",e:"evals"};
+      var map = {o:"overview",s:"model",v:"validator",r:"rules",a:"agent",g:"graph",i:"insights",e:"evals",q:"console"};
       if(map[e.key.toLowerCase()]) go(map[e.key.toLowerCase()]);
       return;
     }

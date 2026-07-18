@@ -18,6 +18,7 @@ from polanyi.semantic.introspect import introspect
 from polanyi.kernel.llm import llm_mode, resolve_llm
 from polanyi.models import BusinessRule, SemanticContext
 from polanyi.execution.validate import validate_sql
+from polanyi.execution.sql import execute_sql
 
 DEFAULT_DB_PATH = "semantics/knowledge/financial_demo.db"
 CONTEXT_FILENAME = "semantic_context.json"
@@ -25,6 +26,14 @@ CONTEXT_FILENAME = "semantic_context.json"
 
 class ValidateRequest(BaseModel):
     sql: str
+
+
+class CypherRequest(BaseModel):
+    query: str
+
+
+class SparqlRequest(BaseModel):
+    query: str
 
 
 class AskRequest(BaseModel):
@@ -145,6 +154,10 @@ def create_app(
     @app.post("/api/validate")
     def validate(req: ValidateRequest):
         return validate_sql(req.sql, context().business_rules).model_dump()
+
+    @app.post("/api/sql/execute")
+    def sql_execute(req: ValidateRequest):
+        return execute_sql(req.sql, context().business_rules, db_uri).model_dump()
 
     @app.post("/api/ask")
     def ask(req: AskRequest):
@@ -267,6 +280,40 @@ def create_app(
             raise HTTPException(status_code=422, detail=f"SHACL validation failed: {report}")
         named_graph = publish_to_graphdb(graph)
         return {"named_graph": named_graph, "triples": len(graph)}
+
+    @app.post("/api/sparql")
+    def sparql(req: SparqlRequest):
+        from polanyi.semantic.ontology import GraphDBOntologyStore, graphdb_configured
+        from polanyi.semantic.rdf import context_to_rdf, local_sparql
+
+        if graphdb_configured():
+            store = GraphDBOntologyStore()
+            if store.is_available():
+                return {"engine": "graphdb", "rows": store.sparql_query(req.query)}
+        graph = context_to_rdf(context())
+        turtle = graph.serialize(format="turtle")
+        return {"engine": "local", "rows": local_sparql(turtle, req.query)}
+
+    @app.post("/api/graph/query")
+    def graph_query(req: CypherRequest):
+        from polanyi.execution.knowledge_graph import (
+            Neo4jGraphStore,
+            guard_cypher,
+            neo4j_configured,
+        )
+
+        violation = guard_cypher(req.query)
+        if violation:
+            raise HTTPException(status_code=400, detail=violation)
+        if not neo4j_configured():
+            raise HTTPException(status_code=503, detail="NEO4J_URI not configured")
+        store = Neo4jGraphStore()
+        if not store.is_available():
+            raise HTTPException(status_code=503, detail="Neo4j is not reachable")
+        try:
+            return {"rows": store.run_cypher(req.query)}
+        finally:
+            store.close()
 
     @app.post("/api/graph/materialize")
     def materialize_graph():

@@ -1,6 +1,10 @@
 # Studio v1 Rebuild — Master Checklist
 
-**Decisions locked:** clean rebuild of `apps/studio` against `docs/design/polanyi-studio-prototype.html` (old app retired, not evolved) · first slice = Validator + Query Console · v1 ships single-tenant / no-auth, every page **internal-only** until the auth decision is revisited.
+**Decisions locked:** clean rebuild of `apps/studio` against `docs/design/polanyi-studio-prototype.html` (old app retired, not evolved) · **vertical-slicing approach confirmed** (per CLAUDE.md/planning skill — each story ships frontend+backend together, not backend-then-frontend) · first slice = Validator + Query Console · v1 ships single-tenant / no-auth, every page **internal-only** until the auth decision is revisited.
+
+**Reference:** `../implementation/02-backend-gap-audit.md` documents real, source-verified backend gaps (no `/api/sparql`, no per-alignment accept/reject, `observability-runtime`/Changes/Evaluations subsystems don't exist yet). Kept as accurate reference for when each story reaches its slice — not a separate execution phase.
+
+**LangChain/LangGraph work:** consult the LangChain documentation MCP server (`mcp__claude_ai_docs_langchain_mcp__*`) for any slice touching `SemanticAgent`, LangGraph, or judge-model wiring (S10 now, Evaluations later) rather than relying on memory.
 
 **Tracking rules:** this file is the single source of truth for progress. One checkbox per story from the story-split; a story is checked only when its slice plan in `../implementation/` is fully executed (all stages RED-GREEN-MUTATE-KILL MUTANTS-REFACTOR complete, verified end-to-end). Update this file in the same commit as the work.
 
@@ -16,23 +20,27 @@
 - [x] S1 plan written → `../implementation/01-validator.md` (3 slices: walking skeleton → per-rule ledger → honest edges). New app scaffolds at `apps/studio-v1/` inside Slice-1 of that plan.
 - [x] Scaffolded `apps/studio-v1` standalone (own node_modules; NOT yet a root workspace member — keeps old app isolated). Stack: Vite 6, React 18.3, TS 5.7 strict (+noUncheckedIndexedAccess, exactOptionalPropertyTypes), **Vitest 4.1.10 Browser Mode** (Chromium via `@vitest/browser-playwright` factory — vitest 4 API), MSW 2.15, Zod 3.25, Stryker 9.6. Chromium headless launch verified.
 - [ ] Decide fate of old `apps/studio` code (keep until parity, then delete; do not delete before)
-- [x] **Mutation-testing tooling note**: Stryker's vitest runner does NOT support browser-mode tests (per mutation-testing skill). Decision: manual mutation for browser-only logic this slice; stand up Stryker against a **Node vitest project** in S1-slice-2 where the first pure verdict-derivation function lives.
+- [x] **Mutation-testing tooling note**: Stryker's vitest runner does NOT support browser-mode tests (per mutation-testing skill). Manual mutation for browser-only glue; **Stryker stood up for real** against a Node vitest project (`vitest.stryker.config.ts` + `stryker.config.json`) for pure logic — proven in slice 2.
 
 ## Phase 1 — Trust core (all backed by existing backend, zero new subsystems)
 
-- [~] **S1. Validate a query against business rules** ← IN PROGRESS — plan: `../implementation/01-validator.md`
-  - [x] slice 1 (walking skeleton): paste SQL → real `POST /api/validate` → BLOCKED/PASSED banner. 2 browser tests green, strict typecheck clean. Manual mutation: verdict-swap KILLED, `!response.ok`-flip KILLED, error-block-removal SURVIVED (error path deferred to slice 3 — expected).
-  - [ ] slice 2: per-rule verdict ledger (severity→stamp, passed-with-warnings) + Node/Stryker for pure derivation
-  - [ ] slice 3: honest edges (error/retry, empty-disabled, DML guard, limitation note, example presets)
-- [ ] **S2. Run a guarded SQL query end-to-end** (Query Console SQL tab)
-- [ ] **S3. Run a guarded Cypher query** (Query Console Cypher tab, read-only guard + rejected-write state)
-- [ ] **S4. Run a SPARQL query over glossary + FIBO** (GraphDB via MCP/API, pyoxigraph fallback shown honestly)
+- [x] **S1. Validate a query against business rules** ← DONE — plan: `../implementation/01-validator.md` (all 3 slices)
+  - [x] slice 1 (walking skeleton): paste SQL → real `POST /api/validate` → BLOCKED/PASSED banner.
+  - [x] slice 2 (per-rule ledger): pure `verdict.ts` (`overallVerdict`, `ruleRows`) — 3-state verdict, severity→level mapping, names resolved via `GET /api/rules`. Real Stryker: **100% mutation score (45/45 killed)**.
+  - [x] slice 3 (honest edges): Validate disabled on empty/whitespace SQL; error panel + working retry on API failure; GUARD-DML renders generically through the same ledger (no special-casing needed); known-limitation note + CLI equivalence line; violating/corrected example presets (exported `VIOLATING_SQL`/`CORRECTED_SQL` for exact-value test assertions).
+  - **Final state: 20/20 tests (11 Node + 9 browser), strict typecheck clean, 45 Stryker-killed + 4 manual-killed mutants across the plan, 0 survivors outside the one explicitly-expected/since-fixed case. REFACTOR skipped each slice — code stayed minimal.**
+  - Gotcha for later slices: `vitest-browser-react` locators do Playwright substring-match on `getByText`, not TL's exact-by-default — watch for it wherever a name is also a message prefix (matches the real backend's `f"{rule.name}: ..."` format, so it will recur). Second gotcha found in S2-S4: a `<label>` wrapping both static text and a form control gets its computed accessible name concatenated with the control's live value on some engines — anchored exact regexes (`/^sql$/i`) break once the field has content; prefer substring (`/sql/i`).
+- [x] **S2. Run a guarded SQL query end-to-end** ← DONE — plan: `../implementation/03-query-console.md`. Backend: `execute_sql()` (new, reuses `validate_sql`) + `POST /api/sql/execute`. Frontend: `SqlTab.tsx` (reuses `verdict.ts`). Found & fixed real a11y gap: `<th>` needs `scope="col"` for reliable `columnheader` role exposure.
+- [x] **S3. Run a guarded Cypher query** ← DONE. Backend: `POST /api/graph/query` wraps `Neo4jGraphStore.run_cypher()`, guard-checked before touching Neo4j. Frontend: `CypherTab.tsx`.
+- [x] **S4. Run a SPARQL query over glossary + FIBO** ← DONE. Backend: `GraphDBOntologyStore.sparql_query()` (extracted from a real duplication found in the CLI, now shared by both), `POST /api/sparql` (GraphDB when available, live-context pyoxigraph fallback otherwise — CLI refactored onto the same method). Frontend: `SparqlTab.tsx`, honest engine-used label.
+- [x] **Integration**: `QueryConsolePage.tsx` (tab-switching, state survives switching tabs) + `AppShell.tsx` (Validator ↔ Query Console nav) wired into `main.tsx` — the app is actually navigable now, not just individually-tested components.
+- **Phase 1 final state: 33/33 studio-v1 tests, strict typecheck clean, 119/119 Python tests (started this session at ~95), zero regressions across the whole repo, every new decision point mutation-tested (Stryker where pure-Node-testable, manual elsewhere) with 0 unaddressed survivors.**
 
 ## Phase 2 — Govern (read paths, existing backend)
 
-- [ ] **S5. Browse the governed glossary** (table + term drawer: provenance, FIBO, lineage, rules) — no inline editing
-- [ ] **S6. Browse declared business rules** (table + detail; no create/edit yet)
-- [ ] **S7. Connect a source and browse its schema** (sources + schema browser + FK entity map; Databricks ingestion path deferred)
+- [x] **S5. Browse the governed glossary** ← DONE — plan: `../implementation/04-glossary.md`. Zero new backend (`GET /api/context`). Real finding: `GlossaryEntry` has **no provenance field** at all — descoped from frontend rather than fabricated (prototype's provenance chips were never backed by real per-term data). "Governing rules" is real derived data: pure `governingRules()` (source_tables ∩ affected_entities), 100% Stryker (5/5 killed). `GlossaryPage.tsx`: table + `TermDrawer`, no inline editing (verified by test — no textbox/edit-button exists). Found gap (noted, not fixed): no error state if `/api/context` fails — hangs on "Loading…" forever, unlike Validator/Query Console which handle this. Wired into `AppShell` as "Semantic Model".
+- [x] **S6. Browse declared business rules** ← DONE. Zero new backend (reused `fetchRules()`/`ruleSchema` from S1, already extended with `sql_hints`/`affected_entities` during S5). `RulesPage.tsx`: table + `RuleDetail`, read-only verified by test. Wired into `AppShell` as "Business Rules". 47/47 studio-v1 tests, typecheck clean.
+- [x] **S7. Connect a source and browse its schema** ← DONE. Zero new backend (`GET /api/sources` — already redacts credentials server-side via `_redact()`, contradicting an earlier design-review concern about plaintext URIs in the UI; `GET /api/schema`). New `api/schema.ts` client. `SourcesPage.tsx`: sources table + schema browser (table selector, columns with PK/FK labels). Databricks ingestion path correctly deferred (not in this story's scope). Wired into `AppShell` as "Data Sources". 52/52 studio-v1 tests, typecheck clean.
 - [ ] **S8. Review the FIBO alignment queue** (read-only: auto / needs-review / rejected)
 - [ ] **S8b. Accept or reject an alignment candidate** (write action; gated behind S8)
 - [ ] **S9. Ingest a document and see resolved mentions** (incl. SHACL-held failure state)
