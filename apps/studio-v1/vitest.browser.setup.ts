@@ -1,5 +1,7 @@
 import { setupWorker } from "msw/browser";
 import { afterAll, afterEach, beforeAll } from "vitest";
+import "@/theme/tokens.css";
+import "@/theme/components.css";
 
 export const worker = setupWorker();
 

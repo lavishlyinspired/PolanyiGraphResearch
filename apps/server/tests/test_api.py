@@ -168,3 +168,126 @@ def test_sparql_falls_back_to_local_context_when_graphdb_unconfigured(client, mo
     body = res.json()
     assert body["engine"] == "local"
     assert isinstance(body["rows"], list)
+
+
+def test_alignment_queue_buckets_glossary_terms_by_confidence(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+    from polanyi.semantic.ontology import OntologyCandidate
+
+    class FakeStore:
+        def is_available(self):
+            return True
+
+        def search_classes(self, term, limit=5):
+            # "Account …" terms exist in the demo glossary → auto-align them; the
+            # rest have no candidate → unmapped. Guarantees a mix of both bands.
+            if term.lower().startswith("account"):
+                return [OntologyCandidate(uri="urn:fibo:Account", label="Account", score=0.97)]
+            return []
+
+    import polanyi.semantic.ontology as ontology_module
+
+    monkeypatch.setattr(ontology_module, "GraphDBOntologyStore", lambda: FakeStore())
+
+    res = client.get("/api/context/align/queue")
+    assert res.status_code == 200
+    body = res.json()
+    bands = {item["term"]: item["band"] for item in body["items"]}
+    # Every glossary term is reported exactly once.
+    assert len(body["items"]) == len(bands)
+    # A high-score candidate lands in 'auto'; a term with none lands in 'unmapped'.
+    assert "auto" in bands.values()
+    assert "unmapped" in bands.values()
+
+
+def test_alignment_queue_returns_503_when_graphdb_unconfigured(client, monkeypatch):
+    monkeypatch.delenv("GRAPHDB_ENDPOINT", raising=False)
+    res = client.get("/api/context/align/queue")
+    assert res.status_code == 503
+
+
+def test_alignment_queue_returns_503_when_graphdb_configured_but_unreachable(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+
+    class UnreachableStore:
+        def is_available(self):
+            return False
+
+        def search_classes(self, term, limit=5):  # pragma: no cover - must never be called
+            raise AssertionError("search_classes must not run when the store is unreachable")
+
+    import polanyi.semantic.ontology as ontology_module
+
+    monkeypatch.setattr(ontology_module, "GraphDBOntologyStore", lambda: UnreachableStore())
+
+    res = client.get("/api/context/align/queue")
+    assert res.status_code == 503
+
+
+def _fake_account_store(monkeypatch):
+    from polanyi.semantic.ontology import OntologyCandidate
+
+    class FakeStore:
+        def is_available(self):
+            return True
+
+        def search_classes(self, term, limit=5):
+            if term.lower().startswith("account name"):
+                return [OntologyCandidate(uri="urn:fibo:Account", label="Account", score=0.61)]
+            return []
+
+    import polanyi.semantic.ontology as ontology_module
+
+    monkeypatch.setattr(ontology_module, "GraphDBOntologyStore", lambda: FakeStore())
+
+
+def test_accept_moves_a_term_from_review_into_the_aligned_band(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+    _fake_account_store(monkeypatch)
+
+    # Before: a 0.61 candidate puts "Account Name" in the review band.
+    before = {i["term"]: i["band"] for i in client.get("/api/context/align/queue").json()["items"]}
+    assert before["Account Name"] == "review"
+
+    res = client.post("/api/context/align/Account Name/accept")
+    assert res.status_code == 200
+
+    # After: the accepted term is now aligned, and it stays that way on reload.
+    after = {i["term"]: i["band"] for i in client.get("/api/context/align/queue").json()["items"]}
+    assert after["Account Name"] == "auto"
+
+
+def test_accept_returns_404_for_an_unknown_term(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+    _fake_account_store(monkeypatch)
+
+    res = client.post("/api/context/align/No Such Term/accept")
+    assert res.status_code == 404
+
+
+def test_accept_returns_503_when_graphdb_unconfigured(client, monkeypatch):
+    monkeypatch.delenv("GRAPHDB_ENDPOINT", raising=False)
+    res = client.post("/api/context/align/Account Name/accept")
+    assert res.status_code == 503
+
+
+def test_reject_moves_a_term_from_review_into_the_rejected_band(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+    _fake_account_store(monkeypatch)
+
+    before = {i["term"]: i["band"] for i in client.get("/api/context/align/queue").json()["items"]}
+    assert before["Account Name"] == "review"
+
+    res = client.post("/api/context/align/Account Name/reject")
+    assert res.status_code == 200
+
+    after = {i["term"]: i["band"] for i in client.get("/api/context/align/queue").json()["items"]}
+    assert after["Account Name"] == "rejected"
+
+
+def test_reject_returns_404_for_an_unknown_term(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+    _fake_account_store(monkeypatch)
+
+    res = client.post("/api/context/align/No Such Term/reject")
+    assert res.status_code == 404

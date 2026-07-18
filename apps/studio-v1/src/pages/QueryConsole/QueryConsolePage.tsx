@@ -15,14 +15,17 @@ export function QueryConsolePage() {
   const [active, setActive] = useState<TabId>("sql");
 
   return (
-    <div>
-      <h1>Query Console</h1>
-      <div role="tablist" aria-label="Query language">
+    <main className="view">
+      <div className="view-head">
+        <h1>Query Console</h1>
+      </div>
+      <div className="tabs" role="tablist" aria-label="Query language">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             role="tab"
+            className="tab"
             aria-selected={active === tab.id}
             onClick={() => setActive(tab.id)}
           >
@@ -32,15 +35,15 @@ export function QueryConsolePage() {
       </div>
       {/* Each pane stays mounted so a tab's query/results survive switching
           away and back — only visibility toggles, matching the prototype. */}
-      <div hidden={active !== "sql"}>
+      <div className="tabpane" hidden={active !== "sql"}>
         <SqlTab />
       </div>
-      <div hidden={active !== "cypher"}>
+      <div className="tabpane" hidden={active !== "cypher"}>
         <CypherTab />
       </div>
-      <div hidden={active !== "sparql"}>
+      <div className="tabpane" hidden={active !== "sparql"}>
         <SparqlTab />
       </div>
-    </div>
+    </main>
   );
 }

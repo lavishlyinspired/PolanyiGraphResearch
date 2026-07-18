@@ -4,13 +4,15 @@ import { governingRules } from "./governingRules";
 
 function TermDrawer({ term, rules }: { term: GlossaryEntry; rules: Rule[] }) {
   return (
-    <aside aria-label="Term detail">
+    <aside aria-label="Term detail" className="panel" style={{ padding: 16 }}>
       <h2>{term.term}</h2>
       <p>{term.definition}</p>
-      {term.ontology_uri !== null && <p>{term.ontology_uri}</p>}
+      {term.ontology_uri !== null && (
+        <p className="mono dim">{term.ontology_uri}</p>
+      )}
       <h3>Governing rules</h3>
       {rules.length === 0 ? (
-        <p>No rules govern this term.</p>
+        <p className="dim">No rules govern this term.</p>
       ) : (
         <ul>
           {rules.map((rule) => (
@@ -32,33 +34,45 @@ export function GlossaryPage() {
   }
 
   return (
-    <div>
-      <h1>Semantic Model</h1>
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">Term</th>
-            <th scope="col">Definition</th>
-            <th scope="col">FIBO</th>
-          </tr>
-        </thead>
-        <tbody>
-          {context.glossary.map((entry) => (
-            <tr key={entry.term}>
-              <td>
-                <button type="button" onClick={() => setSelected(entry)}>
-                  {entry.term}
-                </button>
-              </td>
-              <td>{entry.definition}</td>
-              <td>{entry.ontology_class ?? "Not aligned"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {selected !== null && (
-        <TermDrawer term={selected} rules={governingRules(selected, context.business_rules)} />
-      )}
-    </div>
+    <main className="view">
+      <div className="view-head">
+        <h1>Semantic Model</h1>
+      </div>
+      <div className={selected === null ? undefined : "cols cols-2"}>
+        <div className="panel tblwrap">
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th scope="col">Term</th>
+                <th scope="col">Definition</th>
+                <th scope="col">FIBO</th>
+              </tr>
+            </thead>
+            <tbody>
+              {context.glossary.map((entry) => (
+                <tr key={entry.term}>
+                  <td>
+                    <button type="button" className="link-cell" onClick={() => setSelected(entry)}>
+                      {entry.term}
+                    </button>
+                  </td>
+                  <td>{entry.definition}</td>
+                  <td>
+                    {entry.ontology_class === null ? (
+                      <span className="dim">Not aligned</span>
+                    ) : (
+                      <span className="chip chip-moss">{entry.ontology_class}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {selected !== null && (
+          <TermDrawer term={selected} rules={governingRules(selected, context.business_rules)} />
+        )}
+      </div>
+    </main>
   );
 }

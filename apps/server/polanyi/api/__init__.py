@@ -258,6 +258,67 @@ def create_app(
         aligned = [g.term for g in ctx.glossary if g.ontology_uri]
         return {"aligned_terms": aligned, "total_terms": len(ctx.glossary)}
 
+    @app.get("/api/context/align/queue")
+    def alignment_review_queue():
+        from polanyi.semantic.ontology import (
+            GraphDBOntologyStore,
+            alignment_queue,
+            graphdb_configured,
+        )
+
+        if not graphdb_configured():
+            raise HTTPException(status_code=503, detail="GRAPHDB_ENDPOINT not configured")
+        store = GraphDBOntologyStore()
+        if not store.is_available():
+            raise HTTPException(status_code=503, detail="GraphDB is not reachable")
+        return alignment_queue(context(), store)
+
+    @app.post("/api/context/align/{term}/accept")
+    def accept_alignment_candidate(term: str):
+        from polanyi.semantic.ontology import (
+            GraphDBOntologyStore,
+            accept_alignment,
+            alignment_queue,
+            graphdb_configured,
+        )
+
+        if not graphdb_configured():
+            raise HTTPException(status_code=503, detail="GRAPHDB_ENDPOINT not configured")
+        store = GraphDBOntologyStore()
+        if not store.is_available():
+            raise HTTPException(status_code=503, detail="GraphDB is not reachable")
+        try:
+            ctx = accept_alignment(context(), term, store)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        state["context"] = ctx
+        state["agent"] = None
+        save_context(ctx)
+        return alignment_queue(ctx, store)
+
+    @app.post("/api/context/align/{term}/reject")
+    def reject_alignment_candidate(term: str):
+        from polanyi.semantic.ontology import (
+            GraphDBOntologyStore,
+            alignment_queue,
+            graphdb_configured,
+            reject_alignment,
+        )
+
+        if not graphdb_configured():
+            raise HTTPException(status_code=503, detail="GRAPHDB_ENDPOINT not configured")
+        store = GraphDBOntologyStore()
+        if not store.is_available():
+            raise HTTPException(status_code=503, detail="GraphDB is not reachable")
+        try:
+            ctx = reject_alignment(context(), term, store)
+        except LookupError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+        state["context"] = ctx
+        state["agent"] = None
+        save_context(ctx)
+        return alignment_queue(ctx, store)
+
     @app.get("/api/rdf")
     def get_rdf():
         from fastapi.responses import PlainTextResponse

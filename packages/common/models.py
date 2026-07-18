@@ -65,6 +65,10 @@ class GlossaryEntry(BaseModel):
     ontology_uri: Optional[str] = Field(
         default=None, description="URI of the aligned ontology class"
     )
+    rejected_ontology_uris: list[str] = Field(
+        default_factory=list,
+        description="Candidate URIs a steward rejected for this term (precision-first)",
+    )
 
 
 class EntityRelationship(BaseModel):
@@ -122,6 +126,27 @@ class SqlExecutionResult(BaseModel):
     validation: ValidationResult
     columns: list[str] = Field(default_factory=list)
     rows: list[dict] = Field(default_factory=list)
+
+
+# ── Ontology alignment review ────────────────────────────────────
+
+AlignmentBand = Literal["auto", "review", "rejected", "unmapped"]
+
+
+class AlignmentReviewItem(BaseModel):
+    """One glossary term's best ontology candidate and its confidence band."""
+
+    term: str
+    band: AlignmentBand
+    candidate_label: Optional[str] = None
+    candidate_uri: Optional[str] = None
+    score: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class AlignmentQueue(BaseModel):
+    """The alignment review queue: every glossary term, bucketed by confidence."""
+
+    items: list[AlignmentReviewItem] = Field(default_factory=list)
 
 
 # ── Agent interaction ────────────────────────────────────────────

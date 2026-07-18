@@ -43,51 +43,75 @@ export function SqlTab() {
   }
 
   return (
-    <div>
-      <label>
-        SQL
-        <textarea value={sql} onChange={(event) => setSql(event.target.value)} />
-      </label>
-      <button type="button" onClick={handleRun}>
-        Run
-      </button>
+    <div className={outcome === null ? undefined : "cols cols-2"}>
+      <div className="panel" style={{ marginBottom: 18, alignSelf: "start" }}>
+        <div className="panel-h">
+          <h2>SQL</h2>
+          <div className="actions">
+            <button type="button" className="btn btn-sm btn-primary" onClick={handleRun}>
+              Run
+            </button>
+          </div>
+        </div>
+        <div style={{ padding: 14 }}>
+          <label>
+            SQL
+            <textarea
+              value={sql}
+              onChange={(event) => setSql(event.target.value)}
+              className="code"
+              style={{ width: "100%", minHeight: 120, display: "block", marginTop: 6 }}
+            />
+          </label>
+        </div>
+      </div>
       {outcome !== null && (
-        <>
-          <div role="status">{bannerLabels[outcome.verdict]}</div>
+        <div>
+          <div role="status" className="chip" style={{ marginBottom: 12 }}>
+            {bannerLabels[outcome.verdict]}
+          </div>
           {outcome.verdict === "blocked" ? (
-            <ul aria-label="Rule verdicts">
-              {outcome.rows.map((row) => (
-                <li key={row.ruleId}>
-                  <span>{stampLabels[row.level]}</span> <span>{row.name}</span>
-                  {row.message !== null && <p>{row.message}</p>}
-                </li>
-              ))}
-            </ul>
+            <div className="panel">
+              <ul aria-label="Rule verdicts" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {outcome.rows.map((row) => (
+                  <li
+                    key={row.ruleId}
+                    style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "9px 14px", borderBottom: "1px solid var(--line)" }}
+                  >
+                    <span className="chip">{stampLabels[row.level]}</span>
+                    <span>{row.name}</span>
+                    {row.message !== null && <p className="dim" style={{ margin: 0 }}>{row.message}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : outcome.data.length === 0 ? (
-            <p>No rows matched this query.</p>
+            <p className="dim">No rows matched this query.</p>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  {outcome.columns.map((column) => (
-                    <th key={column} scope="col">
-                      {column}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {outcome.data.map((row, index) => (
-                  <tr key={index}>
+            <div className="panel tblwrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
                     {outcome.columns.map((column) => (
-                      <td key={column}>{String(row[column])}</td>
+                      <th key={column} scope="col">
+                        {column}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {outcome.data.map((row, index) => (
+                    <tr key={index}>
+                      {outcome.columns.map((column) => (
+                        <td key={column}>{String(row[column])}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

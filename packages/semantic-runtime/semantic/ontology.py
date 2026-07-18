@@ -14,11 +14,15 @@ from typing import Optional, Protocol
 import httpx
 from pydantic import BaseModel, Field  # noqa: F401 — Field used by _RankingChoice
 
-from polanyi.models import SemanticContext
+from polanyi.models import AlignmentBand, AlignmentQueue, AlignmentReviewItem, SemanticContext
 
 # Prefix/substring hits (0.5–0.7) are useful for search ranking but too
 # imprecise to attach automatically ("Revenue" is not a "revenue bond").
 _MIN_ALIGNMENT_SCORE = 0.9
+
+# Below this a candidate is too imprecise to even warrant a human's review;
+# also the floor `align_glossary` uses before asking the LLM to rank.
+_MIN_REVIEW_SCORE = 0.5
 
 
 class OntologyCandidate(BaseModel):
@@ -243,12 +247,108 @@ def align_glossary(
             entry.ontology_uri = best.uri
             continue
         if llm is not None:
-            plausible = [c for c in candidates if c.score >= 0.5]
+            plausible = [c for c in candidates if c.score >= _MIN_REVIEW_SCORE]
             chosen = _rank_with_llm(entry, plausible, llm) if plausible else None
             if chosen is not None:
                 entry.ontology_class = chosen.label
                 entry.ontology_uri = chosen.uri
     return aligned
+
+
+def classify_band(score: Optional[float]) -> AlignmentBand:
+    """Bucket a candidate score into a review band.
+
+    ≥ 0.90 attaches automatically; 0.50–0.89 needs a human decision; below the
+    floor (or no candidate at all) is unmapped.
+    """
+    if score is None or score < _MIN_REVIEW_SCORE:
+        return "unmapped"
+    if score >= _MIN_ALIGNMENT_SCORE:
+        return "auto"
+    return "review"
+
+
+def alignment_queue(context: SemanticContext, store: OntologyStore) -> AlignmentQueue:
+    """Every glossary term, bucketed by alignment state.
+
+    A term already aligned (persisted ``ontology_uri`` — auto ≥0.90 or a human
+    accept) is reported as 'auto'; the rest are classified by their best live
+    candidate's score. Honoring persisted state makes this a real review queue:
+    a term you align stays aligned rather than reappearing every load.
+    """
+    items = []
+    for entry in context.glossary:
+        candidates = store.search_classes(entry.term)
+        if entry.ontology_uri is not None:
+            score = next((c.score for c in candidates if c.uri == entry.ontology_uri), 0.0)
+            items.append(
+                AlignmentReviewItem(
+                    term=entry.term,
+                    band="auto",
+                    candidate_label=entry.ontology_class,
+                    candidate_uri=entry.ontology_uri,
+                    score=score,
+                )
+            )
+            continue
+        best = max(candidates, key=lambda c: c.score, default=None)
+        if best is not None and best.uri in entry.rejected_ontology_uris:
+            band: AlignmentBand = "rejected"
+        else:
+            band = classify_band(best.score if best is not None else None)
+        items.append(
+            AlignmentReviewItem(
+                term=entry.term,
+                band=band,
+                candidate_label=best.label if best is not None else None,
+                candidate_uri=best.uri if best is not None else None,
+                score=best.score if best is not None else 0.0,
+            )
+        )
+    return AlignmentQueue(items=items)
+
+
+def accept_alignment(
+    context: SemanticContext, term: str, store: OntologyStore
+) -> SemanticContext:
+    """Attach a term's best retrieved candidate — a human accepting the alignment.
+
+    Re-runs retrieval server-side and attaches the top candidate, so an accept can
+    only ever pick from what the deterministic search returned, never an arbitrary
+    URI. Raises ``LookupError`` for an unknown term or one with no candidate.
+    """
+    entry = next((e for e in context.glossary if e.term == term), None)
+    if entry is None:
+        raise LookupError(f"No glossary term named {term!r}")
+    best = min(store.search_classes(entry.term), key=lambda c: c.score, default=None)
+    if best is None:
+        raise LookupError(f"No ontology candidate to accept for {term!r}")
+    entry.ontology_class = best.label
+    entry.ontology_uri = best.uri
+    return context
+
+
+def reject_alignment(
+    context: SemanticContext, term: str, store: OntologyStore
+) -> SemanticContext:
+    """Reject a term's best retrieved candidate — precision over recall.
+
+    Records the candidate URI so the term surfaces in the 'rejected' band and is
+    not re-suggested, and clears any persisted alignment that pointed at it.
+    Raises ``LookupError`` for an unknown term or one with no candidate.
+    """
+    entry = next((e for e in context.glossary if e.term == term), None)
+    if entry is None:
+        raise LookupError(f"No glossary term named {term!r}")
+    best = max(store.search_classes(entry.term), key=lambda c: c.score, default=None)
+    if best is None:
+        raise LookupError(f"No ontology candidate to reject for {term!r}")
+    if best.uri not in entry.rejected_ontology_uris:
+        entry.rejected_ontology_uris.append(best.uri)
+    if entry.ontology_uri == best.uri:
+        entry.ontology_uri = None
+        entry.ontology_class = None
+    return context
 
 
 def graphdb_configured() -> bool:

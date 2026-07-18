@@ -1,7 +1,13 @@
 from polanyi.models import GlossaryEntry, SemanticContext
+import pytest
+
 from polanyi.semantic.ontology import (
     OntologyCandidate,
+    accept_alignment,
     align_glossary,
+    alignment_queue,
+    classify_band,
+    reject_alignment,
     score_label,
 )
 
@@ -165,6 +171,192 @@ def test_llm_can_decline_to_align():
     ctx = align_glossary(make_context(), FakeStore(AMBIGUOUS), llm=FakeRankingLLM(None))
     entry = next(g for g in ctx.glossary if g.term == "Notional Amount")
     assert entry.ontology_uri is None
+
+
+# ── Alignment review queue (classify_band + alignment_queue) ─────
+
+
+def test_classify_band_auto_at_and_above_the_auto_threshold():
+    assert classify_band(0.90) == "auto"
+    assert classify_band(1.0) == "auto"
+
+
+def test_classify_band_review_between_the_floor_and_the_auto_threshold():
+    assert classify_band(0.89) == "review"
+    assert classify_band(0.50) == "review"
+
+
+def test_classify_band_unmapped_below_the_review_floor_or_when_no_candidate():
+    assert classify_band(0.49) == "unmapped"
+    assert classify_band(0.0) == "unmapped"
+    assert classify_band(None) == "unmapped"
+
+
+def test_alignment_queue_buckets_each_glossary_term_by_best_candidate_score():
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:NotionalAmount", label="notional amount", score=0.97),
+                OntologyCandidate(uri="urn:fibo:Other", label="notional amount leg", score=0.7),
+            ],
+        }
+    )
+    queue = alignment_queue(make_context(), store)
+
+    by_term = {item.term: item for item in queue.items}
+    assert by_term["Notional Amount"].band == "auto"
+    assert by_term["Notional Amount"].candidate_uri == "urn:fibo:NotionalAmount"
+    assert by_term["Notional Amount"].candidate_label == "notional amount"
+    assert by_term["Notional Amount"].score == 0.97
+    # A term the store returns nothing for is unmapped with no candidate.
+    assert by_term["Zzz Unmatched"].band == "unmapped"
+    assert by_term["Zzz Unmatched"].candidate_uri is None
+    assert by_term["Zzz Unmatched"].score == 0.0
+
+
+def test_alignment_queue_reports_every_glossary_term_once():
+    queue = alignment_queue(make_context(), FakeStore({}))
+    assert [item.term for item in queue.items] == ["Notional Amount", "Zzz Unmatched"]
+
+
+def test_alignment_queue_places_mid_confidence_candidate_in_review_band():
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:NotionalStep", label="notional step", score=0.7),
+            ],
+        }
+    )
+    queue = alignment_queue(make_context(), store)
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert item.band == "review"
+    assert item.candidate_uri == "urn:fibo:NotionalStep"
+    assert item.score == 0.7
+
+
+def test_alignment_queue_reflects_a_persisted_alignment_as_aligned_despite_a_low_live_score():
+    """A term a human accepted stays in the 'auto' (aligned) band even though its
+    live candidate would otherwise be mere 'review' — the queue honors decisions."""
+    ctx = make_context()
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    entry.ontology_class = "notional step"
+    entry.ontology_uri = "urn:fibo:NotionalStep"
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:NotionalStep", label="notional step", score=0.61),
+            ],
+        }
+    )
+    item = next(i for i in alignment_queue(ctx, store).items if i.term == "Notional Amount")
+    assert item.band == "auto"
+    assert item.candidate_uri == "urn:fibo:NotionalStep"
+    # Score re-derived from the matching live candidate.
+    assert item.score == 0.61
+
+
+def test_alignment_queue_scores_a_drifted_persisted_alignment_as_zero():
+    """A persisted alignment whose URI no longer appears among live candidates
+    scores 0.0 — an honest signal that the ontology drifted out from under it."""
+    ctx = make_context()
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    entry.ontology_class = "notional amount"
+    entry.ontology_uri = "urn:fibo:GoneAway"
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:SomethingElse", label="something else", score=0.8),
+            ],
+        }
+    )
+    item = next(i for i in alignment_queue(ctx, store).items if i.term == "Notional Amount")
+    assert item.band == "auto"
+    assert item.candidate_uri == "urn:fibo:GoneAway"
+    assert item.score == 0.0
+
+
+# ── accept_alignment (write) ─────────────────────────────────────
+
+
+def test_accept_alignment_attaches_the_best_candidate_to_the_term():
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:NotionalAmount", label="notional amount", score=0.61),
+                OntologyCandidate(uri="urn:fibo:Other", label="notional other", score=0.55),
+            ],
+        }
+    )
+    ctx = accept_alignment(make_context(), "Notional Amount", store)
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    assert entry.ontology_uri == "urn:fibo:NotionalAmount"
+    assert entry.ontology_class == "notional amount"
+
+
+def test_accept_alignment_raises_for_an_unknown_term():
+    with pytest.raises(LookupError):
+        accept_alignment(make_context(), "No Such Term", FakeStore({}))
+
+
+def test_accept_alignment_raises_when_the_term_has_no_candidate():
+    with pytest.raises(LookupError):
+        accept_alignment(make_context(), "Notional Amount", FakeStore({}))
+
+
+# ── reject_alignment + rejected band ─────────────────────────────
+
+REVIEW_STORE = FakeStore(
+    {
+        "notional amount": [
+            OntologyCandidate(uri="urn:fibo:NotionalStep", label="notional step", score=0.61),
+        ],
+    }
+)
+
+
+def test_alignment_queue_puts_a_term_with_a_rejected_best_candidate_in_the_rejected_band():
+    ctx = make_context()
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    entry.rejected_ontology_uris = ["urn:fibo:NotionalStep"]
+    item = next(i for i in alignment_queue(ctx, REVIEW_STORE).items if i.term == "Notional Amount")
+    assert item.band == "rejected"
+    assert item.candidate_uri == "urn:fibo:NotionalStep"
+
+
+def test_alignment_queue_prefers_a_persisted_alignment_over_a_rejected_candidate():
+    """Aligned wins: a term aligned to one class is not dragged into 'rejected'
+    just because a different candidate was rejected earlier."""
+    ctx = make_context()
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    entry.ontology_uri = "urn:fibo:Accepted"
+    entry.ontology_class = "accepted class"
+    entry.rejected_ontology_uris = ["urn:fibo:NotionalStep"]
+    item = next(i for i in alignment_queue(ctx, REVIEW_STORE).items if i.term == "Notional Amount")
+    assert item.band == "auto"
+    assert item.candidate_uri == "urn:fibo:Accepted"
+
+
+def test_reject_alignment_records_the_best_candidate_uri():
+    ctx = reject_alignment(make_context(), "Notional Amount", REVIEW_STORE)
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    assert "urn:fibo:NotionalStep" in entry.rejected_ontology_uris
+
+
+def test_reject_alignment_clears_a_persisted_alignment_when_it_matches_the_rejected_uri():
+    ctx = make_context()
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    entry.ontology_uri = "urn:fibo:NotionalStep"
+    entry.ontology_class = "notional step"
+    rejected = reject_alignment(ctx, "Notional Amount", REVIEW_STORE)
+    updated = next(e for e in rejected.glossary if e.term == "Notional Amount")
+    assert updated.ontology_uri is None
+    assert updated.ontology_class is None
+    assert "urn:fibo:NotionalStep" in updated.rejected_ontology_uris
+
+
+def test_reject_alignment_raises_for_an_unknown_term():
+    with pytest.raises(LookupError):
+        reject_alignment(make_context(), "No Such Term", REVIEW_STORE)
 
 
 # ── GraphDBOntologyStore.sparql_query ───────────────────────────
