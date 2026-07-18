@@ -333,24 +333,12 @@ def cmd_publish(args) -> int:
 
 def cmd_sparql(args) -> int:
     import json as json_module
-    import os
 
     from polanyi.semantic.ontology import GraphDBOntologyStore, graphdb_configured
 
-    if graphdb_configured() and GraphDBOntologyStore().is_available():
-        import httpx
-
-        endpoint = os.environ["GRAPHDB_ENDPOINT"].rstrip("/")
-        repo = os.environ.get("GRAPHDB_REPOSITORY", "fibo")
-        response = httpx.post(
-            f"{endpoint}/repositories/{repo}",
-            data={"query": args.query},
-            headers={"Accept": "application/sparql-results+json"},
-            timeout=30,
-        )
-        response.raise_for_status()
-        bindings = response.json()["results"]["bindings"]
-        rows = [{k: v["value"] for k, v in b.items()} for b in bindings]
+    store = GraphDBOntologyStore() if graphdb_configured() else None
+    if store is not None and store.is_available():
+        rows = store.sparql_query(args.query)
     else:
         from polanyi.semantic.rdf import local_sparql
 

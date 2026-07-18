@@ -116,6 +116,14 @@ class ValidationResult(BaseModel):
     checked_rules: list[str] = Field(default_factory=list)
 
 
+class SqlExecutionResult(BaseModel):
+    """Result of a guarded SQL execution: the gate's verdict plus rows, if any ran."""
+
+    validation: ValidationResult
+    columns: list[str] = Field(default_factory=list)
+    rows: list[dict] = Field(default_factory=list)
+
+
 # ── Agent interaction ────────────────────────────────────────────
 
 

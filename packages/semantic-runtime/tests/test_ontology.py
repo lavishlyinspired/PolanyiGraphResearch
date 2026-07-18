@@ -165,3 +165,43 @@ def test_llm_can_decline_to_align():
     ctx = align_glossary(make_context(), FakeStore(AMBIGUOUS), llm=FakeRankingLLM(None))
     entry = next(g for g in ctx.glossary if g.term == "Notional Amount")
     assert entry.ontology_uri is None
+
+
+# ── GraphDBOntologyStore.sparql_query ───────────────────────────
+
+
+def test_sparql_query_flattens_bindings_to_plain_dicts(monkeypatch):
+    from polanyi.semantic.ontology import GraphDBOntologyStore
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "results": {
+                    "bindings": [
+                        {"term": {"value": "Counterparty"}, "fiboClass": {"value": "fibo:Counterparty"}},
+                        {"term": {"value": "Currency"}, "fiboClass": {"value": "fibo:Currency"}},
+                    ]
+                }
+            }
+
+    captured = {}
+
+    def fake_post(url, data, headers, timeout):
+        captured["url"] = url
+        captured["query"] = data["query"]
+        return FakeResponse()
+
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    store = GraphDBOntologyStore(endpoint="http://localhost:7200", repository="fibo")
+    rows = store.sparql_query("SELECT ?term ?fiboClass WHERE { ... }")
+
+    assert rows == [
+        {"term": "Counterparty", "fiboClass": "fibo:Counterparty"},
+        {"term": "Currency", "fiboClass": "fibo:Currency"},
+    ]
+    assert captured["url"] == "http://localhost:7200/repositories/fibo"
+    assert "SELECT ?term" in captured["query"]
