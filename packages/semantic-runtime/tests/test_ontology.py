@@ -255,6 +255,64 @@ def test_alignment_queue_reflects_a_persisted_alignment_as_aligned_despite_a_low
     assert item.score == 0.61
 
 
+def test_alignment_queue_review_band_shows_llm_ranked_candidate_over_raw_top_score():
+    """The queue is what a human reviews before deciding — when an LLM is
+    configured, it should show the LLM's actual pick among real candidates,
+    not always the naive top lexical score."""
+    queue = alignment_queue(
+        make_context(), FakeStore(AMBIGUOUS), llm=FakeRankingLLM("urn:fibo:NotionalStep")
+    )
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert item.band == "review"
+    assert item.candidate_uri == "urn:fibo:NotionalStep"
+    assert item.candidate_label == "notional step"
+    assert item.score == 0.5
+
+
+def test_alignment_queue_review_band_keeps_raw_top_candidate_when_llm_declines():
+    queue = alignment_queue(make_context(), FakeStore(AMBIGUOUS), llm=FakeRankingLLM(None))
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert item.band == "review"
+    assert item.candidate_uri == "urn:fibo:NotionalAmount"
+    assert item.score == 0.7
+
+
+def test_alignment_queue_auto_band_ignores_llm_ranking():
+    """Ranking only ever applies inside the review band — an already-confident
+    (>=0.90) candidate must never be swapped out by the LLM."""
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:NotionalAmount", label="notional amount", score=0.97),
+            ],
+        }
+    )
+    queue = alignment_queue(make_context(), store, llm=FakeRankingLLM("urn:some:other"))
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert item.band == "auto"
+    assert item.candidate_uri == "urn:fibo:NotionalAmount"
+
+
+def test_alignment_queue_rejected_band_ignores_llm_ranking():
+    """Ranking only ever applies inside the review band — a rejected term's
+    displayed candidate must not change just because an LLM is configured."""
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:NotionalStep", label="notional step", score=0.61),
+            ],
+        }
+    )
+    ctx = make_context()
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    entry.rejected_ontology_uris = ["urn:fibo:NotionalStep"]
+
+    queue = alignment_queue(ctx, store, llm=FakeRankingLLM("urn:some:other"))
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert item.band == "rejected"
+    assert item.candidate_uri == "urn:fibo:NotionalStep"
+
+
 def test_alignment_queue_scores_a_drifted_persisted_alignment_as_zero():
     """A persisted alignment whose URI no longer appears among live candidates
     scores 0.0 — an honest signal that the ontology drifted out from under it."""
@@ -301,6 +359,47 @@ def test_accept_alignment_raises_for_an_unknown_term():
 def test_accept_alignment_raises_when_the_term_has_no_candidate():
     with pytest.raises(LookupError):
         accept_alignment(make_context(), "Notional Amount", FakeStore({}))
+
+
+def test_accept_alignment_raises_when_no_candidate_even_with_llm_configured():
+    with pytest.raises(LookupError):
+        accept_alignment(
+            make_context(), "Notional Amount", FakeStore({}), llm=FakeRankingLLM(None)
+        )
+
+
+def test_accept_alignment_does_not_let_llm_override_a_high_confidence_candidate():
+    """A term with a clear (>=0.90) lexical match is never re-ranked — matches
+    align_glossary's existing rule that the LLM only ranks ambiguous cases."""
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:NotionalAmount", label="notional amount", score=0.97),
+                OntologyCandidate(uri="urn:fibo:Other", label="notional other", score=0.6),
+            ],
+        }
+    )
+    ctx = accept_alignment(
+        make_context(), "Notional Amount", store, llm=FakeRankingLLM("urn:fibo:Other")
+    )
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    assert entry.ontology_uri == "urn:fibo:NotionalAmount"
+
+
+def test_accept_alignment_persists_the_same_llm_ranked_candidate_the_queue_displayed():
+    """A user reviews whatever the queue shows, then clicks Accept — accept must
+    never silently re-derive a different candidate than the one just reviewed."""
+    store = FakeStore(AMBIGUOUS)
+    llm = FakeRankingLLM("urn:fibo:NotionalStep")
+
+    queue = alignment_queue(make_context(), store, llm=llm)
+    displayed = next(i for i in queue.items if i.term == "Notional Amount")
+    assert displayed.candidate_uri == "urn:fibo:NotionalStep"  # sanity: LLM pick, not raw top
+
+    ctx = accept_alignment(make_context(), "Notional Amount", store, llm=llm)
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    assert entry.ontology_uri == displayed.candidate_uri
+    assert entry.ontology_class == displayed.candidate_label
 
 
 # ── reject_alignment + rejected band ─────────────────────────────
@@ -357,6 +456,17 @@ def test_reject_alignment_clears_a_persisted_alignment_when_it_matches_the_rejec
 def test_reject_alignment_raises_for_an_unknown_term():
     with pytest.raises(LookupError):
         reject_alignment(make_context(), "No Such Term", REVIEW_STORE)
+
+
+def test_reject_alignment_records_the_llm_ranked_candidate_the_queue_displayed():
+    """Symmetric with accept: reject must record the URI the user actually saw
+    and rejected, not a re-derived raw-top-lexical one."""
+    store = FakeStore(AMBIGUOUS)
+    llm = FakeRankingLLM("urn:fibo:NotionalStep")
+
+    ctx = reject_alignment(make_context(), "Notional Amount", store, llm=llm)
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    assert entry.rejected_ontology_uris == ["urn:fibo:NotionalStep"]
 
 
 # ── GraphDBOntologyStore.sparql_query ───────────────────────────

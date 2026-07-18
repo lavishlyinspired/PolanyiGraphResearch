@@ -741,7 +741,7 @@ def create_app(
         store = GraphDBOntologyStore()
         if not store.is_available():
             raise HTTPException(status_code=503, detail="GraphDB is not reachable")
-        return alignment_queue(context(), store)
+        return alignment_queue(context(), store, llm=resolve_llm("pipeline"))
 
     @app.post("/api/context/align/{term}/accept")
     def accept_alignment_candidate(term: str):
@@ -757,14 +757,15 @@ def create_app(
         store = GraphDBOntologyStore()
         if not store.is_available():
             raise HTTPException(status_code=503, detail="GraphDB is not reachable")
+        llm = resolve_llm("pipeline")
         try:
-            ctx = accept_alignment(context(), term, store)
+            ctx = accept_alignment(context(), term, store, llm=llm)
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         state["context"] = ctx
         state["agent"] = None
         save_context(ctx)
-        return alignment_queue(ctx, store)
+        return alignment_queue(ctx, store, llm=llm)
 
     @app.post("/api/context/align/{term}/reject")
     def reject_alignment_candidate(term: str):
@@ -780,14 +781,15 @@ def create_app(
         store = GraphDBOntologyStore()
         if not store.is_available():
             raise HTTPException(status_code=503, detail="GraphDB is not reachable")
+        llm = resolve_llm("pipeline")
         try:
-            ctx = reject_alignment(context(), term, store)
+            ctx = reject_alignment(context(), term, store, llm=llm)
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         state["context"] = ctx
         state["agent"] = None
         save_context(ctx)
-        return alignment_queue(ctx, store)
+        return alignment_queue(ctx, store, llm=llm)
 
     @app.get("/api/rdf")
     def get_rdf():

@@ -412,6 +412,75 @@ def test_reject_returns_404_for_an_unknown_term(client, monkeypatch):
     assert res.status_code == 404
 
 
+def _fake_ambiguous_store(monkeypatch):
+    """Two real candidates for 'Account Name' — one plainly not the top lexical
+    score — so an LLM pick is distinguishable from the raw-best fallback."""
+    from polanyi.semantic.ontology import OntologyCandidate
+
+    class FakeStore:
+        def is_available(self):
+            return True
+
+        def search_classes(self, term, limit=5):
+            if term.lower().startswith("account name"):
+                return [
+                    OntologyCandidate(uri="urn:fibo:AccountLabel", label="Account Label", score=0.7),
+                    OntologyCandidate(uri="urn:fibo:AccountRef", label="Account Reference", score=0.55),
+                ]
+            return []
+
+    import polanyi.semantic.ontology as ontology_module
+
+    monkeypatch.setattr(ontology_module, "GraphDBOntologyStore", lambda: FakeStore())
+
+
+class _FakeRankingLLM:
+    def __init__(self, chosen_uri):
+        self.chosen_uri = chosen_uri
+
+    def with_structured_output(self, schema):
+        outer = self
+
+        class Runner:
+            def invoke(self, _prompt):
+                return schema(chosen_uri=outer.chosen_uri)
+
+        return Runner()
+
+
+def test_queue_endpoint_wires_resolve_llm_into_the_review_band(client, monkeypatch):
+    """Proves the API layer actually passes resolve_llm() through to
+    alignment_queue() — not just that alignment_queue() honors an llm param when
+    called directly (already covered at the unit level in test_ontology.py)."""
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+    _fake_ambiguous_store(monkeypatch)
+
+    import polanyi.api as api_module
+
+    monkeypatch.setattr(api_module, "resolve_llm", lambda role: _FakeRankingLLM("urn:fibo:AccountRef"))
+
+    res = client.get("/api/context/align/queue")
+    assert res.status_code == 200
+    item = next(i for i in res.json()["items"] if i["term"] == "Account Name")
+    assert item["band"] == "review"
+    assert item["candidate_uri"] == "urn:fibo:AccountRef"  # LLM's pick, not the 0.7 top score
+
+
+def test_accept_endpoint_wires_resolve_llm_and_persists_the_same_candidate_shown(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+    _fake_ambiguous_store(monkeypatch)
+
+    import polanyi.api as api_module
+
+    monkeypatch.setattr(api_module, "resolve_llm", lambda role: _FakeRankingLLM("urn:fibo:AccountRef"))
+
+    res = client.post("/api/context/align/Account Name/accept")
+    assert res.status_code == 200
+    item = next(i for i in res.json()["items"] if i["term"] == "Account Name")
+    assert item["band"] == "auto"
+    assert item["candidate_uri"] == "urn:fibo:AccountRef"
+
+
 def test_accepted_alignment_survives_a_context_regenerate(client, monkeypatch):
     """Regenerating context (e.g. after re-introspecting) must not wipe a
     steward's already-accepted FIBO alignment for a term that still exists."""
