@@ -7,6 +7,7 @@ from polanyi.semantic.ontology import (
     align_glossary,
     alignment_queue,
     classify_band,
+    guard_sparql,
     reject_alignment,
     score_label,
     score_reason,
@@ -773,6 +774,51 @@ def test_sparql_query_flattens_bindings_to_plain_dicts(monkeypatch):
     ]
     assert captured["url"] == "http://localhost:7200/repositories/fibo"
     assert "SELECT ?term" in captured["query"]
+
+
+# ── Lucene full-text search (Phase 5.1) ───────────────────────────
+
+
+def test_lucene_search_query_targets_the_class_labels_connector_with_a_wildcard_token():
+    from polanyi.semantic.ontology import _lucene_search_query
+
+    query = _lucene_search_query("bond")
+
+    assert "PREFIX luc:" in query
+    assert "luc-index:class_labels" in query
+    assert 'luc:query "label:*bond*"' in query
+    assert "luc:entities ?class" in query
+
+
+def test_lucene_search_query_carries_over_the_subclass_count_join():
+    from polanyi.semantic.ontology import _lucene_search_query
+
+    query = _lucene_search_query("bond")
+
+    # Same subCount boost/penalty shape the scoring logic below depends on —
+    # switching the label-matching mechanism must not change this join.
+    assert "?subCount" in query
+    assert "rdfs:subClassOf ?class" in query
+
+
+# ── SPARQL read-only guard (Phase 5.2) ────────────────────────────
+
+
+def test_guard_sparql_allows_read_queries():
+    assert guard_sparql("SELECT ?class WHERE { ?class a owl:Class }") is None
+
+
+def test_guard_sparql_blocks_writes():
+    for query in (
+        "INSERT DATA { <urn:x> <urn:y> <urn:z> }",
+        "DELETE WHERE { ?s ?p ?o }",
+        "LOAD <http://example.com/data.ttl>",
+        "CLEAR GRAPH <urn:g>",
+        "CREATE GRAPH <urn:g>",
+        "DROP GRAPH <urn:g>",
+        "WITH <urn:g> DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }",
+    ):
+        assert guard_sparql(query) is not None, query
 
 
 def test_search_classes_populates_a_human_readable_rationale(monkeypatch):

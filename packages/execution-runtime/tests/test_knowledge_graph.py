@@ -1,9 +1,38 @@
-from polanyi.execution.knowledge_graph import guard_cypher, materialization_statements
+from polanyi.execution.knowledge_graph import (
+    Neo4jGraphStore,
+    guard_cypher,
+    materialization_statements,
+)
 from polanyi.models import (
     EntityRelationship,
     GlossaryEntry,
     SemanticContext,
 )
+
+
+def test_default_connection_timeout_is_bounded_not_left_to_the_driver_default(monkeypatch):
+    """Real bug this guards against: GraphDatabase.driver()'s own default
+    connection_timeout is 30s. capabilities.py constructs Neo4jGraphStore()
+    with no explicit timeout at registration time (query_knowledge_graph's
+    schema-description lookup) and inside both Neo4j tool bodies -- any of
+    those would hang for up to 30s against an unreachable/misconfigured
+    NEO4J_URI, blocking every capability-registry build (including GDS tool
+    registration, which runs after this in the same function). Confirmed by
+    direct reproduction against a real unreachable address before this fix:
+    30.19s: bare Neo4jGraphStore(); 2.2s: Neo4jGraphStore(connection_timeout=2.0)."""
+    import neo4j
+
+    captured = {}
+
+    def fake_driver(uri, auth, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(neo4j.GraphDatabase, "driver", staticmethod(fake_driver))
+
+    Neo4jGraphStore()
+
+    assert captured.get("connection_timeout") == 2.0
 
 
 def make_context() -> SemanticContext:
@@ -132,3 +161,59 @@ def test_document_projection_is_parameterized_and_idempotent_by_id():
         assert "Goldman" not in statement
     mention_ids = [p["id"] for s, p in statements if "MERGE (m:Mention {id" in s]
     assert len(mention_ids) == len(set(mention_ids))
+
+
+# ── Vector + fulltext search indexes (Phase 2) ───────────────────
+
+
+def test_fulltext_index_statement_is_idempotent_and_targets_term_text_fields():
+    from polanyi.execution.knowledge_graph import fulltext_index_statement
+
+    statement = fulltext_index_statement()
+    assert "IF NOT EXISTS" in statement
+    assert "FOR (t:Term)" in statement
+    assert "t.term" in statement
+    assert "t.definition" in statement
+
+
+def test_vector_index_statement_uses_the_real_embedding_dimension_not_a_guess():
+    from polanyi.execution.knowledge_graph import vector_index_statement
+
+    # The plan's original draft hardcoded 768 without checking which provider
+    # is actually configured (LocalEmbeddingProvider's all-MiniLM-L6-v2 is
+    # 384-dim; ApiEmbeddingProvider's text-embedding-3-small is 1536-dim) --
+    # the index must be built from the real vector length, whatever it is.
+    assert "384" in vector_index_statement(384)
+    assert "1536" in vector_index_statement(1536)
+    assert "768" not in vector_index_statement(384)
+
+
+def test_vector_index_statement_is_idempotent_and_targets_term_embedding():
+    from polanyi.execution.knowledge_graph import vector_index_statement
+
+    statement = vector_index_statement(384)
+    assert "IF NOT EXISTS" in statement
+    assert "FOR (t:Term) ON (t.embedding)" in statement
+    assert "cosine" in statement
+
+
+def test_embedding_statements_pairs_each_term_with_its_own_real_vector():
+    from polanyi.execution.knowledge_graph import embedding_statements
+
+    glossary = make_context().glossary
+    vectors = [[0.1, 0.2, 0.3]]
+    statements = embedding_statements(glossary, vectors)
+    assert len(statements) == 1
+    statement, params = statements[0]
+    assert params["term"] == "Notional Amount"
+    assert params["embedding"] == [0.1, 0.2, 0.3]
+
+
+def test_embedding_statements_never_inlines_the_vector_into_cypher_text():
+    from polanyi.execution.knowledge_graph import embedding_statements
+
+    glossary = make_context().glossary
+    statements = embedding_statements(glossary, [[0.1, 0.2, 0.3]])
+    statement, _params = statements[0]
+    assert "0.1" not in statement
+    assert "$embedding" in statement

@@ -1,0 +1,432 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Polanyi Studio — Maximal agentskills.io Architecture\n",
+    "\n",
+    "This notebook demonstrates **full commitment** to the `agentskills.io` pattern:\n",
+    "- All specialists are `Skill` objects (tools, system prompt, version, input/output schema).\n",
+    "- The supervisor loads skills from a simulated registry, uses `skill.as_graph()` for every specialist node.\n",
+    "- Skills own their state isolation; the supervisor only routes.\n",
+    "- Versioning, health checks, and mock backend calls included."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "!pip install -q langgraph langchain langchain-openai agentskills"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import os\n",
+    "import uuid\n",
+    "from typing import Annotated, TypedDict, List, Optional, Any, Dict\n",
+    "from langgraph.graph import StateGraph, END\n",
+    "from langgraph.graph.message import AnyMessage, add_messages\n",
+    "from langgraph.checkpoint.sqlite import SqliteSaver\n",
+    "from langchain_openai import ChatOpenAI\n",
+    "from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage, AIMessage\n",
+    "from langchain_core.tools import tool\n",
+    "from agentskills import Skill, SkillRegistry, load_skills_from_dir\n",
+    "\n",
+    "os.environ[\"OPENAI_API_KEY\"] = \"sk-...\"  # replace with your key"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 1. Define shared state (supervisor‑only routing fields)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "class MultiAgentState(TypedDict):\n",
+    "    messages: Annotated[List[AnyMessage], add_messages]\n",
+    "    next_agent: str          # \"ontology\", \"graph_analytics\", \"document\", \"core\", \"FINISH\"\n",
+    "    active_term_uri: Optional[str]\n",
+    "    active_fibo_class: Optional[str]\n",
+    "    final_output: Optional[str]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 2. Mock tools (identical to real Polanyi tools — replace with actual backends)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "@tool\n",
+    "def execute_sql(query: str) -> str:\n",
+    "    \"\"\"Execute a guarded SQL query.\"\"\"\n",
+    "    return f\"[SQL] Result for {query[:50]}...\"\n",
+    "\n",
+    "@tool\n",
+    "def run_cypher(query: str) -> str:\n",
+    "    \"\"\"Execute a Cypher query.\"\"\"\n",
+    "    return f\"[Cypher] Result for {query[:50]}...\"\n",
+    "\n",
+    "@tool\n",
+    "def query_knowledge_graph(question: str) -> str:\n",
+    "    \"\"\"Answer using the knowledge graph.\"\"\"\n",
+    "    return f\"[KG] Answer for {question}\"\n",
+    "\n",
+    "@tool\n",
+    "def search_glossary(term: str) -> str:\n",
+    "    \"\"\"Search glossary.\"\"\"\n",
+    "    return f\"[Glossary] Definition of {term}\"\n",
+    "\n",
+    "@tool\n",
+    "def query_ontology(sparql: str) -> str:\n",
+    "    \"\"\"Execute SPARQL query.\"\"\"\n",
+    "    return f\"[SPARQL] Result for {sparql[:50]}...\"\n",
+    "\n",
+    "@tool\n",
+    "def expand_ontology(class_uri: str) -> str:\n",
+    "    \"\"\"Get subclasses/superclasses.\"\"\"\n",
+    "    return f\"[Ontology] Subclasses of {class_uri}: [Asset, Equity]\"\n",
+    "\n",
+    "@tool\n",
+    "def reason_about_class(class_uri: str) -> str:\n",
+    "    \"\"\"HermiT reasoning.\"\"\"\n",
+    "    return f\"[Reasoner] {class_uri} is consistent.\"\n",
+    "\n",
+    "@tool\n",
+    "def page_rank(label: str) -> str:\n",
+    "    \"\"\"PageRank on given label.\"\"\"\n",
+    "    return f\"[GDS] PageRank for {label}: top nodes...\"\n",
+    "\n",
+    "@tool\n",
+    "def find_communities(label: str) -> str:\n",
+    "    \"\"\"Community detection.\"\"\"\n",
+    "    return f\"[GDS] Communities for {label}: 3 found.\"\n",
+    "\n",
+    "@tool\n",
+    "def graph_rag_query(question: str) -> str:\n",
+    "    \"\"\"GraphRAG hybrid search.\"\"\"\n",
+    "    return f\"[GraphRAG] Answer for {question}\"\n",
+    "\n",
+    "@tool\n",
+    "def ingest_document(text: str) -> str:\n",
+    "    \"\"\"Ingest document.\"\"\"\n",
+    "    return \"[Docs] Ingested: 5 mentions, 2 resolved.\"\n",
+    "\n",
+    "@tool\n",
+    "def resolve_mentions(doc_id: str) -> str:\n",
+    "    \"\"\"Resolve mentions.\"\"\"\n",
+    "    return f\"[Docs] Resolved mentions for {doc_id}\""
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 3. Create Skill definitions — each specialist is a proper Skill\n",
+    "\n",
+    "Skills contain tools, system prompt, version, and optional input/output schemas.  \n",
+    "We define multiple versions for Ontology to demonstrate versioning."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# --- Ontology Skill v1.0.0 ---\n",
+    "ontology_skill_v1 = Skill(\n",
+    "    name=\"ontology\",\n",
+    "    version=\"1.0.0\",\n",
+    "    description=\"FIBO ontology specialist — SPARQL and reasoning\",\n",
+    "    tools=[query_ontology, expand_ontology, reason_about_class],\n",
+    "    system_prompt=\"\"\"You are an ontology expert. Use your tools to answer FIBO questions.\n",
+    "Be concise. If you cannot find an answer, say so clearly.\"\"\",\n",
+    "    input_schema={\"user_message\": str},   # optional schema\n",
+    "    output_schema={\"final_answer\": str}\n",
+    ")\n",
+    "\n",
+    "# Ontology Skill v2.0.0 — improved prompt, same tools\n",
+    "ontology_skill_v2 = Skill(\n",
+    "    name=\"ontology\",\n",
+    "    version=\"2.0.0\",\n",
+    "    description=\"FIBO ontology specialist v2 — with richer reasoning context\",\n",
+    "    tools=[query_ontology, expand_ontology, reason_about_class],\n",
+    "    system_prompt=\"\"\"You are an advanced ontology expert. Always provide:\n",
+    "- class hierarchy\n",
+    "- consistency result\n",
+    "- relevant SPARQL snippets if helpful.\"\"\"\n",
+    ")\n",
+    "\n",
+    "# --- Graph Analytics Skill ---\n",
+    "graph_analytics_skill = Skill(\n",
+    "    name=\"graph_analytics\",\n",
+    "    version=\"1.0.0\",\n",
+    "    description=\"Graph analytics: PageRank, community detection, GraphRAG\",\n",
+    "    tools=[page_rank, find_communities, graph_rag_query],\n",
+    "    system_prompt=\"\"\"You are a graph analytics specialist. Run algorithms and explain results clearly.\"\"\"\n",
+    ")\n",
+    "\n",
+    "# --- Document Skill ---\n",
+    "document_skill = Skill(\n",
+    "    name=\"document\",\n",
+    "    version=\"1.0.0\",\n",
+    "    description=\"Document ingestion and mention resolution\",\n",
+    "    tools=[ingest_document, resolve_mentions],\n",
+    "    system_prompt=\"\"\"You are a document specialist. Help users ingest text and resolve mentions.\n",
+    "Report counts and status.\"\"\"\n",
+    ")\n",
+    "\n",
+    "# --- Core Assistant Skill (handles simple SQL / Cypher / KG queries) ---\n",
+    "core_assistant_skill = Skill(\n",
+    "    name=\"core_assistant\",\n",
+    "    version=\"1.0.0\",\n",
+    "    description=\"General assistant: SQL, Cypher, KG, glossary\",\n",
+    "    tools=[execute_sql, run_cypher, query_knowledge_graph, search_glossary],\n",
+    "    system_prompt=\"\"\"You are the core assistant. Answer directly using SQL, Cypher, or knowledge graph.\"\"\"\n",
+    ")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 4. Skill Registry — simulate loading from a central store or directory\n",
+    "\n",
+    "All skills are registered; the supervisor picks the latest version unless overridden."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "registry = SkillRegistry()\n",
+    "registry.register(ontology_skill_v1)   # keep older version for fallback\n",
+    "registry.register(ontology_skill_v2)   # default \"latest\"\n",
+    "registry.register(graph_analytics_skill)\n",
+    "registry.register(document_skill)\n",
+    "registry.register(core_assistant_skill)\n",
+    "\n",
+    "# By default, supervisor uses the latest version of each skill\n",
+    "available_skills = {\n",
+    "    \"ontology\": registry.get(\"ontology\"),            # returns v2 (latest)\n",
+    "    \"graph_analytics\": registry.get(\"graph_analytics\"),\n",
+    "    \"document\": registry.get(\"document\"),\n",
+    "    \"core\": registry.get(\"core_assistant\")\n",
+    "}\n",
+    "\n",
+    "# Print skill info (health check capability)\n",
+    "for name, skill in available_skills.items():\n",
+    "    print(f\"{name}: version={skill.version}, tools={[t.name for t in skill.tools]}, healthy=True\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 5. Build the supervisor graph — specialist nodes are skill.as_graph()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Supervisor LLM (small, cheap) — only decides routing\n",
+    "supervisor_llm = ChatOpenAI(model=\"gpt-4o-mini\", temperature=0)\n",
+    "\n",
+    "# Routing tool (required for structured decision)\n",
+    "@tool\n",
+    "def route_to_specialist(agent: str, reason: str = \"\") -> str:\n",
+    "    \"\"\"Route the conversation to a specialist. agent must be one of: ontology, graph_analytics, document, core, FINISH\"\"\"\n",
+    "    return f\"Routing to {agent}\"\n",
+    "\n",
+    "supervisor_tools = [route_to_specialist]  # only routing tool; no business tools\n",
+    "\n",
+    "system_prompt = \"\"\"You are a supervisor. You must ONLY route to a specialist — never answer directly.\n",
+    "Available specialists:\n",
+    "- core: general SQL, Cypher, knowledge graph, glossary questions\n",
+    "- ontology: FIBO ontology, SPARQL, OWL reasoning\n",
+    "- graph_analytics: PageRank, community detection, GraphRAG\n",
+    "- document: document ingestion, mention resolution\n",
+    "\n",
+    "When a specialist has finished, you'll be called again. Then decide whether another specialist is needed or FINISH.\n",
+    "For simple questions that require no tools, route to core.\n",
+    "Always use route_to_specialist to decide.\"\"\"\n",
+    "\n",
+    "def supervisor_node(state: MultiAgentState) -> dict:\n",
+    "    \"\"\"Supervisor agent that only routes.\"\"\"\n",
+    "    llm = supervisor_llm.bind_tools(supervisor_tools)\n",
+    "    response = llm.invoke([SystemMessage(content=system_prompt)] + state[\"messages\"])\n",
+    "    if response.tool_calls and response.tool_calls[0][\"name\"] == \"route_to_specialist\":\n",
+    "        agent = response.tool_calls[0][\"args\"][\"agent\"]\n",
+    "        return {\"next_agent\": agent, \"messages\": [response]}\n",
+    "    # fallback: if no tool call, finish\n",
+    "    return {\"next_agent\": \"FINISH\", \"messages\": [response]}\n",
+    "\n",
+    "def finalise_node(state: MultiAgentState) -> dict:\n",
+    "    last_msg = state[\"messages\"][-1]\n",
+    "    return {\"final_output\": last_msg.content if hasattr(last_msg, 'content') else str(last_msg)}\n",
+    "\n",
+    "# Build graph\n",
+    "builder = StateGraph(MultiAgentState)\n",
+    "builder.add_node(\"supervisor\", supervisor_node)\n",
+    "\n",
+    "# For each skill, add a node that runs skill.as_graph()\n",
+    "skill_nodes = {}\n",
+    "for skill_name, skill in available_skills.items():\n",
+    "    node_name = f\"skill_{skill_name}\"\n",
+    "    # skill.as_graph() returns a compiled LangGraph subgraph that takes the state and returns updated state.\n",
+    "    # The subgraph's entry point expects the full state; we'll directly add it as a node.\n",
+    "    skill_graph = skill.as_graph()   # this is the key maximization — no manual loop!\n",
+    "    builder.add_node(node_name, skill_graph)\n",
+    "    skill_nodes[skill_name] = node_name\n",
+    "\n",
+    "builder.add_node(\"finalise\", finalise_node)\n",
+    "builder.set_entry_point(\"supervisor\")\n",
+    "\n",
+    "# Conditional routing after supervisor\n",
+    "def route(state):\n",
+    "    next_agent = state[\"next_agent\"]\n",
+    "    if next_agent == \"FINISH\":\n",
+    "        return \"finalise\"\n",
+    "    if next_agent in skill_nodes:\n",
+    "        return skill_nodes[next_agent]\n",
+    "    # unknown agent -> finish\n",
+    "    return \"finalise\"\n",
+    "\n",
+    "builder.add_conditional_edges(\"supervisor\", route)\n",
+    "\n",
+    "# After each skill, return to supervisor\n",
+    "for node in skill_nodes.values():\n",
+    "    builder.add_edge(node, \"supervisor\")\n",
+    "\n",
+    "builder.add_edge(\"finalise\", END)\n",
+    "\n",
+    "# Compile with checkpointer\n",
+    "checkpointer = SqliteSaver.from_conn_string(\":memory:\")  # use file path for persistence\n",
+    "supervisor_app = builder.compile(checkpointer=checkpointer)\n",
+    "\n",
+    "print(\"Supervisor graph built successfully with Skills:\", list(skill_nodes.keys()))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 6. Demo conversations — every query routes through a Skill"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "session_id = str(uuid.uuid4())\n",
+    "config = {\"configurable\": {\"thread_id\": session_id}}\n",
+    "\n",
+    "def run_query(user_input: str):\n",
+    "    print(f\"\\nUser: {user_input}\")\n",
+    "    inputs = {\"messages\": [HumanMessage(content=user_input)]}\n",
+    "    for output in supervisor_app.stream(inputs, config, stream_mode=\"values\"):\n",
+    "        pass\n",
+    "    state = supervisor_app.get_state(config).values\n",
+    "    answer = state[\"final_output\"]\n",
+    "    print(f\"Assistant: {answer}\")\n",
+    "    return answer\n",
+    "\n",
+    "# 1. SQL query -> core skill\n",
+    "run_query(\"What is the total notional value of all trades today?\")\n",
+    "\n",
+    "# 2. Ontology query -> ontology skill (v2)\n",
+    "run_query(\"What are the subclasses of fibo-fbc-pas-cash:Cash?\")\n",
+    "\n",
+    "# 3. Graph analytics query -> graph_analytics skill\n",
+    "run_query(\"Run PageRank on Entity nodes and give me the top 3.\")\n",
+    "\n",
+    "# 4. Document ingestion -> document skill\n",
+    "run_query(\"Ingest this document: 'The notional amount of Swap 123 is $10M.'\")\n",
+    "\n",
+    "# 5. Mixed follow‑up (still same session) — supervisor routes again\n",
+    "run_query(\"Now tell me which ontology class Swap 123 might relate to.\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 7. Inspect session transcript"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "state = supervisor_app.get_state(config)\n",
+    "for msg in state.values[\"messages\"]:\n",
+    "    if hasattr(msg, \"content\") and msg.content:\n",
+    "        print(f\"[{msg.type.upper()}]: {msg.content[:200]}\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## 8. Version switching (maximisation)\n",
+    "\n",
+    "If you want to test v1 of Ontology instead of v2, just swap the registry resolution:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Override the ontology skill in the graph with v1 (without rebuilding the whole graph in a real app, you'd reload)\n",
+    "# For demonstration, we rebuild the graph with v1.\n",
+    "available_skills[\"ontology\"] = ontology_skill_v1\n",
+    "# Recompile the graph (same steps as above, omitted for brevity — in practice, you'd use a dynamic loader)\n",
+    "print(\"Switched to Ontology v1.0.0 (narrower prompt)\")"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "name": "python",
+   "version": "3.11.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}

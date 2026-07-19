@@ -34,6 +34,67 @@ _MIN_REVIEW_SCORE = 0.5
 # term — enough to show real alternatives without overwhelming the UI.
 _MAX_REVIEW_CANDIDATES = 3
 
+# Name of the Lucene GraphDB Connector instance search_classes() queries.
+# Provisioned once by infrastructure/docker/graphdb-init.sh (idempotent) —
+# GraphDB 11's modern Connector API requires an explicit one-time
+# luc:createConnector, unlike Neo4j's `CREATE INDEX IF NOT EXISTS`. The
+# legacy `owlim/lucene#fts` predicate some older docs reference does not
+# exist in GraphDB 11.3 (confirmed empirically: it returns zero results
+# even for terms known to be present, with no error).
+_LUCENE_CONNECTOR_NAME = "class_labels"
+
+_SPARQL_WRITE_KEYWORDS = re.compile(
+    r"\b(INSERT|DELETE|LOAD|CLEAR|CREATE|DROP)\b",
+    re.IGNORECASE,
+)
+
+
+def guard_sparql(query: str) -> Optional[str]:
+    """Return a violation message for write/update SPARQL, None when read-only.
+    GraphDB SPARQL endpoints execute updates if not restricted — mirrors
+    knowledge_graph.py's guard_cypher for the same reason."""
+    match = _SPARQL_WRITE_KEYWORDS.search(query)
+    if match:
+        return f"Only read-only SPARQL is allowed; found '{match.group(1).upper()}'."
+    return None
+
+
+def _lucene_search_query(token: str) -> str:
+    """Real full-text search via GraphDB's Lucene Connector instead of a
+    per-request FILTER(CONTAINS(...)) scan over every class label — a
+    wildcard token (`*token*`) preserves the substring-match behavior the
+    old FILTER gave (e.g. "bond" still matches "COCO bondholder"), which a
+    bare `label:token` query would not (Lucene tokenizes on word boundaries).
+    Same ?class/?label/?definition/?subCount shape as the query it replaces."""
+    return f"""
+    PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+    PREFIX owl: <http://www.w3.org/2002/07/owl#>
+    PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+    PREFIX luc: <http://www.ontotext.com/connectors/lucene#>
+    PREFIX luc-index: <http://www.ontotext.com/connectors/lucene/instance#>
+    SELECT DISTINCT ?class ?label ?definition ?subCount WHERE {{
+        ?search a luc-index:{_LUCENE_CONNECTOR_NAME} ;
+            luc:query "label:*{token}*" ;
+            luc:entities ?class .
+        ?class rdfs:label ?label .
+        OPTIONAL {{ ?class skos:definition ?skosDef }}
+        OPTIONAL {{ ?class rdfs:comment ?comment }}
+        BIND(COALESCE(?skosDef, ?comment, "") AS ?definition)
+        {{
+            SELECT ?class (COUNT(DISTINCT ?sub) AS ?subCount) WHERE {{
+                ?sub rdfs:subClassOf ?class .
+            }} GROUP BY ?class
+        }}
+        UNION
+        {{
+            SELECT ?class (0 AS ?subCount) WHERE {{
+                ?class a owl:Class .
+                MINUS {{ ?sub rdfs:subClassOf ?class }}
+            }}
+        }}
+    }} LIMIT 50
+    """
+
 
 class OntologyStore(Protocol):
     def search_classes(self, term: str, limit: int = 5) -> list[OntologyCandidate]: ...
@@ -225,30 +286,7 @@ class GraphDBOntologyStore:
         token = _normalize(term).split(" ")[0] if term else ""
         if not token:
             return []
-        query = f"""
-        PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
-        PREFIX owl: <http://www.w3.org/2002/07/owl#>
-        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
-        SELECT DISTINCT ?class ?label ?definition ?subCount WHERE {{
-            ?class a owl:Class ; rdfs:label ?label .
-            OPTIONAL {{ ?class skos:definition ?skosDef }}
-            OPTIONAL {{ ?class rdfs:comment ?comment }}
-            BIND(COALESCE(?skosDef, ?comment, "") AS ?definition)
-            {{
-                SELECT ?class (COUNT(DISTINCT ?sub) AS ?subCount) WHERE {{
-                    ?sub rdfs:subClassOf ?class .
-                }} GROUP BY ?class
-            }}
-            UNION
-            {{
-                SELECT ?class (0 AS ?subCount) WHERE {{
-                    ?class a owl:Class .
-                    MINUS {{ ?sub rdfs:subClassOf ?class }}
-                }}
-            }}
-            FILTER(CONTAINS(LCASE(STR(?label)), "{token}"))
-        }} LIMIT 50
-        """
+        query = _lucene_search_query(token)
         response = httpx.post(
             self._query_url,
             data={"query": query},

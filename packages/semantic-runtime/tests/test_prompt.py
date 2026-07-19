@@ -60,3 +60,20 @@ def test_prompt_contains_relationships_and_rules():
 def test_prompt_instructs_agent_not_to_guess():
     prompt = build_agent_prompt(make_context())
     assert "NEVER guess" in prompt
+
+
+def test_prompt_includes_fibo_alignment_for_an_aligned_term():
+    ctx = make_context()
+    ctx.glossary[0].ontology_class = "fibo-fbc-dae-dbt:NotionalAmount"
+    ctx.glossary[0].ontology_uri = "https://spec.edmcouncil.org/fibo/ontology/FBC/NotionalAmount"
+    prompt = build_agent_prompt(ctx)
+    assert "fibo-fbc-dae-dbt:NotionalAmount" in prompt
+    assert "https://spec.edmcouncil.org/fibo/ontology/FBC/NotionalAmount" in prompt
+
+
+def test_prompt_never_fabricates_fibo_alignment_for_an_unaligned_term():
+    ctx = make_context()
+    assert ctx.glossary[0].ontology_class is None
+    prompt = build_agent_prompt(ctx)
+    assert "Ontology:" not in prompt
+    assert "FIBO URI:" not in prompt

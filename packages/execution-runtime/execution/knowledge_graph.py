@@ -135,26 +135,61 @@ def document_materialization_statements(doc) -> list[tuple[str, dict[str, Any]]]
     return statements
 
 
+def fulltext_index_statement() -> str:
+    """Lexical search index on Term text fields — dimension-independent, so it
+    can always be created once any terms exist, regardless of whether an
+    embedding provider is configured."""
+    return "CREATE FULLTEXT INDEX term_fulltext IF NOT EXISTS FOR (t:Term) ON EACH [t.term, t.definition]"
+
+
+def vector_index_statement(dimensions: int) -> str:
+    """Semantic search index on Term.embedding. `dimensions` must match the
+    real embedding vectors that will be written — LocalEmbeddingProvider's
+    all-MiniLM-L6-v2 is 384-dim, ApiEmbeddingProvider's text-embedding-3-small
+    is 1536-dim; there is no single correct constant, so callers must derive
+    it from an actual computed vector rather than guessing."""
+    return (
+        "CREATE VECTOR INDEX term_embedding IF NOT EXISTS "
+        "FOR (t:Term) ON (t.embedding) "
+        "OPTIONS {indexConfig: {`vector.dimensions`: "
+        f"{dimensions}, `vector.similarity_function`: 'cosine'}}}}"
+    )
+
+
+def embedding_statements(
+    glossary: list[Any], embeddings: list[list[float]]
+) -> list[tuple[str, dict[str, Any]]]:
+    """Pair each glossary term with its precomputed embedding vector.
+    Parameterized — the vector is never inlined into Cypher text."""
+    return [
+        ("MATCH (t:Term {term: $term}) SET t.embedding = $embedding", {"term": entry.term, "embedding": vector})
+        for entry, vector in zip(glossary, embeddings)
+    ]
+
+
 class Neo4jGraphStore:
     def __init__(
         self,
         uri: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
-        connection_timeout: Optional[float] = None,
+        connection_timeout: float = 2.0,
     ):
+        """Defaults to a bounded connection_timeout, not the neo4j driver's
+        own default (30s) — capabilities.py constructs this with no
+        explicit timeout at registration time and inside tool bodies; an
+        unreachable/misconfigured NEO4J_URI must fail fast there, not hang
+        for up to 30s (confirmed by direct reproduction: a real unreachable
+        address took 30.19s with the driver's default, 2.2s with this one)."""
         from neo4j import GraphDatabase
 
-        driver_kwargs: dict = {}
-        if connection_timeout is not None:
-            driver_kwargs["connection_timeout"] = connection_timeout
         self._driver = GraphDatabase.driver(
             uri or os.environ.get("NEO4J_URI", "neo4j://127.0.0.1:7687"),
             auth=(
                 username or os.environ.get("NEO4J_USERNAME", "neo4j"),
                 password or os.environ.get("NEO4J_PASSWORD", ""),
             ),
-            **driver_kwargs,
+            connection_timeout=connection_timeout,
         )
 
     def is_available(self) -> bool:
@@ -189,11 +224,66 @@ class Neo4jGraphStore:
                 "RETURN entities, terms, count(r) AS rels",
                 {"entities": entity_names, "terms": term_names},
             ).single()
+        if counts["terms"] > 0:
+            with self._driver.session() as session:
+                session.run(fulltext_index_statement())
+            self._write_term_embeddings(context.glossary)
         return {
             "entities": counts["entities"],
             "terms": counts["terms"],
             "relationships": counts["rels"],
         }
+
+    def _write_term_embeddings(self, glossary: list[Any]) -> None:
+        """Best-effort: embeddings are opt-in (`POLANYI_EMBEDDING_PROVIDER`),
+        so this silently does nothing when no provider is configured — matches
+        the same LLM-optional posture as FIBO alignment's embedding index."""
+        from polanyi.semantic.embeddings import resolve_embedding_provider
+
+        provider = resolve_embedding_provider()
+        if provider is None or not glossary:
+            return
+        vectors = provider.embed([f"{entry.term}: {entry.definition}" for entry in glossary])
+        if not vectors:
+            return
+        with self._driver.session() as session:
+            session.run(vector_index_statement(len(vectors[0])))
+            for statement, params in embedding_statements(glossary, vectors):
+                session.run(statement, params)
+
+    def hybrid_search(
+        self, query_vector: Optional[list[float]], query_text: str, top_k: int
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Real vector + fulltext hits from their respective Term indexes.
+        Either leg is an empty list — never fabricated — when its index
+        doesn't exist yet (graph not materialized with that provider active)."""
+        vector_hits: list[dict[str, Any]] = []
+        fulltext_hits: list[dict[str, Any]] = []
+        with self._driver.session() as session:
+            if query_vector is not None:
+                try:
+                    vector_hits = [
+                        {"term": record["node"]["term"], "score": record["score"]}
+                        for record in session.run(
+                            "CALL db.index.vector.queryNodes('term_embedding', $top_k, $vector) "
+                            "YIELD node, score RETURN node, score",
+                            {"top_k": top_k, "vector": query_vector},
+                        )
+                    ]
+                except Exception:  # noqa: BLE001 — index may not exist yet
+                    vector_hits = []
+            try:
+                fulltext_hits = [
+                    {"term": record["node"]["term"], "score": record["score"]}
+                    for record in session.run(
+                        "CALL db.index.fulltext.queryNodes('term_fulltext', $query) "
+                        "YIELD node, score RETURN node, score LIMIT $top_k",
+                        {"query": query_text, "top_k": top_k},
+                    )
+                ]
+            except Exception:  # noqa: BLE001 — index may not exist yet
+                fulltext_hits = []
+        return {"vector": vector_hits, "fulltext": fulltext_hits}
 
     def materialize_document(self, doc) -> dict[str, int]:
         """Project an ingested document into the knowledge graph. Idempotent."""
