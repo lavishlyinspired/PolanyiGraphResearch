@@ -87,3 +87,11 @@ test("navigates to the Documents page", async () => {
   await screen.getByRole("button", { name: /^documents$/i }).click();
   await expect.element(screen.getByRole("heading", { name: "Documents" })).toBeVisible();
 });
+
+test("navigates to the Agent Workspace page", async () => {
+  worker.use(http.get("/api/sessions", () => HttpResponse.json([])));
+
+  const screen = await render(<AppShell />);
+  await screen.getByRole("button", { name: /agent workspace/i }).click();
+  await expect.element(screen.getByRole("heading", { name: "Agent" })).toBeVisible();
+});

@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
 import { NavigationProvider, type PageId } from "@/navigation";
+import { AgentPage } from "@/pages/Agent/AgentPage";
 import { DocumentsPage } from "@/pages/Documents/DocumentsPage";
 import { GlossaryPage } from "@/pages/Glossary/GlossaryPage";
 import { OntologyPage } from "@/pages/Ontology/OntologyPage";
@@ -12,10 +13,12 @@ import { ValidatorPage } from "@/pages/Validator/ValidatorPage";
 type NavItem = { id: PageId; label: string };
 type NavGroup = { name: string; sub: string; items: NavItem[] };
 
-// Overview sits above the grouped nav, matching the prototype's ungrouped
-// top-level items (the prototype also has "Agent Workspace" there, but that
-// page doesn't exist yet, so it isn't listed).
-const topNavItems: NavItem[] = [{ id: "overview", label: "Overview" }];
+// Overview and Agent sit above the grouped nav, matching the prototype's
+// ungrouped top-level items.
+const topNavItems: NavItem[] = [
+  { id: "overview", label: "Overview" },
+  { id: "agent", label: "Agent Workspace" },
+];
 
 // Groups and order match the prototype's sidebar exactly. Only groups/items
 // backed by a built page are rendered — a nav entry leading nowhere is a lie.
@@ -52,6 +55,7 @@ const navGroups: NavGroup[] = [
 // only toggles which one is visible.
 const pageComponents: Record<PageId, () => React.JSX.Element> = {
   overview: OverviewPage,
+  agent: AgentPage,
   validator: ValidatorPage,
   console: QueryConsolePage,
   glossary: GlossaryPage,
