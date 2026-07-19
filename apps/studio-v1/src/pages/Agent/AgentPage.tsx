@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import {
   AgentUnavailableError,
-  ask,
+  askStream,
   fetchSessionMessages,
   fetchSessions,
   type AgentStep,
@@ -49,6 +50,8 @@ export function AgentPage() {
   const [question, setQuestion] = useState("");
   const [state, setState] = useState<AskState>({ kind: "idle" });
   const [latestSteps, setLatestSteps] = useState<AgentStep[]>([]);
+  const [streamingSteps, setStreamingSteps] = useState<AgentStep[]>([]);
+  const [streamingAnswer, setStreamingAnswer] = useState("");
   const [override, setOverride] = useState<ProviderOverride | null>(() => loadProviderOverride());
   const [showProviderPanel, setShowProviderPanel] = useState(false);
   const [draftProvider, setDraftProvider] = useState<ProviderId>("nvidia");
@@ -108,19 +111,43 @@ export function AgentPage() {
     setMessages((prev) => [...prev, { role: "human", content: asked }]);
     setQuestion("");
     setState({ kind: "loading" });
-    void ask(asked, sessionId, override ?? undefined)
-      .then((result) => {
-        setMessages((prev) => [...prev, { role: "ai", content: result.answer }]);
-        setLatestSteps(result.steps);
-        setState({ kind: "idle" });
-      })
-      .catch((error) => {
-        if (error instanceof AgentUnavailableError) {
-          setState({ kind: "unavailable", detail: error.message });
-        } else {
+    setStreamingSteps([]);
+    setStreamingAnswer("");
+
+    // Local accumulators, not state reads -- state updates are async/
+    // batched, so the "done" handler below builds off these instead of
+    // (possibly stale) streamingSteps/streamingAnswer state values.
+    const collectedSteps: AgentStep[] = [];
+    let collectedAnswer = "";
+
+    void askStream(
+      asked,
+      sessionId,
+      (event) => {
+        if (event.type === "tool_call" || event.type === "tool_result") {
+          collectedSteps.push({ kind: event.type, name: event.name, detail: event.detail });
+          setStreamingSteps([...collectedSteps]);
+        } else if (event.type === "token") {
+          collectedAnswer += event.content;
+          setStreamingAnswer(collectedAnswer);
+        } else if (event.type === "done") {
+          setMessages((prev) => [...prev, { role: "ai", content: event.answer }]);
+          setLatestSteps([...collectedSteps, { kind: "answer", name: "final", detail: event.answer }]);
+          setStreamingSteps([]);
+          setStreamingAnswer("");
+          setState({ kind: "idle" });
+        } else if (event.type === "error") {
           setState({ kind: "error" });
         }
-      });
+      },
+      override ?? undefined,
+    ).catch((error) => {
+      if (error instanceof AgentUnavailableError) {
+        setState({ kind: "unavailable", detail: error.message });
+      } else {
+        setState({ kind: "error" });
+      }
+    });
   }
 
   return (
@@ -160,15 +187,33 @@ export function AgentPage() {
         </aside>
 
         <section style={{ flex: 1 }}>
-          <div className="panel" style={{ padding: 16, marginBottom: 18, minHeight: 200 }}>
-            {messages.length === 0 ? (
+          <div
+            role="log"
+            aria-label="Conversation"
+            className="panel"
+            style={{ padding: 16, marginBottom: 18, minHeight: 200 }}
+          >
+            {messages.length === 0 && state.kind !== "loading" ? (
               <p className="dim">Ask a question to start the conversation.</p>
             ) : (
-              messages.map((message, index) => (
-                <p key={index}>
-                  <b>{message.role === "human" ? "You" : "Agent"}:</b> {message.content}
-                </p>
-              ))
+              messages.map((message, index) =>
+                message.role === "human" ? (
+                  <p key={index}>
+                    <b>You:</b> {message.content}
+                  </p>
+                ) : (
+                  <div key={index}>
+                    <b>Agent:</b>
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                  </div>
+                ),
+              )
+            )}
+            {state.kind === "loading" && (
+              <div>
+                <b>Agent:</b>
+                {streamingAnswer ? <ReactMarkdown>{streamingAnswer}</ReactMarkdown> : <p className="dim">Thinking…</p>}
+              </div>
             )}
             {state.kind === "unavailable" && <p className="dim">{state.detail}</p>}
             {state.kind === "error" && <p className="dim">The agent request failed. Try again.</p>}
@@ -269,18 +314,23 @@ export function AgentPage() {
             </button>
           </div>
 
-          {latestSteps.length > 0 && (
-            <div className="panel" style={{ padding: 16 }}>
-              <div className="panel-h">
-                <h2>Reasoning trace</h2>
-              </div>
-              <ul role="list" aria-label="Reasoning trace" style={{ listStyle: "none", padding: 0 }}>
-                {latestSteps.map((step, index) => (
-                  <StepRow key={index} step={step} />
-                ))}
-              </ul>
-            </div>
-          )}
+          {(() => {
+            const displaySteps = state.kind === "loading" ? streamingSteps : latestSteps;
+            return (
+              displaySteps.length > 0 && (
+                <div className="panel" style={{ padding: 16 }}>
+                  <div className="panel-h">
+                    <h2>Reasoning trace</h2>
+                  </div>
+                  <ul role="list" aria-label="Reasoning trace" style={{ listStyle: "none", padding: 0 }}>
+                    {displaySteps.map((step, index) => (
+                      <StepRow key={index} step={step} />
+                    ))}
+                  </ul>
+                </div>
+              )
+            );
+          })()}
         </section>
       </div>
     </main>

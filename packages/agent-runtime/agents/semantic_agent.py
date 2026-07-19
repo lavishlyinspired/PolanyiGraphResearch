@@ -210,3 +210,46 @@ class SemanticAgent:
         steps.extend(self._steps)
         steps.append(answer_step)
         return AskResult(question=question, answer=answer, steps=steps)
+
+    def ask_stream(self, question: str, session_id: Optional[str] = None):
+        """Real-time events as the agent works, using LangGraph's own
+        stream_mode=["updates", "messages"] (verified directly against the
+        installed langchain/langgraph before writing this): "updates"
+        carries a complete tool_call the moment the model decides to make
+        it and a complete tool_result the moment a tool finishes;
+        "messages" carries token-by-token content for the streamed final
+        answer. Scoped to the supervisor's own top-level steps -- a
+        specialist's internal tool calls run inside their own separate
+        create_agent().invoke() call and aren't part of this outer
+        stream, matching ask()'s existing trace-consolidation shape."""
+        from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
+
+        config = {"configurable": {"thread_id": session_id or "default"}}
+        answer_chunks: list[str] = []
+        for mode, data in self._agent.stream(
+            {"messages": [HumanMessage(content=question)]}, config, stream_mode=["updates", "messages"]
+        ):
+            if mode == "messages":
+                message, _metadata = data
+                if isinstance(message, AIMessageChunk) and message.content:
+                    answer_chunks.append(message.content)
+                    yield {"type": "token", "content": message.content}
+            elif mode == "updates":
+                for node, update in data.items():
+                    if node not in ("model", "tools"):
+                        continue
+                    for message in update.get("messages", []):
+                        if isinstance(message, AIMessage) and message.tool_calls:
+                            for call in message.tool_calls:
+                                yield {
+                                    "type": "tool_call",
+                                    "name": call["name"],
+                                    "detail": str(call.get("args", {}))[:500],
+                                }
+                        elif isinstance(message, ToolMessage):
+                            yield {
+                                "type": "tool_result",
+                                "name": str(message.name or "tool"),
+                                "detail": str(message.content)[:500],
+                            }
+        yield {"type": "done", "answer": "".join(answer_chunks)}

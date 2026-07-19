@@ -364,6 +364,95 @@ def test_ask_without_override_keeps_using_the_normal_server_side_agent(client, m
     assert res.status_code == 200
 
 
+# ── /api/ask/stream ────────────────────────────────────────────────
+#
+# Real-time visibility into the agent's work, per the same discipline as
+# LangGraph's own streaming examples: tool calls, tool results, and
+# answer tokens arrive as Server-Sent Events as they happen, not batched
+# at the end.
+
+
+def test_ask_stream_returns_503_when_no_llm_is_configured(client, monkeypatch):
+    for var in ("NVIDIA_API_KEY", "OPENAI_API_KEY", "DATABRICKS_TOKEN", "POLANYI_LLM_PROVIDER"):
+        monkeypatch.delenv(var, raising=False)
+    res = client.post("/api/ask/stream", json={"question": "test"})
+    assert res.status_code == 503
+    assert "No LLM configured" in res.json()["detail"]
+
+
+def test_ask_stream_returns_real_events_as_server_sent_events(client, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    import polanyi.agents.semantic_agent as agent_module
+
+    class FakeAgent:
+        def __init__(self, db_uri, context, llm, registry=None, on_validation=None):
+            pass
+
+        def ask_stream(self, question, session_id=None):
+            yield {"type": "tool_call", "name": "sql_db_list_tables", "detail": "{}"}
+            yield {"type": "token", "content": "Hi"}
+            yield {"type": "done", "answer": "Hi"}
+
+    monkeypatch.setattr(agent_module, "SemanticAgent", FakeAgent)
+
+    with client.stream("POST", "/api/ask/stream", json={"question": "test"}) as res:
+        assert res.status_code == 200
+        assert res.headers["content-type"].startswith("text/event-stream")
+        body = "".join(res.iter_text())
+
+    assert '"type": "tool_call"' in body
+    assert '"type": "token"' in body
+    assert '"type": "done"' in body
+    assert '"answer": "Hi"' in body
+
+    # Real SSE framing, not just JSON substrings -- each event is a real
+    # "data: <json>\n\n" line the frontend's EventSource-style parser
+    # depends on to split events correctly.
+    events = [json.loads(line[len("data: ") :]) for line in body.split("\n\n") if line.startswith("data: ")]
+    assert events == [
+        {"type": "tool_call", "name": "sql_db_list_tables", "detail": "{}"},
+        {"type": "token", "content": "Hi"},
+        {"type": "done", "answer": "Hi"},
+    ]
+
+
+def test_ask_stream_uses_a_client_supplied_override_llm_when_provided(client, monkeypatch):
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("DATABRICKS_TOKEN", raising=False)
+
+    import polanyi.agents.semantic_agent as agent_module
+    import polanyi.api as api_module
+
+    captured: dict = {}
+
+    def fake_build_llm_from_override(model, api_key, base_url=None, temperature=0.0):
+        captured["model"] = model
+        return object()
+
+    monkeypatch.setattr(api_module, "build_llm_from_override", fake_build_llm_from_override)
+
+    class FakeAgent:
+        def __init__(self, db_uri, context, llm, registry=None, on_validation=None):
+            pass
+
+        def ask_stream(self, question, session_id=None):
+            yield {"type": "done", "answer": "ok"}
+
+    monkeypatch.setattr(agent_module, "SemanticAgent", FakeAgent)
+
+    with client.stream(
+        "POST",
+        "/api/ask/stream",
+        json={"question": "test", "override_model": "deepseek-v4-flash-free", "override_api_key": "k"},
+    ) as res:
+        assert res.status_code == 200
+        "".join(res.iter_text())
+
+    assert captured["model"] == "deepseek-v4-flash-free"
+
+
 def test_sessions_endpoint_reports_real_conversations_from_the_checkpointer(client, tmp_path, monkeypatch):
     monkeypatch.setenv("POLANYI_SESSIONS_DB", str(tmp_path / "sessions.db"))
 

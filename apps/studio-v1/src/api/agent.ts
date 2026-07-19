@@ -82,3 +82,66 @@ export async function ask(
   }
   return askResultSchema.parse(await response.json());
 }
+
+// ── Streaming (real-time visibility into what the agent is doing) ───
+
+export const agentStreamEventSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("tool_call"), name: z.string(), detail: z.string() }),
+  z.object({ type: z.literal("tool_result"), name: z.string(), detail: z.string() }),
+  z.object({ type: z.literal("token"), content: z.string() }),
+  z.object({ type: z.literal("done"), answer: z.string() }),
+  z.object({ type: z.literal("error"), detail: z.string() }),
+]);
+
+export type AgentStreamEvent = z.infer<typeof agentStreamEventSchema>;
+
+/** Consumes /api/ask/stream's real Server-Sent Events as they arrive,
+ * calling onEvent for each one -- tool calls and results the moment they
+ * happen, answer tokens as they're generated, matching how LangGraph's
+ * own stream_mode=["updates", "messages"] surfaces agent activity. */
+export async function askStream(
+  question: string,
+  sessionId: string,
+  onEvent: (event: AgentStreamEvent) => void,
+  override?: { model: string; apiKey: string; baseUrl?: string },
+): Promise<void> {
+  const response = await fetch("/api/ask/stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question,
+      session_id: sessionId,
+      ...(override && {
+        override_model: override.model,
+        override_api_key: override.apiKey,
+        override_base_url: override.baseUrl,
+      }),
+    }),
+  });
+  if (response.status === 503) {
+    const body: unknown = await response.json();
+    const detail =
+      typeof body === "object" && body !== null && "detail" in body && typeof body.detail === "string"
+        ? body.detail
+        : "No LLM configured";
+    throw new AgentUnavailableError(detail);
+  }
+  if (!response.ok || !response.body) {
+    throw new Error(`Ask stream request failed with status ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() ?? "";
+    for (const part of parts) {
+      if (!part.startsWith("data: ")) continue;
+      onEvent(agentStreamEventSchema.parse(JSON.parse(part.slice("data: ".length))));
+    }
+  }
+}

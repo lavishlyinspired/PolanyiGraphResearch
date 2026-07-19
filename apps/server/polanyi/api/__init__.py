@@ -698,47 +698,70 @@ def create_app(
         ]
         return {"window_days": window_days, "rules": rows, "total_events": len(recent)}
 
-    @app.post("/api/ask")
-    def ask(req: AskRequest):
+    def resolve_agent_for_request(req: AskRequest):
+        """Shared by /api/ask and /api/ask/stream: a client-supplied key
+        (Studio's provider switcher) builds a fresh agent for this request
+        only -- never cached in `state`, so it can't leak into another
+        request that didn't supply an override. Otherwise the server's own
+        cached, env-configured agent."""
         from polanyi.agents.semantic_agent import SemanticAgent
 
         if req.override_model and req.override_api_key:
-            # Client-supplied key: build a fresh agent for this request only
-            # -- never cached in `state`, so it can't leak into another
-            # request that didn't supply an override.
             llm = build_llm_from_override(
                 model=req.override_model,
                 api_key=req.override_api_key,
                 base_url=req.override_base_url,
             )
-            agent = SemanticAgent(
+            return SemanticAgent(
                 effective_db_uri(),
                 context(),
                 llm,
                 on_validation=lambda sql, result: record_enforcement(sql, result, "agent"),
             )
-        else:
-            if state["agent"] is None:
-                llm = resolve_llm("agent")
-                if llm is None:
-                    raise HTTPException(
-                        status_code=503,
-                        detail=(
-                            "No LLM configured. Set NVIDIA_API_KEY, OPENAI_API_KEY, or "
-                            "DATABRICKS_TOKEN + DATABRICKS_SERVING_ENDPOINT."
-                        ),
-                    )
-                state["agent"] = SemanticAgent(
-                    effective_db_uri(),
-                    context(),
-                    llm,
-                    on_validation=lambda sql, result: record_enforcement(sql, result, "agent"),
+        if state["agent"] is None:
+            llm = resolve_llm("agent")
+            if llm is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail=(
+                        "No LLM configured. Set NVIDIA_API_KEY, OPENAI_API_KEY, or "
+                        "DATABRICKS_TOKEN + DATABRICKS_SERVING_ENDPOINT."
+                    ),
                 )
-            agent = state["agent"]
+            state["agent"] = SemanticAgent(
+                effective_db_uri(),
+                context(),
+                llm,
+                on_validation=lambda sql, result: record_enforcement(sql, result, "agent"),
+            )
+        return state["agent"]
+
+    @app.post("/api/ask")
+    def ask(req: AskRequest):
+        agent = resolve_agent_for_request(req)
         try:
             return agent.ask(req.question, session_id=req.session_id).model_dump()
         except Exception as exc:  # noqa: BLE001 — agent/LLM failures become 502s
             raise HTTPException(status_code=502, detail=f"Agent failed: {exc}") from exc
+
+    @app.post("/api/ask/stream")
+    def ask_stream_endpoint(req: AskRequest):
+        """Real-time visibility into the agent's work (tool calls, tool
+        results, streamed answer tokens) as Server-Sent Events, using
+        SemanticAgent.ask_stream's real LangGraph stream_mode=["updates",
+        "messages"] underneath."""
+        from fastapi.responses import StreamingResponse
+
+        agent = resolve_agent_for_request(req)
+
+        def event_source():
+            try:
+                for event in agent.ask_stream(req.question, session_id=req.session_id):
+                    yield f"data: {json.dumps(event)}\n\n"
+            except Exception as exc:  # noqa: BLE001 — agent/LLM failures become an error event
+                yield f"data: {json.dumps({'type': 'error', 'detail': str(exc)})}\n\n"
+
+        return StreamingResponse(event_source(), media_type="text/event-stream")
 
     _PROVIDER_ENV_KEYS = {"nvidia": "NVIDIA_API_KEY", "opencode": "OPENCODE_API_KEY"}
 
