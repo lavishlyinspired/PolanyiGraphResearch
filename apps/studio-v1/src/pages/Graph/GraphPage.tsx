@@ -6,8 +6,9 @@ import { buildLayout } from "./graphLayout";
 import { GraphCanvas } from "./GraphCanvas";
 import { GlossaryPerspective } from "./GlossaryPerspective";
 import { CompliancePerspective } from "./CompliancePerspective";
+import { DocumentsPerspective } from "./DocumentsPerspective";
 
-type Perspective = "full-graph" | "glossary" | "compliance";
+type Perspective = "full-graph" | "glossary" | "compliance" | "documents";
 
 type State =
   | { kind: "loading" }
@@ -135,6 +136,9 @@ export function GraphPage() {
           <button type="button" aria-pressed={perspective === "compliance"} onClick={() => setPerspective("compliance")}>
             Compliance
           </button>
+          <button type="button" aria-pressed={perspective === "documents"} onClick={() => setPerspective("documents")}>
+            Documents
+          </button>
         </div>
       </div>
 
@@ -206,6 +210,7 @@ export function GraphPage() {
 
       {perspective === "glossary" && <GlossaryPerspective />}
       {perspective === "compliance" && <CompliancePerspective />}
+      {perspective === "documents" && <DocumentsPerspective />}
     </main>
   );
 }

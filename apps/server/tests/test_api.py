@@ -1467,3 +1467,43 @@ def test_ingest_document_returns_422_with_the_shacl_report_on_failure(client, mo
     res = client.post("/api/documents/ingest", json={"text": _SAMPLE_DOC_TEXT, "title": "Bad Doc"})
     assert res.status_code == 422
     assert "missing text" in res.json()["detail"]
+
+
+def test_ingest_document_materializes_into_neo4j_when_configured(client, monkeypatch):
+    # Real gap found live-testing S11d: the ingest endpoint parsed/resolved/
+    # published to GraphDB but never called materialize_document(), so the
+    # Neo4j mention-chain schema (Document-MENTIONS->Mention-REFERS_TO->Term)
+    # was only ever populated by the CLI, never by the API/Studio path.
+    calls = []
+
+    class FakeStore:
+        def is_available(self):
+            return True
+
+        def materialize_document(self, doc):
+            calls.append(doc)
+            return {"mentions": 3, "linked_terms": 1}
+
+        def close(self):
+            pass
+
+    monkeypatch.setenv("NEO4J_URI", "neo4j://fake:7687")
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: FakeStore())
+
+    res = client.post("/api/documents/ingest", json={"text": _SAMPLE_DOC_TEXT, "title": "Q1 Memo"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["graph_mentions"] == 3
+    assert body["graph_linked_terms"] == 1
+    assert len(calls) == 1
+
+
+def test_ingest_document_omits_graph_counts_when_neo4j_unconfigured(client, monkeypatch):
+    monkeypatch.delenv("NEO4J_URI", raising=False)
+    res = client.post("/api/documents/ingest", json={"text": _SAMPLE_DOC_TEXT, "title": "Q1 Memo"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["graph_mentions"] is None
+    assert body["graph_linked_terms"] is None

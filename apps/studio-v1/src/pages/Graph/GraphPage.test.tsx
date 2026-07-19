@@ -146,3 +146,30 @@ test("switching to the Compliance perspective shows real rule enforcement data",
   await expect.element(screen.getByRole("region", { name: /enforcement summary/i })).toBeVisible();
   await expect.element(screen.getByText(/0 passed \/ 0 flagged \/ 1 blocked/)).toBeVisible();
 });
+
+test("switching to the Documents perspective shows real mention-chain data", async () => {
+  mockStats({ nodes: 0, edges: 0, materialized_at: null });
+  worker.use(
+    http.get("/api/graph/explore", () =>
+      HttpResponse.json({
+        nodes: [
+          { id: 1, label: "Document", name: "q1-memo", properties: {} },
+          { id: 2, label: "Mention", name: "m0", properties: { text: "Acme" } },
+        ],
+        edges: [{ source: 1, target: 2, type: "MENTIONS" }],
+      }),
+    ),
+    http.get("/api/rules", () => HttpResponse.json([])),
+    http.get("/api/context", () =>
+      HttpResponse.json({ domain: "d", glossary: [], relationships: [], business_rules: [], key_entities: [], generated_by: "deterministic" }),
+    ),
+  );
+
+  const screen = await render(<GraphPage />);
+  const perspectiveSwitcher = screen.getByRole("group", { name: /graph perspective/i });
+  await perspectiveSwitcher.getByRole("button", { name: "Documents" }).click();
+
+  const summary = screen.getByRole("region", { name: /document mention summary/i });
+  await expect.element(summary).toBeVisible();
+  await expect.element(summary.getByText("q1-memo")).toBeVisible();
+});

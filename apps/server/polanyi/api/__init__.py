@@ -783,6 +783,7 @@ def create_app(
         )
         from polanyi.semantic.ontology import graphdb_configured
         from polanyi.semantic.rdf import GOS, publish_to_graphdb, validate_rdf
+        from polanyi.execution.knowledge_graph import Neo4jGraphStore, neo4j_configured
 
         extractor = make_extractor(resolve_llm("pipeline"))
         doc = IngestedDocument(
@@ -813,11 +814,28 @@ def create_app(
                 # result below is still real and useful even if publishing fails
                 published_uri = None
 
+        graph_mentions = None
+        graph_linked_terms = None
+        if neo4j_configured():
+            store = Neo4jGraphStore()
+            try:
+                if store.is_available():
+                    counts = store.materialize_document(doc)
+                    graph_mentions = counts["mentions"]
+                    graph_linked_terms = counts["linked_terms"]
+            except Exception:  # noqa: BLE001 — best-effort, mirrors the GraphDB publish above
+                graph_mentions = None
+                graph_linked_terms = None
+            finally:
+                store.close()
+
         return {
             "mentions": [m.model_dump() for m in doc.extraction.mentions],
             "triples": len(graph),
             "extractor": type(extractor).__name__,
             "published_uri": published_uri,
+            "graph_mentions": graph_mentions,
+            "graph_linked_terms": graph_linked_terms,
         }
 
     @app.post("/api/context/align")
