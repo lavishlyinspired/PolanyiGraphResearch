@@ -229,6 +229,7 @@ def create_app(
         "context": None,
         "agent": None,
         "checkpointer": None,
+        "graph_materialized_at": None,
         "databricks_client": None,
         "embedding_index": None,
         "extra_sources": _sources_config["extra"],
@@ -931,7 +932,9 @@ def create_app(
         if not store.is_available():
             raise HTTPException(status_code=503, detail="Neo4j is not reachable")
         try:
-            return store.materialize(context())
+            result = store.materialize(context())
+            state["graph_materialized_at"] = datetime.now().isoformat()
+            return result
         finally:
             store.close()
 
@@ -950,7 +953,22 @@ def create_app(
         try:
             nodes = store.run_cypher("MATCH (n) RETURN count(n) AS nodes")[0]["nodes"]
             edges = store.run_cypher("MATCH ()-[r]->() RETURN count(r) AS edges")[0]["edges"]
-            return {"nodes": nodes, "edges": edges}
+            return {"nodes": nodes, "edges": edges, "materialized_at": state["graph_materialized_at"]}
+        finally:
+            store.close()
+
+    @app.get("/api/graph/explore")
+    def graph_explore(limit: int = 200):
+        from polanyi.execution.knowledge_graph import Neo4jGraphStore, neo4j_configured
+
+        if not neo4j_configured():
+            raise HTTPException(status_code=503, detail="NEO4J_URI not configured")
+        store = Neo4jGraphStore(connection_timeout=3)
+        if not store.is_available():
+            store.close()
+            raise HTTPException(status_code=503, detail="Neo4j is not reachable")
+        try:
+            return store.explore(limit=limit)
         finally:
             store.close()
 

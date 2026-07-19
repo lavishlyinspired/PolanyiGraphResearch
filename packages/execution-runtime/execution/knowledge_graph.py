@@ -240,6 +240,50 @@ class Neo4jGraphStore:
             "detail": record.get("extraInfo", "") if hasattr(record, "get") else "",
         }
 
+    def explore(self, limit: int = 200) -> dict[str, Any]:
+        """A bounded, real snapshot of the graph for visualization.
+
+        Connected nodes and edges only — an isolated node contributes
+        nothing to a relationship-centric view. Each node keeps its real
+        label (Entity/Term/Document/Mention), a display name derived from
+        whichever real property it actually has, and its full properties
+        for an inspector panel.
+        """
+        with self._driver.session() as session:
+            records = session.run(
+                "MATCH (a)-[r]->(b) "
+                "RETURN id(a) AS source_id, labels(a)[0] AS source_label, "
+                "       properties(a) AS source_props, type(r) AS rel_type, "
+                "       id(b) AS target_id, labels(b)[0] AS target_label, "
+                "       properties(b) AS target_props "
+                "LIMIT $limit",
+                {"limit": limit},
+            ).data()
+        nodes: dict[int, dict[str, Any]] = {}
+        edges: list[dict[str, Any]] = []
+        for row in records:
+            for prefix in ("source", "target"):
+                node_id = row[f"{prefix}_id"]
+                if node_id not in nodes:
+                    props = row[f"{prefix}_props"]
+                    name = (
+                        props.get("name")
+                        or props.get("term")
+                        or props.get("title")
+                        or props.get("id")
+                        or str(node_id)
+                    )
+                    nodes[node_id] = {
+                        "id": node_id,
+                        "label": row[f"{prefix}_label"],
+                        "name": name,
+                        "properties": props,
+                    }
+            edges.append(
+                {"source": row["source_id"], "target": row["target_id"], "type": row["rel_type"]}
+            )
+        return {"nodes": list(nodes.values()), "edges": edges}
+
     def run_cypher(self, query: str) -> list[dict[str, Any]]:
         """Execute read-only Cypher; raises ValueError for write queries."""
         violation = guard_cypher(query)

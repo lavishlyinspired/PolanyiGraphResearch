@@ -339,7 +339,9 @@ def test_graph_stats_returns_real_node_and_edge_counts(client, monkeypatch):
 
     res = client.get("/api/graph/stats")
     assert res.status_code == 200
-    assert res.json() == {"nodes": 148, "edges": 212}
+    body = res.json()
+    assert body["nodes"] == 148
+    assert body["edges"] == 212
 
 
 def test_graph_stats_returns_503_when_neo4j_unconfigured(client, monkeypatch):
@@ -362,6 +364,127 @@ def test_graph_stats_returns_503_when_neo4j_unreachable(client, monkeypatch):
     monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: UnreachableStore())
 
     res = client.get("/api/graph/stats")
+    assert res.status_code == 503
+
+
+def test_graph_stats_reports_materialized_at_as_null_before_any_materialize_call(client, monkeypatch):
+    class FakeStore:
+        def is_available(self):
+            return True
+
+        def run_cypher(self, query):
+            return [{"nodes": 0}] if "count(n)" in query else [{"edges": 0}]
+
+        def close(self):
+            pass
+
+    monkeypatch.setenv("NEO4J_URI", "neo4j://fake:7687")
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: FakeStore())
+
+    res = client.get("/api/graph/stats")
+    assert res.status_code == 200
+    assert res.json()["materialized_at"] is None
+
+
+def _fake_materialize_store(monkeypatch, counts):
+    class FakeStore:
+        def is_available(self):
+            return True
+
+        def materialize(self, context):
+            return counts
+
+        def close(self):
+            pass
+
+    monkeypatch.setenv("NEO4J_URI", "neo4j://fake:7687")
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: FakeStore())
+
+
+def test_materialize_returns_real_counts_and_sets_materialized_at(client, monkeypatch):
+    _fake_materialize_store(monkeypatch, {"entities": 7, "terms": 44, "relationships": 5})
+
+    res = client.post("/api/graph/materialize")
+    assert res.status_code == 200
+    assert res.json() == {"entities": 7, "terms": 44, "relationships": 5}
+
+    class StatsStore:
+        def is_available(self):
+            return True
+
+        def run_cypher(self, query):
+            return [{"nodes": 0}] if "count(n)" in query else [{"edges": 0}]
+
+        def close(self):
+            pass
+
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: StatsStore())
+    stats_res = client.get("/api/graph/stats")
+    assert stats_res.json()["materialized_at"] is not None
+
+
+def test_materialize_returns_503_when_neo4j_unconfigured(client, monkeypatch):
+    monkeypatch.delenv("NEO4J_URI", raising=False)
+    res = client.post("/api/graph/materialize")
+    assert res.status_code == 503
+
+
+def test_materialize_returns_503_when_neo4j_unreachable(client, monkeypatch):
+    class UnreachableStore:
+        def is_available(self):
+            return False
+
+        def close(self):
+            pass
+
+    monkeypatch.setenv("NEO4J_URI", "neo4j://fake:7687")
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: UnreachableStore())
+
+    res = client.post("/api/graph/materialize")
+    assert res.status_code == 503
+
+
+def test_graph_explore_returns_real_bounded_nodes_and_edges(client, monkeypatch):
+    class FakeStore:
+        def is_available(self):
+            return True
+
+        def explore(self, limit=200):
+            assert limit == 200
+            return {
+                "nodes": [
+                    {"id": 1, "label": "Entity", "name": "trades", "properties": {"name": "trades"}},
+                    {"id": 2, "label": "Entity", "name": "counterparties", "properties": {"name": "counterparties"}},
+                ],
+                "edges": [{"source": 1, "target": 2, "type": "RELATES_TO"}],
+            }
+
+        def close(self):
+            pass
+
+    monkeypatch.setenv("NEO4J_URI", "neo4j://fake:7687")
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: FakeStore())
+
+    res = client.get("/api/graph/explore")
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["nodes"]) == 2
+    assert body["edges"] == [{"source": 1, "target": 2, "type": "RELATES_TO"}]
+
+
+def test_graph_explore_returns_503_when_neo4j_unconfigured(client, monkeypatch):
+    monkeypatch.delenv("NEO4J_URI", raising=False)
+    res = client.get("/api/graph/explore")
     assert res.status_code == 503
 
 
