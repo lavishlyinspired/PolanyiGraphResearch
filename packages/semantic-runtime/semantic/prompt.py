@@ -24,6 +24,9 @@ def build_agent_prompt(ctx: SemanticContext) -> str:
         lines.append(f"Source: {', '.join(entry.source_tables)}")
         if entry.unit:
             lines.append(f"Unit: {entry.unit}")
+        if entry.ontology_class:
+            lines.append(f"Ontology: {entry.ontology_class}")
+            lines.append(f"FIBO URI: {entry.ontology_uri}")
         lines.append("")
 
     lines.append("## Entity Relationships")

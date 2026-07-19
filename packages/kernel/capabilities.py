@@ -135,21 +135,52 @@ def default_registry(
     return registry
 
 
+def _describe_graph_schema(store: Any) -> str:
+    """Real, live node-label and relationship-type list for a tool description —
+    not a hardcoded guess that goes stale as the graph schema evolves."""
+    try:
+        labels = [r["label"] for r in store.run_cypher("CALL db.labels() YIELD label RETURN label")]
+        rel_types = [
+            r["relationshipType"]
+            for r in store.run_cypher("CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType")
+        ]
+        return f"Node labels: {', '.join(sorted(labels))}. Relationship types: {', '.join(sorted(rel_types))}."
+    except Exception:  # noqa: BLE001 — schema introspection is best-effort
+        return "Schema unavailable."
+    finally:
+        store.close()
+
+
 def _register_optional_backends(registry: CapabilityRegistry) -> None:
     from polanyi.execution.knowledge_graph import neo4j_configured
     from polanyi.semantic.ontology import graphdb_configured
 
     if graphdb_configured():
+        from langchain.tools import tool as make_tool
+
         from polanyi.semantic.ontology import GraphDBOntologyStore
 
         store = GraphDBOntologyStore()
+
+        @make_tool
+        def search_ontology(term: str) -> str:
+            """Search FIBO ontology classes in GraphDB by business term.
+            Returns matching ontology classes with labels, definitions, and scores."""
+            return str(store.search_classes(term))
+
+        @make_tool
+        def expand_ontology(uri: str) -> str:
+            """Expand an ontology class URI to all its transitive subclasses
+            via rdfs:subClassOf* (deterministic, no LLM)."""
+            return str(store.expand_subclasses(uri))
+
         registry.register(
             CapabilityProvider(
                 name="graphdb-fibo-search",
                 capability="SearchOntology",
-                kind="function",
+                kind="tool",
                 description="Search ontology classes (FIBO) in GraphDB by business term",
-                handler=store.search_classes,
+                handler=search_ontology,
                 metadata={"repository": store.repository},
             )
         )
@@ -157,12 +188,12 @@ def _register_optional_backends(registry: CapabilityRegistry) -> None:
             CapabilityProvider(
                 name="graphdb-hierarchy-expansion",
                 capability="ExpandOntology",
-                kind="function",
+                kind="tool",
                 description=(
                     "Expand an ontology class to all transitive subclasses "
                     "(deterministic rdfs:subClassOf* traversal)"
                 ),
-                handler=store.expand_subclasses,
+                handler=expand_ontology,
                 metadata={"repository": store.repository},
             )
         )
@@ -192,18 +223,29 @@ def _register_optional_backends(registry: CapabilityRegistry) -> None:
         @tool
         def query_knowledge_graph(cypher: str) -> str:
             """Run read-only Cypher against the enterprise knowledge graph.
-            It contains (:Entity {name}) nodes for business entities,
-            (:Term {term, definition, ontology_class}) glossary nodes linked via
-            [:DESCRIBES], and [:RELATES_TO {foreign_key}] edges between entities.
             Write operations are rejected."""
             violation = guard_cypher(cypher)
             if violation:
                 return f"QUERY BLOCKED: {violation}"
+            store = Neo4jGraphStore()
             try:
-                rows = Neo4jGraphStore().run_cypher(cypher)
+                count = store.run_cypher("MATCH (n) RETURN count(n) AS c")[0]["c"]
+                if count == 0:
+                    return (
+                        "The knowledge graph has not been materialized yet — no "
+                        "nodes exist. Materialize it first, then query again."
+                    )
+                rows = store.run_cypher(cypher)
             except Exception as exc:  # noqa: BLE001 — surface driver errors to the model
                 return f"Error: {exc}"
+            finally:
+                store.close()
             return str(rows[:50])
+
+        query_knowledge_graph.description = (
+            f"Run read-only Cypher against the enterprise knowledge graph. "
+            f"{_describe_graph_schema(Neo4jGraphStore())} Write operations are rejected."
+        )
 
         registry.register(
             CapabilityProvider(
