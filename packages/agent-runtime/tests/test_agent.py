@@ -44,14 +44,19 @@ def test_query_tool_blocks_dml(tools):
     assert "BLOCKED" in out
 
 
-# ── SemanticAgent.__init__'s middleware wiring (S24) ────────────────
+# ── SemanticAgent.__init__'s agent-skills wiring ────────────────
+#
+# Eager inlining, not on-demand middleware: live verification showed the
+# model would not reliably call a load_skill tool even with strong
+# wording, so the supervisor's system prompt always includes every
+# configured skill's full content directly (see agent_skills.py).
 
 
 @pytest.fixture()
 def semantic_agent_kwargs(tmp_path):
     """A real demo db + minimal SemanticContext -- SemanticAgent.__init__
-    itself is never touched beyond the middleware= line, so this only
-    needs to exercise the wiring, not real agent reasoning."""
+    itself is never touched beyond the system_prompt assembly, so this
+    only needs to exercise the wiring, not real agent reasoning."""
     from polanyi.models import SemanticContext
 
     db_path = tmp_path / "demo.db"
@@ -63,7 +68,7 @@ def semantic_agent_kwargs(tmp_path):
     }
 
 
-def test_semantic_agent_passes_empty_middleware_when_no_agent_skills_configured(
+def test_semantic_agent_system_prompt_is_unchanged_when_no_agent_skills_configured(
     semantic_agent_kwargs, monkeypatch
 ):
     import langchain.agents as langchain_agents
@@ -85,17 +90,17 @@ def test_semantic_agent_passes_empty_middleware_when_no_agent_skills_configured(
 
     SemanticAgent(**semantic_agent_kwargs)
 
-    assert captured["middleware"] == []
+    assert "Additional Guidance" not in captured["system_prompt"]
 
 
-def test_semantic_agent_passes_the_real_skill_middleware_when_configured(
+def test_semantic_agent_system_prompt_includes_every_configured_skills_full_content(
     semantic_agent_kwargs, monkeypatch
 ):
     import langchain.agents as langchain_agents
     from polanyi.agents.semantic_agent import SemanticAgent
     import polanyi.kernel.agent_skills as agent_skills_module
 
-    fake_skills = [{"name": "disambiguation", "description": "desc", "content": "content"}]
+    fake_skills = [{"name": "disambiguation", "description": "desc", "content": "THE FULL GUIDANCE"}]
     monkeypatch.setattr(agent_skills_module, "load_agent_skills", lambda: fake_skills)
     captured = {}
 
@@ -111,6 +116,5 @@ def test_semantic_agent_passes_the_real_skill_middleware_when_configured(
 
     SemanticAgent(**semantic_agent_kwargs)
 
-    assert len(captured["middleware"]) == 1
-    tool_names = {t.name for t in captured["middleware"][0].tools}
-    assert "load_skill" in tool_names
+    assert "disambiguation" in captured["system_prompt"]
+    assert "THE FULL GUIDANCE" in captured["system_prompt"]

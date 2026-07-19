@@ -174,21 +174,23 @@ class SemanticAgent:
                 on_validation=on_validation,
             )
         dialect = db_uri.split(":", 1)[0]
-        system_prompt = _AGENT_PREAMBLE.format(dialect=dialect) + build_agent_prompt(context)
+
+        from polanyi.kernel.agent_skills import build_skills_addendum, load_agent_skills
+
+        system_prompt = (
+            _AGENT_PREAMBLE.format(dialect=dialect)
+            + build_agent_prompt(context)
+            + build_skills_addendum(load_agent_skills())
+        )
 
         from langchain.agents import create_agent
 
-        from polanyi.kernel.agent_skills import build_skill_middleware, load_agent_skills
         from polanyi.memory import build_checkpointer
-
-        skills = load_agent_skills()
-        middleware = [build_skill_middleware(skills)] if skills else []
 
         self._agent = create_agent(
             model=llm,
             tools=registry.agent_tools(),
             system_prompt=system_prompt,
-            middleware=middleware,
             checkpointer=build_checkpointer(),
         )
 

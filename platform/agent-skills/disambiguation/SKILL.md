@@ -1,6 +1,6 @@
 ---
 name: disambiguation
-description: When to consult the ontology specialist, the graph specialist, or both for a question that could span domains.
+description: Read this FIRST whenever a question asks for a similar/related/most-central/most-connected term AND that term's FIBO class or definition in the same question (e.g. "which term is most similar to X, and what class does it belong to?"). Sending that whole compound question to only one specialist gives a wrong or incomplete answer.
 ---
 
 Some questions need both the ontology specialist and the graph specialist

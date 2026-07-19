@@ -1,17 +1,23 @@
-"""S24: real progressive disclosure on the supervisor's own tool list --
-LangChain's actual wrap_model_call/AgentMiddleware (verified directly
-against the installed langchain package before writing this code, not
-assumed from a doc summary), applied to on-demand procedural knowledge
-(distinct from specialists.py's SKILL.md-as-system-prompt mechanism)."""
+"""Supervisor-level Agent Skills: platform/agent-skills/*/SKILL.md content
+folded into the supervisor's own system prompt.
+
+Design history worth keeping in mind when touching this file: S24 first
+built this as real on-demand progressive disclosure (LangChain's actual
+wrap_model_call/AgentMiddleware, a load_skill tool the model calls when it
+judges a skill relevant). Live verification against the exact question
+that motivated the disambiguation skill showed the model would not
+reliably call load_skill even after two rounds of strengthening the
+addendum's wording (an imperative "call load_skill first" instruction,
+then a concrete example-anchored skill description naming the trigger
+pattern almost verbatim) -- confirmed via direct system-prompt inspection
+that the stronger wording really was reaching the model. With only one
+small skill today, eager inlining is simpler and empirically correct;
+on-demand loading is worth revisiting only if skill count/size later makes
+eager inclusion too costly for the supervisor's context budget."""
 
 from __future__ import annotations
 
-from polanyi.kernel.agent_skills import (
-    build_load_skill_tool,
-    build_skill_middleware,
-    build_skills_addendum,
-    load_agent_skills,
-)
+from polanyi.kernel.agent_skills import build_skills_addendum, load_agent_skills
 
 DISAMBIGUATION_SKILL_MD = """---
 name: disambiguation
@@ -71,84 +77,27 @@ def test_env_var_overrides_agent_skills_dir(tmp_path, monkeypatch):
 
 
 # ── build_skills_addendum (pure) ─────────────────────────────────
+#
+# Eager inlining, not a teaser: the model must see the actual guidance
+# unconditionally, since it demonstrably won't reliably ask for it itself.
 
 
-def test_build_skills_addendum_lists_name_and_description_not_content():
-    skills = [{"name": "disambiguation", "description": "When to use both specialists.", "content": "SECRET"}]
+def test_build_skills_addendum_returns_empty_string_for_no_skills():
+    assert build_skills_addendum([]) == ""
+
+
+def test_build_skills_addendum_includes_the_full_content_not_just_the_description():
+    skills = [{"name": "disambiguation", "description": "short teaser.", "content": "THE FULL GUIDANCE BODY"}]
     addendum = build_skills_addendum(skills)
     assert "disambiguation" in addendum
-    assert "When to use both specialists." in addendum
-    assert "SECRET" not in addendum
+    assert "THE FULL GUIDANCE BODY" in addendum
 
 
-def test_build_skills_addendum_instructs_loading_before_any_other_tool_call():
-    """Live verification (S24) showed a soft, optional-sounding instruction
-    ("use load_skill when you need...") was not enough to make the model
-    proactively call it for a matching but ambiguously-phrased question.
-    The addendum must instruct calling load_skill FIRST, before any other
-    tool, whenever a skill's description matches the question's topic."""
-    skills = [{"name": "disambiguation", "description": "desc", "content": "content"}]
+def test_build_skills_addendum_includes_every_skills_content_when_multiple_exist():
+    skills = [
+        {"name": "one", "description": "d1", "content": "CONTENT ONE"},
+        {"name": "two", "description": "d2", "content": "CONTENT TWO"},
+    ]
     addendum = build_skills_addendum(skills)
-    assert "load_skill" in addendum
-    assert "before" in addendum.lower()
-    assert "any other tool" in addendum.lower()
-
-
-# ── build_load_skill_tool ─────────────────────────────────────────
-
-
-def test_load_skill_tool_returns_the_full_content_by_name():
-    skills = [{"name": "disambiguation", "description": "desc", "content": "full instructions here"}]
-    tool = build_load_skill_tool(skills)
-    result = tool.invoke({"skill_name": "disambiguation"})
-    assert result == "full instructions here"
-
-
-def test_load_skill_tool_reports_honestly_for_an_unknown_skill():
-    skills = [{"name": "disambiguation", "description": "desc", "content": "content"}]
-    tool = build_load_skill_tool(skills)
-    result = tool.invoke({"skill_name": "nonexistent"})
-    assert "not found" in result.lower()
-    assert "disambiguation" in result
-
-
-# ── build_skill_middleware ────────────────────────────────────────
-
-
-def test_build_skill_middleware_returns_none_for_no_skills():
-    assert build_skill_middleware([]) is None
-
-
-def test_build_skill_middleware_injects_only_name_and_description_into_the_system_prompt():
-    skills = [{"name": "disambiguation", "description": "When to use both specialists.", "content": "FULL SECRET CONTENT"}]
-    middleware = build_skill_middleware(skills)
-    assert middleware is not None
-
-    class FakeRequest:
-        def __init__(self, system_prompt):
-            self.system_prompt = system_prompt
-
-        def override(self, **kwargs):
-            return FakeRequest(kwargs.get("system_prompt", self.system_prompt))
-
-    captured = {}
-
-    def fake_handler(request):
-        captured["system_prompt"] = request.system_prompt
-        return "handler-result"
-
-    request = FakeRequest(system_prompt="Base prompt.")
-    result = middleware.wrap_model_call(request, fake_handler)
-
-    assert "Base prompt." in captured["system_prompt"]
-    assert "disambiguation" in captured["system_prompt"]
-    assert "When to use both specialists." in captured["system_prompt"]
-    assert "FULL SECRET CONTENT" not in captured["system_prompt"]
-    assert result == "handler-result"
-
-
-def test_build_skill_middleware_registers_the_load_skill_tool():
-    skills = [{"name": "disambiguation", "description": "desc", "content": "content"}]
-    middleware = build_skill_middleware(skills)
-    tool_names = {t.name for t in middleware.tools}
-    assert "load_skill" in tool_names
+    assert "CONTENT ONE" in addendum
+    assert "CONTENT TWO" in addendum
