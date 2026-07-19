@@ -106,6 +106,33 @@ def test_materialization_parameters_never_interpolate_values():
         assert "Notional" not in statement, "values must be parameters, not inline"
 
 
+def test_materialization_links_aligned_terms_to_real_fibo_class_nodes():
+    """Real graph traversal, not just a flat ontology_class string property --
+    MATCHes the actual owl__Class node (n10s FIBO import) by its real uri, so
+    the edge is only ever created when that class genuinely exists in the
+    graph (a MATCH that finds nothing makes the following MERGE a no-op, not
+    a fabricated node)."""
+    statements = materialization_statements(make_context())
+    fibo_link_statements = [
+        (s, p) for s, p in statements if "RECONCILED_TO_FIBO_CLASS" in s
+    ]
+    assert len(fibo_link_statements) == 1
+    statement, params = fibo_link_statements[0]
+    assert "owl__Class" in statement
+    assert "MERGE (t)-[:RECONCILED_TO_FIBO_CLASS]->(c)" in statement
+    assert params == {"term": "Notional Amount", "ontology_uri": "urn:fibo:NotionalAmount"}
+
+
+def test_materialization_skips_fibo_class_link_for_unaligned_terms():
+    unaligned_context = make_context()
+    unaligned_context.glossary[0].ontology_class = None
+    unaligned_context.glossary[0].ontology_uri = None
+
+    statements = materialization_statements(unaligned_context)
+
+    assert not any("RECONCILED_TO_FIBO_CLASS" in s for s, _ in statements)
+
+
 # ── Document projection (Graph RAG) ──────────────────────────────
 
 

@@ -61,10 +61,18 @@ class _FakeHybridStore:
 
 
 class _FakeGds:
-    def __init__(self, page_rank_rows=None, community_rows=None, similar_rows=None, embedded_count=0):
+    def __init__(
+        self,
+        page_rank_rows=None,
+        community_rows=None,
+        similar_rows=None,
+        concentration_rows=None,
+        embedded_count=0,
+    ):
         self._page_rank_rows = page_rank_rows or []
         self._community_rows = community_rows or []
         self._similar_rows = similar_rows or []
+        self._concentration_rows = concentration_rows or []
         self._embedded_count = embedded_count
         self.dropped_graphs: list[str] = []
 
@@ -110,6 +118,10 @@ class _FakeGds:
     def knn(self):
         return self._FakeAlgo(self._similar_rows)
 
+    @property
+    def degree(self):
+        return self._FakeAlgo(self._concentration_rows)
+
     def run_cypher(self, query, params=None):
         import pandas as pd
 
@@ -150,7 +162,7 @@ def test_build_tools_raises_when_neo4j_not_configured(monkeypatch):
         module.build_tools()
 
 
-def test_build_tools_returns_all_six_when_gds_available(monkeypatch):
+def test_build_tools_returns_all_seven_when_gds_available(monkeypatch):
     _configure_neo4j(monkeypatch, _FakeNeo4jStore(node_count=1, labels=[], rel_types=[]))
     _configure_gds(monkeypatch, _FakeGds())
     module = _load_graph_tools_module()
@@ -161,6 +173,7 @@ def test_build_tools_returns_all_six_when_gds_available(monkeypatch):
         "graph_page_rank",
         "find_graph_communities",
         "find_similar_terms",
+        "analyze_concentration_risk",
         "graph_rag_query",
     }
 
@@ -173,6 +186,7 @@ def test_build_tools_omits_gds_tools_when_plugin_unavailable(monkeypatch):
     assert "graph_page_rank" not in names
     assert "find_graph_communities" not in names
     assert "find_similar_terms" not in names
+    assert "analyze_concentration_risk" not in names
     assert {"query_knowledge_graph", "search_knowledge_graph", "graph_rag_query"} <= names
 
 
@@ -370,6 +384,17 @@ def test_graph_page_rank_tool_returns_real_ranked_results(monkeypatch):
     result = tool.invoke({"top_n": 5})
     assert "node-1" in result
     assert gds.dropped_graphs == ["polanyi-pagerank"]
+
+
+def test_analyze_concentration_risk_tool_returns_real_ranked_results(monkeypatch):
+    _configure_neo4j(monkeypatch, _FakeNeo4jStore(node_count=1, labels=[], rel_types=[]))
+    gds = _FakeGds(concentration_rows=[{"nodeId": 1, "score": 7875000.0}, {"nodeId": 2, "score": 100.0}])
+    _configure_gds(monkeypatch, gds)
+    module = _load_graph_tools_module()
+    tool = next(t for t in module.build_tools() if t.name == "analyze_concentration_risk")
+    result = tool.invoke({"top_n": 5})
+    assert "node-1" in result
+    assert gds.dropped_graphs == ["polanyi-concentration"]
 
 
 def test_find_similar_terms_tool_reports_honestly_when_no_embeddings_exist(monkeypatch):

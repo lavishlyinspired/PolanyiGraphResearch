@@ -140,7 +140,21 @@ def build_tools() -> list:
                 )
             return "\n".join(f"{r['term_a']} ~ {r['term_b']} (similarity: {r['similarity']:.3f})" for r in results)
 
-        tools += [graph_page_rank, find_graph_communities, find_similar_terms]
+        from polanyi.execution.gds_tools import concentration_risk
+
+        @tool
+        def analyze_concentration_risk(top_n: int = 10) -> str:
+            """Rank securities by real total dollar exposure across ALL
+            portfolios combined (weighted degree centrality over each
+            portfolio's real holdings) — use for cross-portfolio
+            concentration-risk questions, e.g. which issuer's combined
+            exposure is largest across the whole firm, not just one fund."""
+            results = concentration_risk(gds, top_n)
+            if not results:
+                return "No exposure data — the portfolio graph may be empty."
+            return "\n".join(f"{r['security']}: ${r['total_exposure']:,.2f}" for r in results)
+
+        tools += [graph_page_rank, find_graph_communities, find_similar_terms, analyze_concentration_risk]
 
     from polanyi.execution.graphrag_pipeline import graph_rag_query as _graph_rag_query
 

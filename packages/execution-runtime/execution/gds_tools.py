@@ -46,6 +46,18 @@ def format_similar_terms(rows: list[dict[str, Any]], names: dict[int, str], top_
     ]
 
 
+def format_concentration_risk(rows: list[dict[str, Any]], names: dict[int, str], top_n: int) -> list[dict[str, Any]]:
+    """rows: [{'nodeId': int, 'score': float}, ...] from weighted
+    gds.degree.stream() over Portfolio-[:EXPOSED_TO]->Security -- score is
+    real total dollar exposure. The projection also touches Portfolio
+    nodes (whose own degree is just their own AUM); `names` only resolves
+    real Security nodes, so any other nodeId is silently excluded rather
+    than reported as a fabricated security."""
+    security_rows = [r for r in rows if r["nodeId"] in names]
+    ranked = sorted(security_rows, key=lambda r: r["score"], reverse=True)[:top_n]
+    return [{"security": names[r["nodeId"]], "total_exposure": r["score"]} for r in ranked]
+
+
 def gds_client_for_neo4j(connection_timeout: float = 2.0, max_retry_time: float = 2.0) -> Optional[Any]:
     """A GraphDataScience client for the same Neo4j Polanyi already connects
     to, or None if the package isn't installed, Neo4j is unreachable, or the
@@ -128,6 +140,39 @@ def find_communities(gds: Any) -> list[dict[str, Any]]:
     rows = result.to_dict("records")
     names = _resolve_names(gds, [r["nodeId"] for r in rows])
     return format_communities(rows, names)
+
+
+def _resolve_security_names(gds: Any, node_ids: list[int]) -> dict[int, str]:
+    """Real Security names for a set of internal Neo4j ids -- a Portfolio
+    id in the same set simply won't appear here, never fabricated."""
+    if not node_ids:
+        return {}
+    df = gds.run_cypher(
+        "MATCH (n:Security) WHERE id(n) IN $ids RETURN id(n) AS nodeId, n.name AS name",
+        {"ids": list(node_ids)},
+    )
+    return dict(zip(df["nodeId"], df["name"]))
+
+
+def concentration_risk(gds: Any, top_n: int = 10) -> list[dict[str, Any]]:
+    """Real cross-portfolio concentration risk: weighted degree centrality
+    over Portfolio-[:EXPOSED_TO {market_value}]->Security (materialized
+    from real position data during seed_kyc_demo_db's graph enrichment) --
+    a Security held by multiple portfolios accumulates their combined
+    real dollar exposure, the same "combined cross-portfolio exposure"
+    concept the real compliance-flag narratives describe."""
+    graph, _ = gds.graph.project(
+        "polanyi-concentration",
+        {"Portfolio": {}, "Security": {}},
+        {"EXPOSED_TO": {"orientation": "UNDIRECTED", "properties": ["market_value"]}},
+    )
+    try:
+        result = gds.degree.stream(graph, relationshipWeightProperty="market_value")
+    finally:
+        graph.drop()
+    rows = result.to_dict("records")
+    names = _resolve_security_names(gds, [r["nodeId"] for r in rows])
+    return format_concentration_risk(rows, names, top_n)
 
 
 def find_similar_terms(gds: Any, top_n: int = 10) -> list[dict[str, Any]]:

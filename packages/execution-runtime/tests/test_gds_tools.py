@@ -1,5 +1,6 @@
 from polanyi.execution.gds_tools import (
     format_communities,
+    format_concentration_risk,
     format_page_rank,
     format_similar_terms,
 )
@@ -76,3 +77,41 @@ def test_format_similar_terms_respects_top_n():
     names = {1: "a", 2: "b", 3: "c", 4: "d"}
     result = format_similar_terms(rows, names, top_n=1)
     assert result == [{"term_a": "c", "term_b": "d", "similarity": 0.9}]
+
+
+# ── format_concentration_risk ─────────────────────────────────────
+#
+# Weighted degree centrality over Portfolio-[:EXPOSED_TO]->Security (real
+# dollar exposure, not counts). The projection also touches Portfolio
+# nodes (their own degree = their own total holdings) -- names only
+# resolves real Security nodes, so a Portfolio's row is silently excluded
+# rather than shown as a fabricated "security" ranked by its own AUM.
+
+
+def test_format_concentration_risk_resolves_real_security_names_and_ranks_by_exposure():
+    rows = [{"nodeId": 1, "score": 5250000.0}, {"nodeId": 2, "score": 7875000.0}]
+    names = {1: "Apple Inc. 2.750% 2028", 2: "Ford Motor Credit 8.000% 2028"}
+    result = format_concentration_risk(rows, names, top_n=10)
+    assert result == [
+        {"security": "Ford Motor Credit 8.000% 2028", "total_exposure": 7875000.0},
+        {"security": "Apple Inc. 2.750% 2028", "total_exposure": 5250000.0},
+    ]
+
+
+def test_format_concentration_risk_excludes_portfolio_nodes_not_resolved_as_securities():
+    """A Portfolio node's own weighted degree (its total AUM) must never be
+    reported as a security's concentration risk."""
+    rows = [
+        {"nodeId": 1, "score": 7875000.0},  # a real Security
+        {"nodeId": 99, "score": 250000000.0},  # a Portfolio -- not in `names`
+    ]
+    names = {1: "Ford Motor Credit 8.000% 2028"}
+    result = format_concentration_risk(rows, names, top_n=10)
+    assert result == [{"security": "Ford Motor Credit 8.000% 2028", "total_exposure": 7875000.0}]
+
+
+def test_format_concentration_risk_respects_top_n():
+    rows = [{"nodeId": 1, "score": 100.0}, {"nodeId": 2, "score": 900.0}]
+    names = {1: "a", 2: "b"}
+    result = format_concentration_risk(rows, names, top_n=1)
+    assert result == [{"security": "b", "total_exposure": 900.0}]

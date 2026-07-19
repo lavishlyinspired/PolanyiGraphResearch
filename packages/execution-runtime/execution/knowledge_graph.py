@@ -81,6 +81,15 @@ def materialization_statements(
                 params,
             )
         )
+        if entry.ontology_uri:
+            statements.append(
+                (
+                    "MATCH (t:Term {term: $term}) "
+                    "MATCH (c:owl__Class {uri: $ontology_uri}) "
+                    "MERGE (t)-[:RECONCILED_TO_FIBO_CLASS]->(c)",
+                    {"term": entry.term, "ontology_uri": entry.ontology_uri},
+                )
+            )
         for table in entry.source_tables:
             statements.append(
                 (
