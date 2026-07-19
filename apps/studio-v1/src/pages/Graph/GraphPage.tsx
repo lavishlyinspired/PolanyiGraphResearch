@@ -3,6 +3,10 @@ import { fetchGraphStats, Neo4jUnavailableError, type GraphStats } from "@/api/h
 import { fetchGraphExplore, materializeGraph, type GraphExplore, type GraphNode } from "@/api/graph";
 import { useNavigation } from "@/navigation";
 import { buildLayout } from "./graphLayout";
+import { GraphCanvas } from "./GraphCanvas";
+import { GlossaryPerspective } from "./GlossaryPerspective";
+
+type Perspective = "full-graph" | "glossary";
 
 type State =
   | { kind: "loading" }
@@ -25,6 +29,7 @@ function formatSyncedAt(materializedAt: string | null): string {
 
 export function GraphPage() {
   const { navigate } = useNavigation();
+  const [perspective, setPerspective] = useState<Perspective>("full-graph");
   const [state, setState] = useState<State>({ kind: "loading" });
   const [explore, setExplore] = useState<GraphExplore>({ nodes: [], edges: [] });
   const [selected, setSelected] = useState<GraphNode | null>(null);
@@ -91,8 +96,6 @@ export function GraphPage() {
   }
 
   const layout = buildLayout(explore.nodes, explore.edges);
-  const width = layout.nodes.reduce((max, n) => Math.max(max, n.x), 0) + 160;
-  const height = layout.nodes.reduce((max, n) => Math.max(max, n.y), 0) + 80;
 
   return (
     <main className="view">
@@ -119,107 +122,85 @@ export function GraphPage() {
         </div>
       </div>
 
-      <ul role="list" aria-label="Legend" style={{ listStyle: "none", display: "flex", gap: 14, padding: 0 }}>
-        {LABELS.map((label) => (
-          <li key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span
-              aria-hidden="true"
-              style={{
-                display: "inline-block",
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: labelColor[label],
-              }}
-            />
-            {label}
-          </li>
-        ))}
-      </ul>
-
-      {state.stats.nodes === 0 ? (
-        <div className="panel" style={{ padding: 16, marginTop: 12 }}>
-          <p style={{ margin: 0 }}>
-            Materialize the graph to populate it from your current semantic context — entities,
-            glossary terms, and their real relationships.
-          </p>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 14 }}>
+        <span style={{ fontSize: 12, color: "var(--ink-3)" }}>Perspective:</span>
+        <div className="seg" role="group" aria-label="Graph perspective">
+          <button type="button" aria-pressed={perspective === "full-graph"} onClick={() => setPerspective("full-graph")}>
+            Full graph
+          </button>
+          <button type="button" aria-pressed={perspective === "glossary"} onClick={() => setPerspective("glossary")}>
+            Glossary
+          </button>
         </div>
-      ) : (
-        <div style={{ display: "flex", gap: 18, marginTop: 12 }}>
-          <div
-            role="group"
-            aria-label="Knowledge graph"
-            className="panel"
-            style={{ flex: 1, position: "relative", overflow: "auto", height: 420 }}
-          >
-            <svg width={width} height={height} className="absolute" style={{ position: "absolute" }}>
-              {layout.edges.map((edge) => {
-                const source = layout.nodes.find((n) => n.id === edge.sourceId);
-                const target = layout.nodes.find((n) => n.id === edge.targetId);
-                if (source === undefined || target === undefined) return null;
-                return (
-                  <line
-                    key={edge.id}
-                    x1={source.x}
-                    y1={source.y}
-                    x2={target.x}
-                    y2={target.y}
-                    stroke="#94a3b8"
-                    strokeWidth={1.5}
-                    opacity={0.6}
-                  />
-                );
-              })}
-            </svg>
-            {layout.nodes.map((node) => (
-              <button
-                key={node.id}
-                type="button"
-                onClick={() => {
-                  const full = explore.nodes.find((n) => n.id === node.id) ?? null;
-                  setSelected(full);
-                }}
-                style={{
-                  position: "absolute",
-                  left: node.x,
-                  top: node.y,
-                  transform: "translate(-50%, -50%)",
-                  borderColor: labelColor[node.label] ?? "#94a3b8",
-                }}
-                className="btn btn-sm"
-              >
-                {node.name}
-              </button>
+      </div>
+
+      {perspective === "full-graph" && (
+        <>
+          <ul role="list" aria-label="Legend" style={{ listStyle: "none", display: "flex", gap: 14, padding: 0 }}>
+            {LABELS.map((label) => (
+              <li key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: "inline-block",
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: labelColor[label],
+                  }}
+                />
+                {label}
+              </li>
             ))}
-          </div>
+          </ul>
 
-          <section aria-label="Inspector" className="panel" style={{ width: 280, padding: 16 }}>
-            {selected === null ? (
-              <p className="dim">Select a node to inspect it.</p>
-            ) : (
-              <>
-                <h2>{selected.name}</h2>
-                <p className="dim">{selected.label}</p>
-                {Object.entries(selected.properties).map(([key, value]) => (
-                  <p key={key} style={{ margin: "4px 0" }}>
-                    <b>{key}:</b> {String(value)}
-                  </p>
-                ))}
-                <p className="dim" style={{ marginTop: 10 }}>
-                  Relationships
-                </p>
-                {explore.edges
-                  .filter((edge) => edge.source === selected.id || edge.target === selected.id)
-                  .map((edge, index) => (
-                    <p key={index} className="mono" style={{ margin: "4px 0" }}>
-                      {edge.type}
+          {state.stats.nodes === 0 ? (
+            <div className="panel" style={{ padding: 16, marginTop: 12 }}>
+              <p style={{ margin: 0 }}>
+                Materialize the graph to populate it from your current semantic context — entities,
+                glossary terms, and their real relationships.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 18, marginTop: 12 }}>
+              <GraphCanvas
+                layout={layout}
+                ariaLabel="Knowledge graph"
+                colorFor={(label) => labelColor[label] ?? "#94a3b8"}
+                onSelectNode={(id) => setSelected(explore.nodes.find((n) => n.id === id) ?? null)}
+              />
+
+              <section aria-label="Inspector" className="panel" style={{ width: 280, padding: 16 }}>
+                {selected === null ? (
+                  <p className="dim">Select a node to inspect it.</p>
+                ) : (
+                  <>
+                    <h2>{selected.name}</h2>
+                    <p className="dim">{selected.label}</p>
+                    {Object.entries(selected.properties).map(([key, value]) => (
+                      <p key={key} style={{ margin: "4px 0" }}>
+                        <b>{key}:</b> {String(value)}
+                      </p>
+                    ))}
+                    <p className="dim" style={{ marginTop: 10 }}>
+                      Relationships
                     </p>
-                  ))}
-              </>
-            )}
-          </section>
-        </div>
+                    {explore.edges
+                      .filter((edge) => edge.source === selected.id || edge.target === selected.id)
+                      .map((edge, index) => (
+                        <p key={index} className="mono" style={{ margin: "4px 0" }}>
+                          {edge.type}
+                        </p>
+                      ))}
+                  </>
+                )}
+              </section>
+            </div>
+          )}
+        </>
       )}
+
+      {perspective === "glossary" && <GlossaryPerspective />}
     </main>
   );
 }

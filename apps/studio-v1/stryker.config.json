@@ -5,7 +5,12 @@
     "configFile": "vitest.stryker.config.ts"
   },
   "coverageAnalysis": "perTest",
-  "mutate": ["src/pages/Validator/verdict.ts", "src/pages/Ontology/alignmentBands.ts"],
+  "mutate": [
+    "src/pages/Validator/verdict.ts",
+    "src/pages/Ontology/alignmentBands.ts",
+    "src/pages/Graph/graphLayout.ts",
+    "src/pages/Graph/glossaryAlignment.ts"
+  ],
   "reporters": ["clear-text", "progress"],
   "concurrency": 2
 }

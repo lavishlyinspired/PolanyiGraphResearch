@@ -51,4 +51,49 @@ describe("buildLayout", () => {
     const layout = buildLayout(nodes, []);
     expect(layout.edges).toEqual([]);
   });
+
+  it("spaces columns by exactly COLUMN_WIDTH (220px)", () => {
+    const nodes = [getMockNode({ id: 1, label: "Entity" }), getMockNode({ id: 2, label: "Term", name: "X" })];
+    const layout = buildLayout(nodes, []);
+    const entityX = layout.nodes.find((n) => n.id === 1)?.x;
+    const termX = layout.nodes.find((n) => n.id === 2)?.x;
+    expect(termX! - entityX!).toBe(220);
+  });
+
+  it("increases y by exactly ROW_HEIGHT (60px) for each subsequent row in a column", () => {
+    const nodes = [getMockNode({ id: 1, name: "a" }), getMockNode({ id: 2, name: "b" })];
+    const layout = buildLayout(nodes, []);
+    const first = layout.nodes.find((n) => n.id === 1)!;
+    const second = layout.nodes.find((n) => n.id === 2)!;
+    expect(second.y - first.y).toBe(60);
+  });
+
+  it("places an unrecognized label in its own column after all named columns", () => {
+    const nodes = [getMockNode({ id: 1, label: "Entity", name: "e" }), getMockNode({ id: 2, label: "FIBO", name: "f" })];
+    const layout = buildLayout(nodes, []);
+    const entityX = layout.nodes.find((n) => n.id === 1)!.x;
+    const fiboX = layout.nodes.find((n) => n.id === 2)!.x;
+    expect(fiboX).toBeGreaterThan(entityX);
+  });
+
+  it("orders same-column nodes alphabetically by name, not by input order", () => {
+    const nodes = [getMockNode({ id: 1, name: "zebra" }), getMockNode({ id: 2, name: "apple" })];
+    const layout = buildLayout(nodes, []);
+    const topRow = layout.nodes.reduce((min, n) => (n.y < min.y ? n : min));
+    expect(topRow.name).toBe("apple");
+  });
+
+  it("orders known labels as Entity, Term, Document, Mention columns left to right", () => {
+    const nodes = [
+      getMockNode({ id: 1, label: "Mention", name: "m" }),
+      getMockNode({ id: 2, label: "Document", name: "d" }),
+      getMockNode({ id: 3, label: "Term", name: "t" }),
+      getMockNode({ id: 4, label: "Entity", name: "e" }),
+    ];
+    const layout = buildLayout(nodes, []);
+    const xOf = (id: number) => layout.nodes.find((n) => n.id === id)!.x;
+    expect(xOf(4)).toBeLessThan(xOf(3));
+    expect(xOf(3)).toBeLessThan(xOf(2));
+    expect(xOf(2)).toBeLessThan(xOf(1));
+  });
 });

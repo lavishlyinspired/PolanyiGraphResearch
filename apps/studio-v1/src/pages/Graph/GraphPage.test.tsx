@@ -91,3 +91,36 @@ test("shows the real node label legend", async () => {
   await expect.element(legend.getByText("Document")).toBeVisible();
   await expect.element(legend.getByText("Mention")).toBeVisible();
 });
+
+test("switching to the Glossary perspective shows real alignment data, not the Neo4j graph", async () => {
+  mockStats({ nodes: 0, edges: 0, materialized_at: null });
+  worker.use(
+    http.get("/api/context/align/queue", () =>
+      HttpResponse.json({
+        items: [
+          { term: "Trade", band: "auto", candidate_label: "fibo:Trade", candidate_uri: "https://fibo/Trade", score: 0.95, candidates: [] },
+        ],
+      }),
+    ),
+    http.get("/api/context", () =>
+      HttpResponse.json({
+        domain: "Financial Services",
+        glossary: [
+          { term: "Trade", definition: "A trade.", formula: null, source_tables: ["trades"], source_columns: [], unit: null, synonyms: [], ontology_class: null, ontology_uri: null },
+        ],
+        relationships: [],
+        business_rules: [],
+        key_entities: [],
+        generated_by: "deterministic",
+      }),
+    ),
+  );
+
+  const screen = await render(<GraphPage />);
+  const perspectiveSwitcher = screen.getByRole("group", { name: /graph perspective/i });
+  await perspectiveSwitcher.getByRole("button", { name: "Glossary" }).click();
+
+  await expect.element(screen.getByRole("region", { name: /alignment status/i })).toBeVisible();
+  await expect.element(screen.getByText("1 auto-aligned")).toBeVisible();
+  await expect.element(screen.getByText(/materialize the graph/i)).not.toBeInTheDocument();
+});
