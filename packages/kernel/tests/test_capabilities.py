@@ -153,71 +153,26 @@ def _configure_fake_graphdb(monkeypatch, search_result=None, expand_result=None,
     monkeypatch.setattr(ontology_module, "GraphDBOntologyStore", lambda: FakeStore())
 
 
-def test_default_registry_promotes_ontology_search_to_an_agent_tool_when_graphdb_configured(demo_uri, monkeypatch):
+def test_default_registry_registers_the_ontology_specialist_when_graphdb_configured(demo_uri, monkeypatch):
+    """search_ontology/expand_ontology/query_ontology are no longer exposed
+    directly on the supervisor's tool list -- they're internal to the
+    ontology specialist's own platform/specialists/ontology/tools.py now
+    (see packages/kernel/tests/test_ontology_specialist_tools.py for their
+    behavior coverage). The supervisor only sees ask_ontology_specialist."""
     _configure_fake_graphdb(monkeypatch)
     registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
     names = {t.name for t in registry.agent_tools()}
-    assert {"search_ontology", "expand_ontology"} <= names
+    assert "ask_ontology_specialist" in names
+    assert not {"search_ontology", "expand_ontology", "query_ontology"} & names
 
 
-def test_default_registry_omits_ontology_tools_when_graphdb_unconfigured(demo_uri, monkeypatch):
+def test_default_registry_omits_the_ontology_specialist_when_graphdb_unconfigured(demo_uri, monkeypatch):
     import polanyi.semantic.ontology as ontology_module
 
     monkeypatch.setattr(ontology_module, "graphdb_configured", lambda: False)
     registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
     names = {t.name for t in registry.agent_tools()}
-    assert "search_ontology" not in names
-    assert "expand_ontology" not in names
-
-
-def test_search_ontology_tool_calls_through_to_the_real_store(demo_uri, monkeypatch):
-    _configure_fake_graphdb(monkeypatch, search_result=["fibo:Counterparty"])
-    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
-    tool = next(t for t in registry.agent_tools() if t.name == "search_ontology")
-    assert "fibo:Counterparty" in tool.invoke({"term": "Counterparty"})
-
-
-def test_expand_ontology_tool_calls_through_to_the_real_store(demo_uri, monkeypatch):
-    _configure_fake_graphdb(monkeypatch, expand_result=["fibo:Bond", "fibo:MunicipalBond"])
-    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
-    tool = next(t for t in registry.agent_tools() if t.name == "expand_ontology")
-    result = tool.invoke({"uri": "https://fibo/Bond"})
-    assert "fibo:Bond" in result
-
-
-# ── SPARQL agent tool (Phase 5.2) ──────────────────────────────────
-
-
-def test_query_ontology_tool_registered_when_graphdb_configured(demo_uri, monkeypatch):
-    _configure_fake_graphdb(monkeypatch)
-    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
-    names = {t.name for t in registry.agent_tools()}
-    assert "query_ontology" in names
-
-
-def test_query_ontology_tool_omitted_when_graphdb_unconfigured(demo_uri, monkeypatch):
-    import polanyi.semantic.ontology as ontology_module
-
-    monkeypatch.setattr(ontology_module, "graphdb_configured", lambda: False)
-    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
-    names = {t.name for t in registry.agent_tools()}
-    assert "query_ontology" not in names
-
-
-def test_query_ontology_tool_rejects_write_sparql(demo_uri, monkeypatch):
-    _configure_fake_graphdb(monkeypatch)
-    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
-    tool = next(t for t in registry.agent_tools() if t.name == "query_ontology")
-    result = tool.invoke({"sparql": "INSERT DATA { <urn:x> <urn:y> <urn:z> }"})
-    assert "BLOCKED" in result
-
-
-def test_query_ontology_tool_calls_through_to_the_real_store(demo_uri, monkeypatch):
-    _configure_fake_graphdb(monkeypatch, sparql_result=[{"class": "fibo:Bond"}])
-    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
-    tool = next(t for t in registry.agent_tools() if t.name == "query_ontology")
-    result = tool.invoke({"sparql": "SELECT ?class WHERE { ?class a owl:Class }"})
-    assert "fibo:Bond" in result
+    assert "ask_ontology_specialist" not in names
 
 
 class _FakeNeo4jStore:

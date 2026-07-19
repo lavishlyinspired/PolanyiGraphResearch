@@ -127,7 +127,7 @@ def default_registry(
             )
         )
 
-    _register_optional_backends(registry)
+    _register_optional_backends(registry, on_event)
 
     from polanyi.kernel.skills import load_skills
 
@@ -170,79 +170,17 @@ def merge_search_hits(
     return ranked[:top_k]
 
 
-def _register_optional_backends(registry: CapabilityRegistry) -> None:
+def _register_optional_backends(
+    registry: CapabilityRegistry, on_event: Optional[Callable[[Any], None]] = None
+) -> None:
     from polanyi.execution.knowledge_graph import neo4j_configured
     from polanyi.semantic.ontology import graphdb_configured
 
+    from polanyi.kernel.specialists import load_specialists
+
+    load_specialists(registry, on_event=on_event)
+
     if graphdb_configured():
-        from langchain.tools import tool as make_tool
-
-        from polanyi.semantic.ontology import GraphDBOntologyStore
-
-        store = GraphDBOntologyStore()
-
-        @make_tool
-        def search_ontology(term: str) -> str:
-            """Search FIBO ontology classes in GraphDB by business term.
-            Returns matching ontology classes with labels, definitions, and scores."""
-            return str(store.search_classes(term))
-
-        @make_tool
-        def expand_ontology(uri: str) -> str:
-            """Expand an ontology class URI to all its transitive subclasses
-            via rdfs:subClassOf* (deterministic, no LLM)."""
-            return str(store.expand_subclasses(uri))
-
-        registry.register(
-            CapabilityProvider(
-                name="graphdb-fibo-search",
-                capability="SearchOntology",
-                kind="tool",
-                description="Search ontology classes (FIBO) in GraphDB by business term",
-                handler=search_ontology,
-                metadata={"repository": store.repository},
-            )
-        )
-        registry.register(
-            CapabilityProvider(
-                name="graphdb-hierarchy-expansion",
-                capability="ExpandOntology",
-                kind="tool",
-                description=(
-                    "Expand an ontology class to all transitive subclasses "
-                    "(deterministic rdfs:subClassOf* traversal)"
-                ),
-                handler=expand_ontology,
-                metadata={"repository": store.repository},
-            )
-        )
-
-        from polanyi.semantic.ontology import guard_sparql
-
-        @make_tool
-        def query_ontology(sparql: str) -> str:
-            """Run read-only SPARQL against the FIBO ontology repository on
-            GraphDB. Write operations are rejected."""
-            violation = guard_sparql(sparql)
-            if violation:
-                return f"QUERY BLOCKED: {violation}"
-            try:
-                rows = store.sparql_query(sparql)
-            except Exception as exc:  # noqa: BLE001 — surface driver errors to the model
-                return f"Error: {exc}"
-            return str(rows[:50])
-
-        registry.register(
-            CapabilityProvider(
-                name="graphdb-query_ontology",
-                capability="QuerySPARQL",
-                kind="tool",
-                description="Read-only SPARQL over the FIBO ontology repository",
-                handler=query_ontology,
-                metadata={"guarded": True, "repository": store.repository},
-            )
-        )
-
         from polanyi.semantic.owl import java_available, reason_about_class
 
         registry.register(

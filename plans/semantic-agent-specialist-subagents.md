@@ -25,7 +25,7 @@ Reduce `SemanticAgent`'s observed tool-selection confusion by regrouping its fla
 3. **Specialists are stateless per-call** — fresh `create_agent(...).invoke({"messages": [HumanMessage(question)]})` each time, no checkpointer of their own. Matches LangChain's documented Subagents pattern exactly.
 4. **Multi-specialist turns need no orchestration.** `SemanticAgent`'s existing single-turn tool-calling loop can call `ask_graph_specialist` then `ask_ontology_specialist` sequentially within one turn (e.g. "which FIBO class does the top-PageRank entity belong to?") exactly like it already sequences raw tool calls today. No `StateGraph`, no `Send`, no routing state field.
 5. **Each specialist gets a focused `system_prompt`** — this, not just a smaller tool list, is the actual fix for the observed confusion.
-6. **Model role split**: specialists use `resolve_llm("pipeline")` (cheap/fast), supervisor keeps `resolve_llm("agent")` (stronger) — reuses the existing role convention in `packages/kernel/llm.py`, no new role.
+6. **Model role: `resolve_llm("agent")` (stronger tier) for specialists too, not `resolve_llm("pipeline")`.** Corrected during Slice 1 implementation by live evidence, not assumed: against the real running GraphDB, the "pipeline" tier (`meta/llama-3.1-8b-instruct`) failed to sequence `search_ontology` → `expand_ontology` for "what are the subclasses of Bond?" — it returned "no subclasses found" despite 43 real ones existing (confirmed separately: both tools work correctly in isolation). The "agent" tier (`nemotron-super-49b`) sequenced them correctly and returned all 43 real subclasses. Specialists need the same multi-step tool-reasoning strength as the supervisor — a single-step question ("what is a Bond?") worked fine on either tier, but specialists exist specifically to handle the multi-tool-call questions a flat list made confusing, so the tier must match that job. Reuses the existing role convention in `packages/kernel/llm.py`, no new role.
 7. **Observability must not regress.** `trace_from_messages` (`semantic_agent.py`) builds Studio's Agent Workspace trace from the supervisor's own `AIMessage.tool_calls`/`ToolMessage` pairs. Once ontology/graph tools sit behind a specialist, the supervisor's own message list would only show `tool_call: ask_ontology_specialist` → `tool_result: <final text>`, losing which raw tool the specialist called internally. `default_registry()` already accepts an `on_event` callback (wired to `SemanticAgent._steps.append`) — each specialist must forward its own internal tool_call/tool_result events through that same callback so the trace stays fully granular.
 8. **Testing convention** (confirmed: no existing test constructs `SemanticAgent`/`create_agent` with a real or fake chat model — only deterministic wiring is unit-tested). Specialist factories are tested for plumbing — right tool subset, right system prompt, correct final-message extraction, `on_event` forwarding, no checkpointer — via monkeypatching `langchain.agents.create_agent` at its origin module (matches this codebase's established convention of patching origin-module attributes, e.g. `kg_module.Neo4jGraphStore`, rather than injecting constructor params).
 9. **Superseded — see "Self-contained specialist folders" below.** Earlier draft of this plan had specialists coexist with the raw tools they wrap during slices 1–2, cutting over in a separate slice 3. Once each specialist folder owns its *own* tool code (decision 10), that two-step shape no longer applies — there's nothing left in `capabilities.py` to keep exposing directly once a specialist's tools live in its own folder. Each specialist slice is now its own direct, complete replacement of that domain's raw tools.
@@ -234,13 +234,23 @@ def build_specialist_tool(
     tools: list,
     on_event: Optional[Callable[[Any], None]] = None,
 ) -> Any:
-    """One @tool wrapping a stateless create_agent(...) worker."""
+    """One @tool wrapping a stateless create_agent(...) worker. resolve_llm
+    is checked per-call (not cached at build time), using the "agent" tier
+    -- not "pipeline" -- since specialists need the same multi-step
+    tool-reasoning strength as the supervisor (see design decision 6)."""
     from langchain.tools import tool as make_tool
-    from polanyi.kernel.llm import resolve_llm
-
-    llm = resolve_llm("pipeline")
 
     def ask(question: str) -> str:
+        from polanyi.kernel.llm import resolve_llm
+
+        llm = resolve_llm("agent")
+        if llm is None:
+            return (
+                f"The {name} specialist needs an LLM to answer, and none is "
+                "configured. Set NVIDIA_API_KEY, OPENAI_API_KEY, or "
+                "DATABRICKS_TOKEN + DATABRICKS_SERVING_ENDPOINT."
+            )
+
         from langchain.agents import create_agent
         from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
@@ -277,7 +287,7 @@ from polanyi.kernel.specialists import load_specialists
 load_specialists(registry, on_event=on_event)
 ```
 
-**Real limitation, worth stating plainly**: `llm is None` (no LLM configured) is not handled by `build_specialist_tool` above — unlike `SemanticAgent.__init__`'s explicit check, a specialist with no LLM configured would fail inside `create_agent(model=None, ...)` at call time, not at registration time. Slice 1's RED tests must cover this — `resolve_llm("pipeline")` returning `None` should surface as an honest, clear message from the wrapped tool, not a raw `AttributeError`/`TypeError` from `create_agent`.
+**Real limitation, worth stating plainly**: `llm is None` (no LLM configured) is not handled by `build_specialist_tool` above — unlike `SemanticAgent.__init__`'s explicit check, a specialist with no LLM configured would fail inside `create_agent(model=None, ...)` at call time, not at registration time. Slice 1's RED tests must cover this — `resolve_llm("agent")` returning `None` should surface as an honest, clear message from the wrapped tool, not a raw `AttributeError`/`TypeError` from `create_agent`.
 
 ## Real progressive disclosure on the supervisor's own tool list (Slice 4)
 
@@ -531,7 +541,7 @@ Every slice follows RED-GREEN-MUTATE-KILL MUTANTS-REFACTOR. No production code w
 - The specialist's own `create_agent(...)` call receives exactly the 3 ontology tools built by `tools.py`'s `build_tools()`, the `SKILL.md` instructions as `system_prompt`, and no `checkpointer` kwarg
 - Two separate `ask_ontology_specialist` invocations do not see each other's messages (stateless — a fresh `create_agent(...).invoke(...)` per call)
 - Invoking `ask_ontology_specialist` with a question that internally requires calling `search_ontology` forwards a real `tool_call`/`tool_result` pair for `search_ontology` to `on_event` — not just the specialist's own final answer
-- `resolve_llm("pipeline")` returning `None` (no LLM configured) surfaces as an honest message from `ask_ontology_specialist`, not a raw exception from inside `create_agent`
+- `resolve_llm("agent")` returning `None` (no LLM configured) surfaces as an honest message from `ask_ontology_specialist`, not a raw exception from inside `create_agent`
 - `search_ontology`/`expand_ontology`/`query_ontology` no longer appear as separate top-level entries in `registry.agent_tools()` — they're internal to the specialist now; every existing `test_capabilities.py` assertion that expected them directly is updated to expect their absence and `ask_ontology_specialist`'s presence instead
 - Live-verified against the real running GraphDB: a real question (e.g. "what are the subclasses of bond?") returns a real, correctly-grounded answer citing real FIBO classes, via the actual `platform/specialists/ontology/` folder (not a mock)
 **RED**: Failing tests for (a) `parse_skill_md`'s frontmatter parsing (pure function, no I/O — the mutator-aware gaps: wrong field extraction, frontmatter-delimiter boundary off-by-one, missing-field error path), (b) `load_specialists`'s discovery/registration/resilience against a temp directory with a real minimal `SKILL.md`+`tools.py` pair (and a second, deliberately-broken one to prove the try/except isolation), (c) `build_specialist_tool`'s plumbing (tool subset, system prompt, no checkpointer, final-message extraction, `on_event` forwarding, statelessness across two calls, the no-LLM-configured honest-degrade path) via a fake object standing in for `create_agent`'s return value, monkeypatched at `langchain.agents.create_agent`, and (d) updates to the existing raw-ontology-tool-presence assertions in `test_capabilities.py` to their new expected (currently failing) shape.
@@ -674,7 +684,7 @@ This is the "OKF import as agentic opportunity" named-but-deferred earlier, now 
 **Real design decisions, not left implicit:**
 - **No silent merging with Polanyi's native knowledge.** `search_knowledge_graph` (Neo4j) and `search_ontology` (FIBO) stay completely separate tools/specialists. An imported bundle might describe the *same* real-world table or concept differently than Polanyi's own glossary — silently blending the two would blur which source an answer actually came from, violating this project's "never fabricate, always attribute" discipline. `search_okf_knowledge`'s own `SKILL.md` instructions require every citation to name the concept id explicitly (e.g. "per imported concept `tables/customers.md`"), never presented as native Polanyi knowledge.
 - **Honest empty state.** If `semantics/knowledge/okf/` doesn't exist or has never had a bundle imported, `search_okf_knowledge` returns a clear "no knowledge bundle imported yet" message — not a fabricated answer, not a silent empty result — matching the same empty-state discipline established for every other specialist tool in this plan and the S17/S18/S19 stories before it.
-- **Model role**: `resolve_llm("pipeline")`, same convention as the other two specialists.
+- **Model role**: `resolve_llm("agent")`, same convention as the other two specialists (corrected during Slice 1 — see design decision 6).
 **Required implementation skills**: `tdd`, `testing`, `mutation-testing`, `refactoring`.
 **Acceptance criteria** (needs your confirmation before any code):
 - `score_concept(query, concept)` ranks a concept whose title/description lexically matches the query above one that doesn't — direct unit test, no bundle/LLM/network involved
