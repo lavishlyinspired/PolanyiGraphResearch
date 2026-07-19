@@ -5,8 +5,9 @@ import { useNavigation } from "@/navigation";
 import { buildLayout } from "./graphLayout";
 import { GraphCanvas } from "./GraphCanvas";
 import { GlossaryPerspective } from "./GlossaryPerspective";
+import { CompliancePerspective } from "./CompliancePerspective";
 
-type Perspective = "full-graph" | "glossary";
+type Perspective = "full-graph" | "glossary" | "compliance";
 
 type State =
   | { kind: "loading" }
@@ -131,6 +132,9 @@ export function GraphPage() {
           <button type="button" aria-pressed={perspective === "glossary"} onClick={() => setPerspective("glossary")}>
             Glossary
           </button>
+          <button type="button" aria-pressed={perspective === "compliance"} onClick={() => setPerspective("compliance")}>
+            Compliance
+          </button>
         </div>
       </div>
 
@@ -201,6 +205,7 @@ export function GraphPage() {
       )}
 
       {perspective === "glossary" && <GlossaryPerspective />}
+      {perspective === "compliance" && <CompliancePerspective />}
     </main>
   );
 }

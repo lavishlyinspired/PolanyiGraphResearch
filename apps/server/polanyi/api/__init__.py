@@ -6,7 +6,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -25,9 +25,10 @@ from polanyi.semantic.generate import generate_context
 from polanyi.semantic.introspect import introspect
 from polanyi.kernel.llm import llm_mode, resolve_llm
 from polanyi.semantic.embeddings import EmbeddingOntologyIndex, resolve_embedding_provider
-from polanyi.models import BusinessRule, SemanticContext
+from polanyi.models import BusinessRule, SemanticContext, ValidationResult
 from polanyi.execution.validate import validate_sql
 from polanyi.execution.sql import execute_sql
+from polanyi.execution.enforcement import events_for, summarize
 
 DEFAULT_DB_PATH = "semantics/knowledge/financial_demo.db"
 CONTEXT_FILENAME = "semantic_context.json"
@@ -43,6 +44,13 @@ def _databricks_source_name() -> Optional[str]:
     if not hostname:
         return None
     return hostname.replace("https://", "").replace("http://", "").split(".")[0]
+
+
+def _event_within(event, cutoff: datetime) -> bool:
+    timestamp = datetime.fromisoformat(event.timestamp)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp >= cutoff
 
 
 def _relative_time(dt: Optional[datetime]) -> Optional[str]:
@@ -230,6 +238,7 @@ def create_app(
         "agent": None,
         "checkpointer": None,
         "graph_materialized_at": None,
+        "enforcement_events": [],
         "databricks_client": None,
         "embedding_index": None,
         "extra_sources": _sources_config["extra"],
@@ -270,6 +279,12 @@ def create_app(
     def save_context(ctx: SemanticContext) -> None:
         context_path.parent.mkdir(parents=True, exist_ok=True)
         context_path.write_text(ctx.model_dump_json(indent=2), encoding="utf-8")
+
+    def record_enforcement(sql: str, result: ValidationResult, source: str) -> None:
+        """Append real per-rule events from an actual validation run — capped
+        so the in-memory log can't grow unbounded across a long-lived process."""
+        new_events = events_for(sql, result, source, datetime.now(timezone.utc).isoformat())
+        state["enforcement_events"] = (state["enforcement_events"] + new_events)[-500:]
 
     def embedding_index_for(store):
         """Lazily build + cache the FIBO embedding index once per app lifetime
@@ -634,7 +649,10 @@ def create_app(
 
     @app.get("/api/rules")
     def get_rules():
-        return [r.model_dump() for r in rules]
+        # context().business_rules is the enriched BusinessRuleContext list
+        # (affected_entities, sql_hints) that validate_sql actually runs
+        # against -- the raw declared `rules` only carries `tables`.
+        return [r.model_dump() for r in context().business_rules]
 
     @app.get("/api/capabilities")
     def get_capabilities():
@@ -646,11 +664,32 @@ def create_app(
 
     @app.post("/api/validate")
     def validate(req: ValidateRequest):
-        return validate_sql(req.sql, context().business_rules).model_dump()
+        result = validate_sql(req.sql, context().business_rules)
+        record_enforcement(req.sql, result, "validate")
+        return result.model_dump()
 
     @app.post("/api/sql/execute")
     def sql_execute(req: ValidateRequest):
-        return execute_sql(req.sql, context().business_rules, effective_db_uri()).model_dump()
+        result = execute_sql(req.sql, context().business_rules, effective_db_uri())
+        record_enforcement(req.sql, result.validation, "execute")
+        return result.model_dump()
+
+    @app.get("/api/compliance/events")
+    def compliance_events(limit: int = 20):
+        return [e.model_dump() for e in reversed(state["enforcement_events"][-limit:])]
+
+    @app.get("/api/compliance/summary")
+    def compliance_summary(window_days: int = 30):
+        cutoff = datetime.now(timezone.utc) - timedelta(days=window_days)
+        recent = [e for e in state["enforcement_events"] if _event_within(e, cutoff)]
+        counts = summarize(recent)
+        rules_by_id = {r.rule_id: r.name for r in context().business_rules}
+        rows = [
+            {"rule_id": rule_id, "rule_name": rules_by_id[rule_id], **rule_counts}
+            for rule_id, rule_counts in counts.items()
+            if rule_id in rules_by_id
+        ]
+        return {"window_days": window_days, "rules": rows, "total_events": len(recent)}
 
     @app.post("/api/ask")
     def ask(req: AskRequest):
@@ -666,7 +705,12 @@ def create_app(
                 )
             from polanyi.agents.semantic_agent import SemanticAgent
 
-            state["agent"] = SemanticAgent(effective_db_uri(), context(), llm)
+            state["agent"] = SemanticAgent(
+                effective_db_uri(),
+                context(),
+                llm,
+                on_validation=lambda sql, result: record_enforcement(sql, result, "agent"),
+            )
         try:
             return state["agent"].ask(req.question, session_id=req.session_id).model_dump()
         except Exception as exc:  # noqa: BLE001 — agent/LLM failures become 502s

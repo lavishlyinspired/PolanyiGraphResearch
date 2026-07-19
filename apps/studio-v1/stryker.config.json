@@ -9,7 +9,8 @@
     "src/pages/Validator/verdict.ts",
     "src/pages/Ontology/alignmentBands.ts",
     "src/pages/Graph/graphLayout.ts",
-    "src/pages/Graph/glossaryAlignment.ts"
+    "src/pages/Graph/glossaryAlignment.ts",
+    "src/pages/Graph/complianceGraph.ts"
   ],
   "reporters": ["clear-text", "progress"],
   "concurrency": 2

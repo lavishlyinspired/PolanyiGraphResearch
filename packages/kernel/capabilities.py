@@ -77,6 +77,7 @@ def default_registry(
     db_uri: str,
     rules: list,
     on_event: Optional[Callable[[Any], None]] = None,
+    on_validation: Optional[Callable[[str, Any], None]] = None,
 ) -> CapabilityRegistry:
     """The built-in providers for a single-database Polanyi Works deployment."""
     from polanyi.agents.semantic_agent import build_sql_tools
@@ -113,7 +114,7 @@ def default_registry(
             "Run read-only SQL; every statement passes the symbolic rule guard first",
         ),
     }
-    for sql_tool in build_sql_tools(db_uri, rules, on_event):
+    for sql_tool in build_sql_tools(db_uri, rules, on_event, on_validation):
         capability, description = tool_capabilities[sql_tool.name]
         registry.register(
             CapabilityProvider(

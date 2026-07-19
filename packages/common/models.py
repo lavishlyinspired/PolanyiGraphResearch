@@ -127,6 +127,18 @@ class SqlExecutionResult(BaseModel):
     rows: list[dict] = Field(default_factory=list)
 
 
+class EnforcementEvent(BaseModel):
+    """One rule checked against one real SQL statement — the atomic unit of
+    the compliance perspective's enforcement history. Derived from an actual
+    ValidationResult, never synthesized."""
+
+    rule_id: str
+    verdict: Literal["passed", "flagged", "blocked"]
+    sql: str
+    timestamp: str
+    source: Literal["validate", "execute", "agent"]
+
+
 # ── Ontology alignment review ────────────────────────────────────
 
 AlignmentBand = Literal["auto", "review", "rejected", "unmapped"]

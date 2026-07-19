@@ -125,6 +125,18 @@ def test_rules_endpoint_lists_business_rules(client):
     assert any(r["rule_id"] == "BR-001" for r in res.json())
 
 
+def test_rules_endpoint_returns_the_real_affected_entities_used_by_validation(client):
+    # /api/rules must return the same enriched BusinessRuleContext shape
+    # validate_sql actually runs against (affected_entities/sql_hints) --
+    # not the raw declared BusinessRule (which only has `tables`, no
+    # `sql_hints`) -- otherwise every consumer of this endpoint silently
+    # sees empty rule-to-entity mappings.
+    res = client.get("/api/rules")
+    br001 = next(r for r in res.json() if r["rule_id"] == "BR-001")
+    assert set(br001["affected_entities"]) == {"counterparties", "trades"}
+    assert br001["sql_hints"]
+
+
 def test_capabilities_endpoint_lists_providers(client):
     res = client.get("/api/capabilities")
     assert res.status_code == 200
@@ -176,7 +188,7 @@ def test_ask_returns_the_real_answer_and_reasoning_trace(client, monkeypatch):
     captured: dict = {}
 
     class FakeAgent:
-        def __init__(self, db_uri, context, llm, registry=None):
+        def __init__(self, db_uri, context, llm, registry=None, on_validation=None):
             captured["db_uri"] = db_uri
 
         def ask(self, question, session_id=None):
@@ -289,6 +301,64 @@ def test_sql_execute_does_not_run_a_blocked_query(client):
     body = res.json()
     assert body["validation"]["valid"] is False
     assert body["rows"] == []
+
+
+def test_validate_endpoint_records_a_real_blocked_enforcement_event(client):
+    client.post("/api/validate", json={"sql": "DROP TABLE trades"})
+    events = client.get("/api/compliance/events").json()
+    assert any(e["rule_id"] == "GUARD-DML" and e["verdict"] == "blocked" for e in events)
+
+
+def test_sql_execute_endpoint_records_a_real_passed_enforcement_event(client):
+    # This query references BR-001's affected tables *and* its required
+    # is_sanctioned filter, so BR-001 is actually checked (and passes) --
+    # a query touching no rule's tables would legitimately produce no event.
+    client.post(
+        "/api/sql/execute",
+        json={
+            "sql": (
+                "SELECT t.trade_id, c.legal_name FROM trades t "
+                "JOIN counterparties c ON t.counterparty_id = c.counterparty_id "
+                "WHERE c.is_sanctioned = 0"
+            )
+        },
+    )
+    events = client.get("/api/compliance/events").json()
+    assert any(e["source"] == "execute" and e["rule_id"] == "BR-001" and e["verdict"] == "passed" for e in events)
+
+
+def test_compliance_events_returns_no_events_before_any_validation_runs(client):
+    assert client.get("/api/compliance/events").json() == []
+
+
+def test_compliance_events_returns_newest_first(client):
+    client.post("/api/validate", json={"sql": "SELECT legal_name FROM counterparties LIMIT 1"})
+    client.post("/api/validate", json={"sql": "DROP TABLE trades"})
+    events = client.get("/api/compliance/events").json()
+    assert events[0]["rule_id"] == "GUARD-DML"
+
+
+def test_compliance_summary_reports_real_blocked_and_passed_counts_per_rule(client):
+    client.post(
+        "/api/validate",
+        json={
+            "sql": (
+                "SELECT t.trade_id, c.legal_name FROM trades t "
+                "JOIN counterparties c ON t.counterparty_id = c.counterparty_id"
+            )
+        },
+    )
+    summary = client.get("/api/compliance/summary").json()
+    br001 = next(r for r in summary["rules"] if r["rule_id"] == "BR-001")
+    assert br001["blocked"] == 1
+    assert br001["passed"] == 0
+    assert br001["rule_name"]
+
+
+def test_compliance_summary_excludes_the_synthetic_dml_guard(client):
+    client.post("/api/validate", json={"sql": "DROP TABLE trades"})
+    summary = client.get("/api/compliance/summary").json()
+    assert all(r["rule_id"] != "GUARD-DML" for r in summary["rules"])
 
 
 def test_graph_query_rejects_write_cypher_with_400(client):

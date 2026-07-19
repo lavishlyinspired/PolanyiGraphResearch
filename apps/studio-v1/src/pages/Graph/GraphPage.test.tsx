@@ -124,3 +124,25 @@ test("switching to the Glossary perspective shows real alignment data, not the N
   await expect.element(screen.getByText("1 auto-aligned")).toBeVisible();
   await expect.element(screen.getByText(/materialize the graph/i)).not.toBeInTheDocument();
 });
+
+test("switching to the Compliance perspective shows real rule enforcement data", async () => {
+  mockStats({ nodes: 0, edges: 0, materialized_at: null });
+  worker.use(
+    http.get("/api/rules", () =>
+      HttpResponse.json([
+        { rule_id: "BR-001", name: "Sanctioned Check", description: "d", severity: "CRITICAL", sql_hints: [], affected_entities: ["trades"] },
+      ]),
+    ),
+    http.get("/api/compliance/summary", () =>
+      HttpResponse.json({ window_days: 30, rules: [{ rule_id: "BR-001", rule_name: "Sanctioned Check", passed: 0, flagged: 0, blocked: 1 }], total_events: 1 }),
+    ),
+    http.get("/api/compliance/events", () => HttpResponse.json([])),
+  );
+
+  const screen = await render(<GraphPage />);
+  const perspectiveSwitcher = screen.getByRole("group", { name: /graph perspective/i });
+  await perspectiveSwitcher.getByRole("button", { name: "Compliance" }).click();
+
+  await expect.element(screen.getByRole("region", { name: /enforcement summary/i })).toBeVisible();
+  await expect.element(screen.getByText(/0 passed \/ 0 flagged \/ 1 blocked/)).toBeVisible();
+});
