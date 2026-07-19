@@ -178,12 +178,17 @@ class SemanticAgent:
 
         from langchain.agents import create_agent
 
+        from polanyi.kernel.agent_skills import build_skill_middleware, load_agent_skills
         from polanyi.memory import build_checkpointer
+
+        skills = load_agent_skills()
+        middleware = [build_skill_middleware(skills)] if skills else []
 
         self._agent = create_agent(
             model=llm,
             tools=registry.agent_tools(),
             system_prompt=system_prompt,
+            middleware=middleware,
             checkpointer=build_checkpointer(),
         )
 
