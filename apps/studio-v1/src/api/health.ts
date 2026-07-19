@@ -28,6 +28,7 @@ export async function fetchHealth(): Promise<Health> {
 export const graphStatsSchema = z.object({
   nodes: z.number(),
   edges: z.number(),
+  materialized_at: z.string().nullable().default(null),
 });
 
 export type GraphStats = z.infer<typeof graphStatsSchema>;

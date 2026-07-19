@@ -95,3 +95,11 @@ test("navigates to the Agent Workspace page", async () => {
   await screen.getByRole("button", { name: /agent workspace/i }).click();
   await expect.element(screen.getByRole("heading", { name: "Agent" })).toBeVisible();
 });
+
+test("navigates to the Knowledge Graph page", async () => {
+  worker.use(http.get("/api/graph/stats", () => HttpResponse.json({ nodes: 0, edges: 0, materialized_at: null })));
+
+  const screen = await render(<AppShell />);
+  await screen.getByRole("button", { name: /knowledge graph/i }).click();
+  await expect.element(screen.getByRole("heading", { name: "Knowledge Graph" })).toBeVisible();
+});

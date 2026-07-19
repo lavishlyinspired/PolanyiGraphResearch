@@ -9,7 +9,8 @@ export type PageId =
   | "rules"
   | "ontology"
   | "sources"
-  | "documents";
+  | "documents"
+  | "graph";
 
 type NavigationContextValue = { navigate: (id: PageId) => void };
 

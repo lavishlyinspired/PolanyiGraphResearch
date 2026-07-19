@@ -3,6 +3,7 @@ import { NavigationProvider, type PageId } from "@/navigation";
 import { AgentPage } from "@/pages/Agent/AgentPage";
 import { DocumentsPage } from "@/pages/Documents/DocumentsPage";
 import { GlossaryPage } from "@/pages/Glossary/GlossaryPage";
+import { GraphPage } from "@/pages/Graph/GraphPage";
 import { OntologyPage } from "@/pages/Ontology/OntologyPage";
 import { OverviewPage } from "@/pages/Overview/OverviewPage";
 import { QueryConsolePage } from "@/pages/QueryConsole/QueryConsolePage";
@@ -33,6 +34,7 @@ const navGroups: NavGroup[] = [
     sub: "Graph & Documents",
     items: [
       { id: "console", label: "Query Console" },
+      { id: "graph", label: "Knowledge Graph" },
       { id: "documents", label: "Documents" },
     ],
   },
@@ -63,6 +65,7 @@ const pageComponents: Record<PageId, () => React.JSX.Element> = {
   ontology: OntologyPage,
   sources: SourcesPage,
   documents: DocumentsPage,
+  graph: GraphPage,
 };
 
 export function AppShell() {

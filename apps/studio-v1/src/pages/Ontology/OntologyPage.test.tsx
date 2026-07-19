@@ -140,8 +140,10 @@ test("expanding a candidate's hierarchy shows real ancestors, descendants, and r
 
   await detail.getByRole("button", { name: /view hierarchy/i }).first().click();
 
-  await expect.element(detail.getByText("Bond")).toBeVisible();
-  await expect.element(detail.getByText("Municipal Revenue Bond")).toBeVisible();
+  // exact matches: "Bond" alone would otherwise substring-match the
+  // candidate's own "RevenueBond" label rendered elsewhere in this region.
+  await expect.element(detail.getByText("Bond", { exact: true })).toBeVisible();
+  await expect.element(detail.getByText("Municipal Revenue Bond", { exact: true })).toBeVisible();
   await expect.element(detail.getByText(/consistent/i)).toBeVisible();
 });
 
