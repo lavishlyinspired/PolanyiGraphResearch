@@ -1,5 +1,5 @@
 from polanyi.memory import build_checkpointer
-from polanyi.memory.sessions import list_sessions
+from polanyi.memory.sessions import get_session_messages, list_sessions
 
 
 def test_sqlite_checkpointer_is_created_at_configured_path(tmp_path):
@@ -166,3 +166,33 @@ def test_list_sessions_respects_the_limit():
         _put_turn(checkpointer, f"t{i}", "q", "a", f"2026-01-01T00:0{i}:00Z")
 
     assert len(list_sessions(checkpointer, limit=2)) == 2
+
+
+def test_get_session_messages_returns_the_real_transcript_oldest_first(tmp_path):
+    from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+    from langgraph.checkpoint.base import empty_checkpoint
+
+    checkpointer = build_checkpointer(str(tmp_path / "sessions.db"))
+    config = {"configurable": {"thread_id": "t1", "checkpoint_ns": ""}}
+    checkpoint = empty_checkpoint()
+    checkpoint["channel_values"] = {
+        "messages": [
+            HumanMessage(content="How many trades?"),
+            AIMessage(content="", tool_calls=[{"name": "sql_db_query", "args": {}, "id": "c1"}]),
+            ToolMessage(content="[(6,)]", name="sql_db_query", tool_call_id="c1"),
+            AIMessage(content="There are 6 trades."),
+        ]
+    }
+    checkpointer.put(config, checkpoint, {"source": "input", "step": 0}, {})
+
+    transcript = get_session_messages(checkpointer, "t1")
+    assert transcript == [
+        {"role": "human", "content": "How many trades?"},
+        {"role": "ai", "content": "There are 6 trades."},
+    ]
+
+
+def test_get_session_messages_returns_empty_for_an_unknown_session():
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    assert get_session_messages(InMemorySaver(), "no-such-session") == []

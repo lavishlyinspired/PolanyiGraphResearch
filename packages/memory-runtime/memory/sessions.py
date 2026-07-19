@@ -40,3 +40,26 @@ def list_sessions(checkpointer, limit: int = 50) -> list[SessionSummary]:
         )
     summaries.sort(key=lambda s: s.updated_at, reverse=True)
     return summaries[:limit]
+
+
+def get_session_messages(checkpointer, session_id: str) -> list[dict]:
+    """Full real transcript for one session, oldest first — human questions
+    and final AI answers only (tool-call/tool-result steps are the
+    reasoning trace, not the conversation itself, and intermediate
+    AIMessages from tool-calling turns carry empty content)."""
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    config = {"configurable": {"thread_id": session_id}}
+    latest = None
+    for tup in checkpointer.list(config):
+        if latest is None or tup.checkpoint.get("ts", "") > latest.checkpoint.get("ts", ""):
+            latest = tup
+    if latest is None:
+        return []
+
+    messages = latest.checkpoint.get("channel_values", {}).get("messages") or []
+    return [
+        {"role": "human" if isinstance(m, HumanMessage) else "ai", "content": str(m.content)}
+        for m in messages
+        if isinstance(m, (HumanMessage, AIMessage)) and str(m.content).strip() != ""
+    ]

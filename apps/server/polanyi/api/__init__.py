@@ -680,6 +680,15 @@ def create_app(
             state["checkpointer"] = build_checkpointer()
         return [s.model_dump() for s in list_sessions(state["checkpointer"])]
 
+    @app.get("/api/sessions/{session_id}/messages")
+    def session_messages_endpoint(session_id: str):
+        from polanyi.memory import build_checkpointer
+        from polanyi.memory.sessions import get_session_messages
+
+        if state["checkpointer"] is None:
+            state["checkpointer"] = build_checkpointer()
+        return get_session_messages(state["checkpointer"], session_id)
+
     @app.get("/api/ontology/search")
     def ontology_search(q: str):
         from polanyi.semantic.ontology import GraphDBOntologyStore, graphdb_configured
