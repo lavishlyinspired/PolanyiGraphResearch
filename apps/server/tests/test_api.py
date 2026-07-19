@@ -141,11 +141,66 @@ def test_validate_endpoint_flags_bad_sql(client):
 
 
 def test_ask_without_llm_returns_503(client, monkeypatch):
-    for var in ("NVIDIA_API_KEY", "OPENAI_API_KEY", "DATABRICKS_TOKEN"):
+    for var in ("NVIDIA_API_KEY", "OPENAI_API_KEY", "DATABRICKS_TOKEN", "POLANYI_LLM_PROVIDER"):
         monkeypatch.delenv(var, raising=False)
     res = client.post("/api/ask", json={"question": "How many trades?"})
-    # In deterministic mode the agent cannot run — clients must get a clear signal
-    assert res.status_code in {200, 503}
+    assert res.status_code == 503
+    assert "No LLM configured" in res.json()["detail"]
+
+
+def test_ask_returns_502_when_the_agent_raises(client, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    import polanyi.agents.semantic_agent as agent_module
+
+    class BrokenAgent:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def ask(self, question, session_id=None):
+            raise RuntimeError("agent crashed")
+
+    monkeypatch.setattr(agent_module, "SemanticAgent", BrokenAgent)
+
+    res = client.post("/api/ask", json={"question": "How many trades?"})
+    assert res.status_code == 502
+    assert "agent crashed" in res.json()["detail"]
+
+
+def test_ask_returns_the_real_answer_and_reasoning_trace(client, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    import polanyi.agents.semantic_agent as agent_module
+    from polanyi.models import AgentStep, AskResult
+
+    captured: dict = {}
+
+    class FakeAgent:
+        def __init__(self, db_uri, context, llm, registry=None):
+            captured["db_uri"] = db_uri
+
+        def ask(self, question, session_id=None):
+            captured["question"] = question
+            captured["session_id"] = session_id
+            return AskResult(
+                question=question,
+                answer="There are 6 trades.",
+                steps=[
+                    AgentStep(kind="tool_call", name="sql_db_query", detail="SELECT COUNT(*) FROM trades"),
+                    AgentStep(kind="validation", name="passed", detail="SELECT COUNT(*) FROM trades"),
+                    AgentStep(kind="tool_result", name="sql_db_query", detail="[(6,)]"),
+                    AgentStep(kind="answer", name="final", detail="There are 6 trades."),
+                ],
+            )
+
+    monkeypatch.setattr(agent_module, "SemanticAgent", FakeAgent)
+
+    res = client.post("/api/ask", json={"question": "How many trades?", "session_id": "sess-1"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["answer"] == "There are 6 trades."
+    assert [s["kind"] for s in body["steps"]] == ["tool_call", "validation", "tool_result", "answer"]
+    assert captured["session_id"] == "sess-1"
 
 
 def test_sql_execute_runs_a_valid_query_and_returns_rows(client):
