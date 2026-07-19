@@ -151,6 +151,25 @@ def _describe_graph_schema(store: Any) -> str:
         store.close()
 
 
+def merge_search_hits(
+    vector_hits: list[dict[str, Any]], fulltext_hits: list[dict[str, Any]], top_k: int
+) -> list[dict[str, Any]]:
+    """Combine real vector + fulltext hits by term. A term found by only one
+    leg gets a real 0.0 for the other (never a fabricated score) — this is
+    what makes hybrid search "hybrid" rather than picking one leg silently."""
+    combined: dict[str, dict[str, Any]] = {}
+    for hit in vector_hits:
+        entry = combined.setdefault(hit["term"], {"term": hit["term"], "vector_score": 0.0, "fulltext_score": 0.0})
+        entry["vector_score"] = hit["score"]
+    for hit in fulltext_hits:
+        entry = combined.setdefault(hit["term"], {"term": hit["term"], "vector_score": 0.0, "fulltext_score": 0.0})
+        entry["fulltext_score"] = hit["score"]
+    for entry in combined.values():
+        entry["combined_score"] = entry["vector_score"] + entry["fulltext_score"]
+    ranked = sorted(combined.values(), key=lambda e: e["combined_score"], reverse=True)
+    return ranked[:top_k]
+
+
 def _register_optional_backends(registry: CapabilityRegistry) -> None:
     from polanyi.execution.knowledge_graph import neo4j_configured
     from polanyi.semantic.ontology import graphdb_configured
@@ -254,6 +273,38 @@ def _register_optional_backends(registry: CapabilityRegistry) -> None:
                 kind="tool",
                 description="Read-only Cypher over the materialized enterprise knowledge graph",
                 handler=query_knowledge_graph,
+                metadata={"guarded": True},
+            )
+        )
+
+        @tool
+        def search_knowledge_graph(query: str, top_k: int = 5) -> str:
+            """Semantic + lexical search over the enterprise knowledge graph.
+            Finds Term nodes matching `query` by meaning (vector, when an
+            embedding provider is configured) and text (fulltext, always)."""
+            from polanyi.semantic.embeddings import resolve_embedding_provider
+
+            provider = resolve_embedding_provider()
+            query_vector = provider.embed([query])[0] if provider is not None else None
+            search_store = Neo4jGraphStore()
+            try:
+                hits = search_store.hybrid_search(query_vector, query, top_k)
+            except Exception as exc:  # noqa: BLE001 — surface driver errors to the model
+                return f"Error: {exc}"
+            finally:
+                search_store.close()
+            merged = merge_search_hits(hits["vector"], hits["fulltext"], top_k)
+            if not merged:
+                return "No matching terms found via semantic or lexical search."
+            return "\n".join(f"{h['term']} (score: {h['combined_score']:.2f})" for h in merged)
+
+        registry.register(
+            CapabilityProvider(
+                name="neo4j-search_knowledge_graph",
+                capability="SearchKnowledgeGraph",
+                kind="tool",
+                description="Semantic + lexical search over the enterprise knowledge graph's glossary terms",
+                handler=search_knowledge_graph,
                 metadata={"guarded": True},
             )
         )

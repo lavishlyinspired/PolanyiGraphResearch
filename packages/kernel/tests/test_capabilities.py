@@ -292,3 +292,113 @@ def test_query_knowledge_graph_closes_the_connection_even_when_the_graph_is_empt
     closes_before_call = store.close_count
     tool.invoke({"cypher": "MATCH (n) RETURN n LIMIT 1"})
     assert store.close_count == closes_before_call + 1
+
+
+# ── Hybrid knowledge-graph search (Phase 2.3) ────────────────────
+
+
+def test_merge_search_hits_combines_scores_for_a_term_matched_by_both_legs():
+    from polanyi.kernel.capabilities import merge_search_hits
+
+    vector_hits = [{"term": "Counterparty", "score": 0.9}]
+    fulltext_hits = [{"term": "Counterparty", "score": 0.4}]
+    merged = merge_search_hits(vector_hits, fulltext_hits, top_k=5)
+    assert merged == [{"term": "Counterparty", "vector_score": 0.9, "fulltext_score": 0.4, "combined_score": 1.3}]
+
+
+def test_merge_search_hits_never_fabricates_a_term_absent_from_both_legs():
+    from polanyi.kernel.capabilities import merge_search_hits
+
+    merged = merge_search_hits([{"term": "A", "score": 0.5}], [{"term": "B", "score": 0.5}], top_k=5)
+    terms = {m["term"] for m in merged}
+    assert terms == {"A", "B"}
+
+
+def test_merge_search_hits_gives_a_fulltext_only_term_zero_vector_score_not_a_fabricated_one():
+    from polanyi.kernel.capabilities import merge_search_hits
+
+    merged = merge_search_hits([], [{"term": "Trade", "score": 0.6}], top_k=5)
+    assert merged == [{"term": "Trade", "vector_score": 0.0, "fulltext_score": 0.6, "combined_score": 0.6}]
+
+
+def test_merge_search_hits_respects_top_k_and_ranks_by_combined_score_descending():
+    from polanyi.kernel.capabilities import merge_search_hits
+
+    vector_hits = [{"term": "Low", "score": 0.1}, {"term": "High", "score": 0.9}]
+    merged = merge_search_hits(vector_hits, [], top_k=1)
+    assert merged == [{"term": "High", "vector_score": 0.9, "fulltext_score": 0.0, "combined_score": 0.9}]
+
+
+class _FakeHybridStore:
+    def __init__(self, vector_hits=None, fulltext_hits=None):
+        self.vector_hits = vector_hits if vector_hits is not None else []
+        self.fulltext_hits = fulltext_hits if fulltext_hits is not None else []
+        self.last_query_vector = "not called"
+        self.closed = False
+
+    def hybrid_search(self, query_vector, query_text, top_k):
+        self.last_query_vector = query_vector
+        return {"vector": self.vector_hits, "fulltext": self.fulltext_hits}
+
+    def close(self):
+        self.closed = True
+
+
+def test_search_knowledge_graph_tool_registered_when_neo4j_configured(demo_uri, monkeypatch):
+    _configure_fake_neo4j(monkeypatch, _FakeNeo4jStore(node_count=1, labels=[], rel_types=[]))
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    names = {t.name for t in registry.agent_tools()}
+    assert "search_knowledge_graph" in names
+
+
+def test_search_knowledge_graph_runs_fulltext_only_without_a_configured_embedding_provider(demo_uri, monkeypatch):
+    import polanyi.execution.knowledge_graph as kg_module
+    import polanyi.semantic.embeddings as embeddings_module
+
+    monkeypatch.setenv("NEO4J_URI", "neo4j://fake:7687")
+    monkeypatch.setattr(embeddings_module, "resolve_embedding_provider", lambda: None)
+    fake_store = _FakeHybridStore(fulltext_hits=[{"term": "Counterparty", "score": 0.7}])
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: fake_store)
+
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    tool = next(t for t in registry.agent_tools() if t.name == "search_knowledge_graph")
+    result = tool.invoke({"query": "counterparty"})
+
+    assert fake_store.last_query_vector is None  # never fabricated a vector with no provider
+    assert "Counterparty" in result
+
+
+def test_search_knowledge_graph_embeds_the_query_when_a_provider_is_configured(demo_uri, monkeypatch):
+    import polanyi.execution.knowledge_graph as kg_module
+    import polanyi.semantic.embeddings as embeddings_module
+
+    class FakeProvider:
+        def embed(self, texts):
+            return [[0.1, 0.2, 0.3] for _ in texts]
+
+    monkeypatch.setenv("NEO4J_URI", "neo4j://fake:7687")
+    monkeypatch.setattr(embeddings_module, "resolve_embedding_provider", lambda: FakeProvider())
+    fake_store = _FakeHybridStore(vector_hits=[{"term": "Trade", "score": 0.95}])
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: fake_store)
+
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    tool = next(t for t in registry.agent_tools() if t.name == "search_knowledge_graph")
+    result = tool.invoke({"query": "trade"})
+
+    assert fake_store.last_query_vector == [0.1, 0.2, 0.3]
+    assert "Trade" in result
+
+
+def test_search_knowledge_graph_reports_honestly_when_nothing_matches(demo_uri, monkeypatch):
+    import polanyi.execution.knowledge_graph as kg_module
+    import polanyi.semantic.embeddings as embeddings_module
+
+    monkeypatch.setenv("NEO4J_URI", "neo4j://fake:7687")
+    monkeypatch.setattr(embeddings_module, "resolve_embedding_provider", lambda: None)
+    fake_store = _FakeHybridStore()
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: fake_store)
+
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    tool = next(t for t in registry.agent_tools() if t.name == "search_knowledge_graph")
+    result = tool.invoke({"query": "nonexistent"})
+    assert "no matching" in result.lower()
