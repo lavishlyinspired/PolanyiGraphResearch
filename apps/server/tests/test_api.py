@@ -215,6 +215,155 @@ def test_ask_returns_the_real_answer_and_reasoning_trace(client, monkeypatch):
     assert captured["session_id"] == "sess-1"
 
 
+def test_ask_uses_a_client_supplied_override_llm_when_provided(client, monkeypatch):
+    """Studio's provider switcher: the key lives in the browser and is sent
+    on this one request only -- it must build a fresh LLM from the
+    override, not fall back to (or persist into) the server's own
+    NVIDIA/OpenAI/Databricks configuration."""
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("DATABRICKS_TOKEN", raising=False)
+
+    import polanyi.agents.semantic_agent as agent_module
+    import polanyi.api as api_module
+    from polanyi.models import AskResult
+
+    captured: dict = {}
+
+    def fake_build_llm_from_override(model, api_key, base_url=None, temperature=0.0):
+        captured["model"] = model
+        captured["api_key"] = api_key
+        captured["base_url"] = base_url
+        return object()
+
+    monkeypatch.setattr(api_module, "build_llm_from_override", fake_build_llm_from_override)
+
+    class FakeAgent:
+        def __init__(self, db_uri, context, llm, registry=None, on_validation=None):
+            captured["llm"] = llm
+
+        def ask(self, question, session_id=None):
+            return AskResult(question=question, answer="ok", steps=[])
+
+    monkeypatch.setattr(agent_module, "SemanticAgent", FakeAgent)
+
+    res = client.post(
+        "/api/ask",
+        json={
+            "question": "test",
+            "override_model": "deepseek-v4-flash",
+            "override_api_key": "client-key",
+            "override_base_url": "https://opencode.ai/zen/v1",
+        },
+    )
+    assert res.status_code == 200
+    assert captured["model"] == "deepseek-v4-flash"
+    assert captured["api_key"] == "client-key"
+    assert captured["base_url"] == "https://opencode.ai/zen/v1"
+
+
+def test_ask_ignores_a_partial_override_missing_the_api_key(client, monkeypatch):
+    """Both override_model AND override_api_key must be present -- an
+    override_model with no key must fall through to the normal
+    server-side LLM path (and its normal "no LLM configured" honesty),
+    never attempt a client build with a missing key."""
+    for var in ("NVIDIA_API_KEY", "OPENAI_API_KEY", "DATABRICKS_TOKEN", "POLANYI_LLM_PROVIDER"):
+        monkeypatch.delenv(var, raising=False)
+
+    res = client.post("/api/ask", json={"question": "test", "override_model": "deepseek-v4-flash"})
+
+    assert res.status_code == 503
+
+
+def test_provider_models_returns_the_real_catalog_using_a_client_supplied_key(client, monkeypatch):
+    import polanyi.api as api_module
+
+    captured: dict = {}
+
+    def fake_list_provider_models(provider, api_key):
+        captured["provider"] = provider
+        captured["api_key"] = api_key
+        return [{"id": "deepseek-v4-flash-free", "is_free": True}]
+
+    monkeypatch.setattr(api_module, "list_provider_models", fake_list_provider_models)
+
+    res = client.get("/api/providers/opencode/models?api_key=client-key")
+
+    assert res.status_code == 200
+    assert res.json() == [{"id": "deepseek-v4-flash-free", "is_free": True}]
+    assert captured == {"provider": "opencode", "api_key": "client-key"}
+
+
+def test_provider_models_prefers_the_client_supplied_key_over_the_servers_own(client, monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "server-secret-must-not-be-used")
+
+    import polanyi.api as api_module
+
+    captured: dict = {}
+
+    def fake_list_provider_models(provider, api_key):
+        captured["api_key"] = api_key
+        return []
+
+    monkeypatch.setattr(api_module, "list_provider_models", fake_list_provider_models)
+
+    res = client.get("/api/providers/nvidia/models?api_key=client-key")
+
+    assert res.status_code == 200
+    assert captured["api_key"] == "client-key"
+
+
+def test_provider_models_falls_back_to_the_servers_own_key_when_none_supplied(client, monkeypatch):
+    monkeypatch.setenv("NVIDIA_API_KEY", "server-secret")
+
+    import polanyi.api as api_module
+
+    captured: dict = {}
+
+    def fake_list_provider_models(provider, api_key):
+        captured["api_key"] = api_key
+        return []
+
+    monkeypatch.setattr(api_module, "list_provider_models", fake_list_provider_models)
+
+    res = client.get("/api/providers/nvidia/models")
+
+    assert res.status_code == 200
+    assert captured["api_key"] == "server-secret"
+
+
+def test_provider_models_returns_503_when_no_key_is_available_anywhere(client, monkeypatch):
+    monkeypatch.delenv("OPENCODE_API_KEY", raising=False)
+
+    res = client.get("/api/providers/opencode/models")
+
+    assert res.status_code == 503
+
+
+def test_provider_models_returns_400_for_an_unknown_provider(client):
+    res = client.get("/api/providers/madeup/models?api_key=k")
+    assert res.status_code == 400
+
+
+def test_ask_without_override_keeps_using_the_normal_server_side_agent(client, monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    import polanyi.agents.semantic_agent as agent_module
+    from polanyi.models import AskResult
+
+    class FakeAgent:
+        def __init__(self, db_uri, context, llm, registry=None, on_validation=None):
+            pass
+
+        def ask(self, question, session_id=None):
+            return AskResult(question=question, answer="ok", steps=[])
+
+    monkeypatch.setattr(agent_module, "SemanticAgent", FakeAgent)
+
+    res = client.post("/api/ask", json={"question": "test"})
+    assert res.status_code == 200
+
+
 def test_sessions_endpoint_reports_real_conversations_from_the_checkpointer(client, tmp_path, monkeypatch):
     monkeypatch.setenv("POLANYI_SESSIONS_DB", str(tmp_path / "sessions.db"))
 

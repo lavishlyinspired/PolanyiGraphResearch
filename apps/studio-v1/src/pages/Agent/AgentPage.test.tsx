@@ -123,3 +123,98 @@ test("shows an honest message when no LLM is configured", async () => {
 
   await expect.element(screen.getByText(/no llm configured/i)).toBeVisible();
 });
+
+// ── Provider switcher ─────────────────────────────────────────────
+
+test("sends a saved provider override in the ask request", async () => {
+  localStorage.clear();
+  mockSessions();
+  worker.use(
+    http.get("/api/providers/opencode/models", () =>
+      HttpResponse.json([
+        { id: "big-pickle", is_free: true },
+        { id: "deepseek-v4-flash-free", is_free: true },
+        { id: "claude-opus-4-8", is_free: false },
+      ]),
+    ),
+  );
+  let capturedBody: Record<string, unknown> | null = null;
+  worker.use(
+    http.post("/api/ask", async ({ request }) => {
+      capturedBody = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json({ question: "test", answer: "ok", steps: [] });
+    }),
+  );
+
+  const screen = await render(<AgentPage />);
+  await screen.getByRole("button", { name: /provider/i }).click();
+  await screen.getByLabelText(/^provider$/i).selectOptions("opencode");
+  await expect.element(screen.getByLabelText(/^model$/i)).toBeVisible();
+  await screen.getByLabelText(/^model$/i).selectOptions("deepseek-v4-flash-free");
+  await screen.getByLabelText(/api key/i).fill("sk-client-key");
+  await screen.getByRole("button", { name: /save/i }).click();
+
+  await screen.getByLabelText(/ask a question/i).fill("test");
+  await screen.getByRole("button", { name: /^ask$/i }).click();
+
+  await expect.poll(() => capturedBody !== null).toBe(true);
+  expect(capturedBody).toMatchObject({
+    override_model: "deepseek-v4-flash-free",
+    override_api_key: "sk-client-key",
+    override_base_url: "https://opencode.ai/zen/v1",
+  });
+});
+
+test("labels free models distinctly from paid ones", async () => {
+  localStorage.clear();
+  mockSessions();
+  worker.use(
+    http.get("/api/providers/opencode/models", () =>
+      HttpResponse.json([
+        { id: "big-pickle", is_free: true },
+        { id: "claude-opus-4-8", is_free: false },
+      ]),
+    ),
+  );
+
+  const screen = await render(<AgentPage />);
+  await screen.getByRole("button", { name: /provider/i }).click();
+  await screen.getByLabelText(/^provider$/i).selectOptions("opencode");
+
+  const modelSelect = screen.getByLabelText(/^model$/i);
+  await expect.element(modelSelect.getByRole("option", { name: /big-pickle.*free/i })).toBeInTheDocument();
+  await expect
+    .element(modelSelect.getByRole("option", { name: /^claude-opus-4-8$/i }))
+    .toBeInTheDocument();
+});
+
+test("does not send an override after clearing it", async () => {
+  localStorage.clear();
+  mockSessions();
+  worker.use(
+    http.get("/api/providers/opencode/models", () =>
+      HttpResponse.json([{ id: "deepseek-v4-flash-free", is_free: true }]),
+    ),
+  );
+  let capturedBody: Record<string, unknown> | null = null;
+  worker.use(
+    http.post("/api/ask", async ({ request }) => {
+      capturedBody = (await request.json()) as Record<string, unknown>;
+      return HttpResponse.json({ question: "test", answer: "ok", steps: [] });
+    }),
+  );
+
+  const screen = await render(<AgentPage />);
+  await screen.getByRole("button", { name: /provider/i }).click();
+  await screen.getByLabelText(/^provider$/i).selectOptions("opencode");
+  await screen.getByLabelText(/^model$/i).selectOptions("deepseek-v4-flash-free");
+  await screen.getByLabelText(/api key/i).fill("sk-client-key");
+  await screen.getByRole("button", { name: /save/i }).click();
+  await screen.getByRole("button", { name: /use server default/i }).click();
+
+  await screen.getByLabelText(/ask a question/i).fill("test");
+  await screen.getByRole("button", { name: /^ask$/i }).click();
+
+  await expect.poll(() => capturedBody !== null).toBe(true);
+  expect(capturedBody).not.toHaveProperty("override_model");
+});

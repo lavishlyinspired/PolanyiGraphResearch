@@ -8,6 +8,13 @@ import {
   type SessionMessage,
   type SessionSummary,
 } from "@/api/agent";
+import {
+  clearProviderOverride,
+  loadProviderOverride,
+  saveProviderOverride,
+  type ProviderOverride,
+} from "@/lib/providerSettings";
+import { fetchProviderModels, PROVIDER_BASE_URLS, type ProviderId, type ProviderModel } from "@/api/providers";
 
 type AskState =
   | { kind: "idle" }
@@ -42,6 +49,20 @@ export function AgentPage() {
   const [question, setQuestion] = useState("");
   const [state, setState] = useState<AskState>({ kind: "idle" });
   const [latestSteps, setLatestSteps] = useState<AgentStep[]>([]);
+  const [override, setOverride] = useState<ProviderOverride | null>(() => loadProviderOverride());
+  const [showProviderPanel, setShowProviderPanel] = useState(false);
+  const [draftProvider, setDraftProvider] = useState<ProviderId>("nvidia");
+  const [draftModel, setDraftModel] = useState("");
+  const [draftApiKey, setDraftApiKey] = useState("");
+  const [availableModels, setAvailableModels] = useState<ProviderModel[]>([]);
+
+  useEffect(() => {
+    if (!showProviderPanel) return;
+    void fetchProviderModels(draftProvider, draftApiKey || undefined)
+      .then(setAvailableModels)
+      .catch(() => setAvailableModels([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showProviderPanel, draftProvider]);
 
   useEffect(() => {
     void fetchSessions()
@@ -65,12 +86,29 @@ export function AgentPage() {
     setState({ kind: "idle" });
   }
 
+  function handleSaveOverride() {
+    const saved: ProviderOverride = {
+      model: draftModel,
+      apiKey: draftApiKey,
+      baseUrl: PROVIDER_BASE_URLS[draftProvider],
+    };
+    saveProviderOverride(saved);
+    setOverride(saved);
+  }
+
+  function handleClearOverride() {
+    clearProviderOverride();
+    setOverride(null);
+    setDraftModel("");
+    setDraftApiKey("");
+  }
+
   function handleAsk() {
     const asked = question;
     setMessages((prev) => [...prev, { role: "human", content: asked }]);
     setQuestion("");
     setState({ kind: "loading" });
-    void ask(asked, sessionId)
+    void ask(asked, sessionId, override ?? undefined)
       .then((result) => {
         setMessages((prev) => [...prev, { role: "ai", content: result.answer }]);
         setLatestSteps(result.steps);
@@ -134,6 +172,79 @@ export function AgentPage() {
             )}
             {state.kind === "unavailable" && <p className="dim">{state.detail}</p>}
             {state.kind === "error" && <p className="dim">The agent request failed. Try again.</p>}
+          </div>
+
+          <div className="panel" style={{ padding: 16, marginBottom: 18 }}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setShowProviderPanel((v) => !v)}
+            >
+              Provider {override ? `(${override.model})` : "(server default)"}
+            </button>
+            {showProviderPanel && (
+              <div style={{ marginTop: 12 }}>
+                <label htmlFor="override-provider">Provider</label>
+                <br />
+                <select
+                  id="override-provider"
+                  style={{ width: "100%" }}
+                  value={draftProvider}
+                  onChange={(e) => {
+                    setDraftProvider(e.target.value as ProviderId);
+                    setDraftModel("");
+                  }}
+                >
+                  <option value="nvidia">NVIDIA</option>
+                  <option value="opencode">OpenCode Zen</option>
+                </select>
+                <br />
+                <label htmlFor="override-model">Model</label>
+                <br />
+                <select
+                  id="override-model"
+                  style={{ width: "100%" }}
+                  value={draftModel}
+                  onChange={(e) => setDraftModel(e.target.value)}
+                >
+                  <option value="">Select a model…</option>
+                  {availableModels.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.id}
+                      {m.is_free ? " (FREE)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <br />
+                <label htmlFor="override-api-key">API key</label>
+                <br />
+                <input
+                  id="override-api-key"
+                  type="password"
+                  style={{ width: "100%" }}
+                  value={draftApiKey}
+                  onChange={(e) => setDraftApiKey(e.target.value)}
+                  autoComplete="off"
+                />
+                <br />
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  style={{ marginTop: 8 }}
+                  disabled={draftModel.trim() === "" || draftApiKey.trim() === ""}
+                  onClick={handleSaveOverride}
+                >
+                  Save
+                </button>{" "}
+                <button type="button" className="btn btn-sm" style={{ marginTop: 8 }} onClick={handleClearOverride}>
+                  Use server default
+                </button>
+                <p className="dim">
+                  Your API key stays in this browser and is sent only with your own requests — it is never
+                  stored on the server.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="panel" style={{ padding: 16, marginBottom: 18 }}>

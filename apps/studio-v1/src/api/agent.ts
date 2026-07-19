@@ -51,11 +51,23 @@ export async function fetchSessionMessages(sessionId: string): Promise<SessionMe
   return z.array(sessionMessageSchema).parse(await response.json());
 }
 
-export async function ask(question: string, sessionId: string): Promise<AskResult> {
+export async function ask(
+  question: string,
+  sessionId: string,
+  override?: { model: string; apiKey: string; baseUrl?: string },
+): Promise<AskResult> {
   const response = await fetch("/api/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ question, session_id: sessionId }),
+    body: JSON.stringify({
+      question,
+      session_id: sessionId,
+      ...(override && {
+        override_model: override.model,
+        override_api_key: override.apiKey,
+        override_base_url: override.baseUrl,
+      }),
+    }),
   });
   if (response.status === 503) {
     const body: unknown = await response.json();

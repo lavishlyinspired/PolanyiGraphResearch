@@ -79,3 +79,63 @@ def resolve_llm(role: Role = "pipeline", temperature: float = 0.0):
     from langchain_openai import ChatOpenAI
 
     return ChatOpenAI(**kwargs, temperature=temperature, timeout=120, max_retries=2)
+
+
+def build_llm_from_override(
+    model: str,
+    api_key: str,
+    base_url: Optional[str] = None,
+    temperature: float = 0.0,
+):
+    """A ChatOpenAI built directly from explicit, caller-supplied
+    credentials — never reads any environment variable. For Studio's
+    provider switcher: the key lives in the browser and is supplied on
+    this one request only, so it must never fall back to (or leak
+    into) server-side provider configuration."""
+    from langchain_openai import ChatOpenAI
+
+    kwargs: dict = {"model": model, "api_key": api_key}
+    if base_url:
+        kwargs["base_url"] = base_url
+    return ChatOpenAI(**kwargs, temperature=temperature, timeout=120, max_retries=2)
+
+
+# ── Model catalogs (Studio's provider switcher) ────────────────────
+
+_PROVIDER_BASE_URLS: dict[str, str] = {
+    "nvidia": _NVIDIA_BASE_URL,
+    "opencode": "https://opencode.ai/zen/v1",
+}
+
+# OpenCode Zen's real /v1/models response carries no pricing field
+# (verified directly against the live API) -- this is a maintained
+# allowlist, not something the API itself reports. Verified free as of
+# 2026-07-20: every id ending in "-free", plus these two named exceptions.
+_KNOWN_FREE_OPENCODE_MODELS = frozenset({"big-pickle", "gpt-5-nano"})
+
+
+def annotate_opencode_model_pricing(model_ids: list[str]) -> list[dict]:
+    """Real model ids in, each annotated with a maintained is_free flag."""
+    return [
+        {"id": model_id, "is_free": model_id.endswith("-free") or model_id in _KNOWN_FREE_OPENCODE_MODELS}
+        for model_id in model_ids
+    ]
+
+
+def list_provider_models(provider: str, api_key: str) -> list[dict]:
+    """The real, live model catalog from the provider's own /v1/models
+    endpoint — never a hardcoded/fabricated list. Live-verified only,
+    like this codebase's other thin provider-API wrappers."""
+    import httpx
+
+    base_url = _PROVIDER_BASE_URLS.get(provider)
+    if base_url is None:
+        raise ValueError(f"Unknown provider: {provider}")
+
+    response = httpx.get(f"{base_url}/models", headers={"Authorization": f"Bearer {api_key}"}, timeout=10.0)
+    response.raise_for_status()
+    model_ids = [m["id"] for m in response.json()["data"]]
+
+    if provider == "opencode":
+        return annotate_opencode_model_pricing(model_ids)
+    return [{"id": model_id, "is_free": None} for model_id in model_ids]

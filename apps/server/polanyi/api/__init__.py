@@ -23,7 +23,7 @@ from polanyi import __version__
 from polanyi.demo import DEMO_BUSINESS_RULES
 from polanyi.semantic.generate import generate_context
 from polanyi.semantic.introspect import introspect
-from polanyi.kernel.llm import llm_mode, resolve_llm
+from polanyi.kernel.llm import build_llm_from_override, list_provider_models, llm_mode, resolve_llm
 from polanyi.semantic.embeddings import EmbeddingOntologyIndex, resolve_embedding_provider
 from polanyi.models import BusinessRule, SemanticContext, ValidationResult
 from polanyi.execution.validate import validate_sql
@@ -145,6 +145,13 @@ class SparqlRequest(BaseModel):
 class AskRequest(BaseModel):
     question: str
     session_id: Optional[str] = None
+    # Studio's provider switcher: a client-supplied key lives in the
+    # browser and is sent on this one request only -- never persisted
+    # server-side, never falls back to the server's own env-configured
+    # provider.
+    override_model: Optional[str] = None
+    override_api_key: Optional[str] = None
+    override_base_url: Optional[str] = None
 
 
 class GenerateRequest(BaseModel):
@@ -693,28 +700,63 @@ def create_app(
 
     @app.post("/api/ask")
     def ask(req: AskRequest):
-        if state["agent"] is None:
-            llm = resolve_llm("agent")
-            if llm is None:
-                raise HTTPException(
-                    status_code=503,
-                    detail=(
-                        "No LLM configured. Set NVIDIA_API_KEY, OPENAI_API_KEY, or "
-                        "DATABRICKS_TOKEN + DATABRICKS_SERVING_ENDPOINT."
-                    ),
-                )
-            from polanyi.agents.semantic_agent import SemanticAgent
+        from polanyi.agents.semantic_agent import SemanticAgent
 
-            state["agent"] = SemanticAgent(
+        if req.override_model and req.override_api_key:
+            # Client-supplied key: build a fresh agent for this request only
+            # -- never cached in `state`, so it can't leak into another
+            # request that didn't supply an override.
+            llm = build_llm_from_override(
+                model=req.override_model,
+                api_key=req.override_api_key,
+                base_url=req.override_base_url,
+            )
+            agent = SemanticAgent(
                 effective_db_uri(),
                 context(),
                 llm,
                 on_validation=lambda sql, result: record_enforcement(sql, result, "agent"),
             )
+        else:
+            if state["agent"] is None:
+                llm = resolve_llm("agent")
+                if llm is None:
+                    raise HTTPException(
+                        status_code=503,
+                        detail=(
+                            "No LLM configured. Set NVIDIA_API_KEY, OPENAI_API_KEY, or "
+                            "DATABRICKS_TOKEN + DATABRICKS_SERVING_ENDPOINT."
+                        ),
+                    )
+                state["agent"] = SemanticAgent(
+                    effective_db_uri(),
+                    context(),
+                    llm,
+                    on_validation=lambda sql, result: record_enforcement(sql, result, "agent"),
+                )
+            agent = state["agent"]
         try:
-            return state["agent"].ask(req.question, session_id=req.session_id).model_dump()
+            return agent.ask(req.question, session_id=req.session_id).model_dump()
         except Exception as exc:  # noqa: BLE001 — agent/LLM failures become 502s
             raise HTTPException(status_code=502, detail=f"Agent failed: {exc}") from exc
+
+    _PROVIDER_ENV_KEYS = {"nvidia": "NVIDIA_API_KEY", "opencode": "OPENCODE_API_KEY"}
+
+    @app.get("/api/providers/{provider}/models")
+    def provider_models(provider: str, api_key: Optional[str] = Query(None)):
+        """The real, live model catalog for a provider — Studio's provider
+        switcher. A client-supplied key (Studio's own browser-stored key)
+        takes precedence; otherwise falls back to the server's own
+        env-configured key so it also works for local testing."""
+        if provider not in _PROVIDER_ENV_KEYS:
+            raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+        key = api_key or os.environ.get(_PROVIDER_ENV_KEYS[provider])
+        if not key:
+            raise HTTPException(status_code=503, detail=f"No API key available for provider '{provider}'.")
+        try:
+            return list_provider_models(provider, key)
+        except Exception as exc:  # noqa: BLE001 — provider API failures become 502s
+            raise HTTPException(status_code=502, detail=f"Failed to list models: {exc}") from exc
 
     @app.get("/api/sessions")
     def list_sessions_endpoint():
