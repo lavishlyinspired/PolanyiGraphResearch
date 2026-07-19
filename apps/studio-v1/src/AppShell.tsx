@@ -1,5 +1,6 @@
 import { Fragment, useState } from "react";
 import { NavigationProvider, type PageId } from "@/navigation";
+import { DocumentsPage } from "@/pages/Documents/DocumentsPage";
 import { GlossaryPage } from "@/pages/Glossary/GlossaryPage";
 import { OntologyPage } from "@/pages/Ontology/OntologyPage";
 import { OverviewPage } from "@/pages/Overview/OverviewPage";
@@ -27,7 +28,10 @@ const navGroups: NavGroup[] = [
   {
     name: "Explore",
     sub: "Graph & Documents",
-    items: [{ id: "console", label: "Query Console" }],
+    items: [
+      { id: "console", label: "Query Console" },
+      { id: "documents", label: "Documents" },
+    ],
   },
   {
     name: "Govern",
@@ -54,6 +58,7 @@ const pageComponents: Record<PageId, () => React.JSX.Element> = {
   rules: RulesPage,
   ontology: OntologyPage,
   sources: SourcesPage,
+  documents: DocumentsPage,
 };
 
 export function AppShell() {

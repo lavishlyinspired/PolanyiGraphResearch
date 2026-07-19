@@ -1,6 +1,14 @@
 import { createContext, useContext } from "react";
 
-export type PageId = "overview" | "validator" | "console" | "glossary" | "rules" | "ontology" | "sources";
+export type PageId =
+  | "overview"
+  | "validator"
+  | "console"
+  | "glossary"
+  | "rules"
+  | "ontology"
+  | "sources"
+  | "documents";
 
 type NavigationContextValue = { navigate: (id: PageId) => void };
 

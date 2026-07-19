@@ -81,3 +81,9 @@ test("navigates to the Data Sources page", async () => {
   await screen.getByRole("button", { name: /data sources/i }).click();
   await expect.element(screen.getByRole("heading", { name: "Data Sources" })).toBeVisible();
 });
+
+test("navigates to the Documents page", async () => {
+  const screen = await render(<AppShell />);
+  await screen.getByRole("button", { name: /^documents$/i }).click();
+  await expect.element(screen.getByRole("heading", { name: "Documents" })).toBeVisible();
+});
