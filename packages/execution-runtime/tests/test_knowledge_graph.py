@@ -1,9 +1,38 @@
-from polanyi.execution.knowledge_graph import guard_cypher, materialization_statements
+from polanyi.execution.knowledge_graph import (
+    Neo4jGraphStore,
+    guard_cypher,
+    materialization_statements,
+)
 from polanyi.models import (
     EntityRelationship,
     GlossaryEntry,
     SemanticContext,
 )
+
+
+def test_default_connection_timeout_is_bounded_not_left_to_the_driver_default(monkeypatch):
+    """Real bug this guards against: GraphDatabase.driver()'s own default
+    connection_timeout is 30s. capabilities.py constructs Neo4jGraphStore()
+    with no explicit timeout at registration time (query_knowledge_graph's
+    schema-description lookup) and inside both Neo4j tool bodies -- any of
+    those would hang for up to 30s against an unreachable/misconfigured
+    NEO4J_URI, blocking every capability-registry build (including GDS tool
+    registration, which runs after this in the same function). Confirmed by
+    direct reproduction against a real unreachable address before this fix:
+    30.19s: bare Neo4jGraphStore(); 2.2s: Neo4jGraphStore(connection_timeout=2.0)."""
+    import neo4j
+
+    captured = {}
+
+    def fake_driver(uri, auth, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setattr(neo4j.GraphDatabase, "driver", staticmethod(fake_driver))
+
+    Neo4jGraphStore()
+
+    assert captured.get("connection_timeout") == 2.0
 
 
 def make_context() -> SemanticContext:

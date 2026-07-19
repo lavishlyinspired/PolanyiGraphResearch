@@ -173,20 +173,23 @@ class Neo4jGraphStore:
         uri: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
-        connection_timeout: Optional[float] = None,
+        connection_timeout: float = 2.0,
     ):
+        """Defaults to a bounded connection_timeout, not the neo4j driver's
+        own default (30s) — capabilities.py constructs this with no
+        explicit timeout at registration time and inside tool bodies; an
+        unreachable/misconfigured NEO4J_URI must fail fast there, not hang
+        for up to 30s (confirmed by direct reproduction: a real unreachable
+        address took 30.19s with the driver's default, 2.2s with this one)."""
         from neo4j import GraphDatabase
 
-        driver_kwargs: dict = {}
-        if connection_timeout is not None:
-            driver_kwargs["connection_timeout"] = connection_timeout
         self._driver = GraphDatabase.driver(
             uri or os.environ.get("NEO4J_URI", "neo4j://127.0.0.1:7687"),
             auth=(
                 username or os.environ.get("NEO4J_USERNAME", "neo4j"),
                 password or os.environ.get("NEO4J_PASSWORD", ""),
             ),
-            **driver_kwargs,
+            connection_timeout=connection_timeout,
         )
 
     def is_available(self) -> bool:
