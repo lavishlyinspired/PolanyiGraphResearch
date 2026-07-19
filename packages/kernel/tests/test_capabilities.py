@@ -17,6 +17,18 @@ def demo_uri(tmp_path):
     return f"sqlite:///{db_path}"
 
 
+@pytest.fixture(autouse=True)
+def _no_real_gds_by_default(monkeypatch):
+    """Tests that merely set a fake NEO4J_URI (to exercise other Neo4j tools)
+    would otherwise trigger a real GraphDataScience connection attempt during
+    default_registry() -- construction eagerly calls the server-version
+    equivalent of gds.version(), which retries for real before failing.
+    GDS-specific tests below override this via _configure_fake_gds."""
+    import polanyi.execution.gds_tools as gds_module
+
+    monkeypatch.setattr(gds_module, "gds_client_for_neo4j", lambda: None)
+
+
 def test_register_and_resolve_returns_provider():
     registry = CapabilityRegistry()
     provider = CapabilityProvider(
@@ -402,3 +414,132 @@ def test_search_knowledge_graph_reports_honestly_when_nothing_matches(demo_uri, 
     tool = next(t for t in registry.agent_tools() if t.name == "search_knowledge_graph")
     result = tool.invoke({"query": "nonexistent"})
     assert "no matching" in result.lower()
+
+
+# ── Graph Data Science tools (Phase 3) ────────────────────────────
+
+
+class _FakeGds:
+    def __init__(self, page_rank_rows=None, community_rows=None, similar_rows=None, embedded_count=0):
+        self._page_rank_rows = page_rank_rows or []
+        self._community_rows = community_rows or []
+        self._similar_rows = similar_rows or []
+        self._embedded_count = embedded_count
+        self.dropped_graphs: list[str] = []
+
+    def version(self):
+        return "2026.3.0"
+
+    class _FakeGraph:
+        def __init__(self, name, tracker):
+            self.name = name
+            self._tracker = tracker
+
+        def drop(self):
+            self._tracker.append(self.name)
+
+    class _FakeAlgo:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def stream(self, graph, **kwargs):
+            import pandas as pd
+
+            return pd.DataFrame(self._rows)
+
+    @property
+    def graph(self):
+        outer = self
+
+        class _Proj:
+            def project(self, name, *args, **kwargs):
+                return outer._FakeGraph(name, outer.dropped_graphs), {"nodeCount": 1}
+
+        return _Proj()
+
+    @property
+    def pageRank(self):
+        return self._FakeAlgo(self._page_rank_rows)
+
+    @property
+    def louvain(self):
+        return self._FakeAlgo(self._community_rows)
+
+    @property
+    def knn(self):
+        return self._FakeAlgo(self._similar_rows)
+
+    def run_cypher(self, query, params=None):
+        import pandas as pd
+
+        if "count(t)" in query:
+            return pd.DataFrame([{"c": self._embedded_count}])
+        ids = (params or {}).get("ids", [])
+        return pd.DataFrame([{"nodeId": i, "name": f"node-{i}"} for i in ids])
+
+
+def _configure_fake_gds(monkeypatch, gds):
+    import polanyi.execution.gds_tools as gds_module
+
+    monkeypatch.setenv("NEO4J_URI", "neo4j://fake:7687")
+    monkeypatch.setattr(gds_module, "gds_client_for_neo4j", lambda: gds)
+
+
+def test_gds_tools_registered_when_plugin_is_available(demo_uri, monkeypatch):
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: _FakeNeo4jStore(node_count=1, labels=[], rel_types=[]))
+    _configure_fake_gds(monkeypatch, _FakeGds())
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    names = {t.name for t in registry.agent_tools()}
+    assert {"graph_page_rank", "find_graph_communities", "find_similar_terms"} <= names
+
+
+def test_gds_tools_omitted_when_graphdatascience_package_is_unavailable(demo_uri, monkeypatch):
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: _FakeNeo4jStore(node_count=1, labels=[], rel_types=[]))
+    _configure_fake_gds(monkeypatch, None)  # simulates graphdatascience not installed
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    names = {t.name for t in registry.agent_tools()}
+    assert "graph_page_rank" not in names
+
+
+def test_gds_tools_omitted_when_plugin_not_installed_server_side(demo_uri, monkeypatch):
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: _FakeNeo4jStore(node_count=1, labels=[], rel_types=[]))
+
+    class BrokenGds(_FakeGds):
+        def version(self):
+            raise RuntimeError("gds.version unknown procedure")
+
+    _configure_fake_gds(monkeypatch, BrokenGds())
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    names = {t.name for t in registry.agent_tools()}
+    assert "graph_page_rank" not in names
+
+
+def test_graph_page_rank_tool_returns_real_ranked_results(demo_uri, monkeypatch):
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: _FakeNeo4jStore(node_count=1, labels=[], rel_types=[]))
+    gds = _FakeGds(page_rank_rows=[{"nodeId": 1, "score": 0.9}, {"nodeId": 2, "score": 0.2}])
+    _configure_fake_gds(monkeypatch, gds)
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    tool = next(t for t in registry.agent_tools() if t.name == "graph_page_rank")
+    result = tool.invoke({"top_n": 5})
+    assert "node-1" in result
+    assert gds.dropped_graphs == ["polanyi-pagerank"]  # projection cleaned up, not leaked
+
+
+def test_find_similar_terms_tool_reports_honestly_when_no_embeddings_exist(demo_uri, monkeypatch):
+    import polanyi.execution.knowledge_graph as kg_module
+
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: _FakeNeo4jStore(node_count=1, labels=[], rel_types=[]))
+    gds = _FakeGds(embedded_count=0)
+    _configure_fake_gds(monkeypatch, gds)
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    tool = next(t for t in registry.agent_tools() if t.name == "find_similar_terms")
+    result = tool.invoke({"top_n": 5})
+    assert "no term embeddings" in result.lower()

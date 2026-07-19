@@ -308,3 +308,73 @@ def _register_optional_backends(registry: CapabilityRegistry) -> None:
                 metadata={"guarded": True},
             )
         )
+
+        from polanyi.execution.gds_tools import gds_client_for_neo4j, gds_plugin_available
+
+        gds = gds_client_for_neo4j()
+        if gds is not None and gds_plugin_available(gds):
+            from polanyi.execution.gds_tools import find_communities, page_rank
+            from polanyi.execution.gds_tools import find_similar_terms as gds_find_similar_terms
+
+            @tool
+            def graph_page_rank(top_n: int = 10) -> str:
+                """Rank entities and terms in the knowledge graph by structural
+                importance (PageRank). Use to find the most central concepts."""
+                results = page_rank(gds, top_n)
+                if not results:
+                    return "No results — the knowledge graph may be empty."
+                return "\n".join(f"{r['name']} (score: {r['score']:.3f})" for r in results)
+
+            @tool
+            def find_graph_communities() -> str:
+                """Group entities and terms in the knowledge graph into real
+                clusters (Louvain community detection) — finds groups of
+                closely related concepts."""
+                results = find_communities(gds)
+                if not results:
+                    return "No communities found — the knowledge graph may be empty."
+                return "\n".join(f"Community {c['community_id']}: {', '.join(c['members'])}" for c in results)
+
+            @tool
+            def find_similar_terms(top_n: int = 10) -> str:
+                """Find pairs of glossary terms with similar meaning (KNN over
+                real term embeddings — requires an embedding provider to have
+                been configured when the graph was materialized)."""
+                results = gds_find_similar_terms(gds, top_n)
+                if not results:
+                    return (
+                        "No term embeddings exist yet — configure "
+                        "POLANYI_EMBEDDING_PROVIDER and re-materialize the graph first."
+                    )
+                return "\n".join(f"{r['term_a']} ~ {r['term_b']} (similarity: {r['similarity']:.3f})" for r in results)
+
+            registry.register(
+                CapabilityProvider(
+                    name="gds-page-rank",
+                    capability="GraphPageRank",
+                    kind="tool",
+                    description="Rank entities/terms by structural importance via GDS PageRank",
+                    handler=graph_page_rank,
+                    metadata={"guarded": True},
+                )
+            )
+            registry.register(
+                CapabilityProvider(
+                    name="gds-communities",
+                    capability="GraphCommunities",
+                    kind="tool",
+                    description="Group entities/terms into communities via GDS Louvain",
+                    handler=find_graph_communities,
+                    metadata={"guarded": True},
+                )
+            )
+            registry.register(
+                CapabilityProvider(
+                    name="gds-similar-terms",
+                    capability="SimilarTerms",
+                    kind="tool",
+                    description="Find similar glossary terms via GDS KNN over term embeddings",
+                    handler=find_similar_terms,
+                    metadata={"guarded": True},
+                )
+            )
