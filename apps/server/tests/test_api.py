@@ -1065,3 +1065,96 @@ def test_edit_extra_databricks_source_rebuilds_the_uri(client, tmp_path):
 def test_edit_unknown_source_returns_404(client):
     res = client.patch("/api/sources/does-not-exist", json={"uri": "sqlite:///x.db"})
     assert res.status_code == 404
+
+
+# ── Document ingestion ────────────────────────────────────────────
+
+_SAMPLE_DOC_TEXT = (
+    "Acme Bank Corp reported a Notional Amount of $2.5 million as of 2024-03-15. "
+    "The counterparty risk exposure remains within policy limits."
+)
+
+
+def test_ingest_document_extracts_real_mentions_via_the_heuristic_fallback(client, monkeypatch):
+    """No LLM key is set in the test environment, so make_extractor() falls
+    back to HeuristicExtractor -- real regex-based extraction, not a stub."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("DATABRICKS_TOKEN", raising=False)
+
+    res = client.post("/api/documents/ingest", json={"text": _SAMPLE_DOC_TEXT, "title": "Q1 Memo"})
+    assert res.status_code == 200
+    body = res.json()
+    texts = {m["text"] for m in body["mentions"]}
+    assert "Acme Bank Corp" in texts
+    assert "2024-03-15" in texts
+    assert body["triples"] > 0
+
+
+def test_ingest_document_resolves_mentions_against_the_real_glossary(client, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("DATABRICKS_TOKEN", raising=False)
+
+    res = client.post("/api/documents/ingest", json={"text": _SAMPLE_DOC_TEXT, "title": "Q1 Memo"})
+    assert res.status_code == 200
+    mentions = res.json()["mentions"]
+    notional = next((m for m in mentions if "notional" in m["text"].lower()), None)
+    assert notional is not None
+    assert notional["resolved_term"] == "Notional Amount"
+
+
+def test_ingest_document_reports_which_extractor_ran(client, monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
+    monkeypatch.delenv("DATABRICKS_TOKEN", raising=False)
+
+    res = client.post("/api/documents/ingest", json={"text": _SAMPLE_DOC_TEXT, "title": "Q1 Memo"})
+    assert res.status_code == 200
+    assert res.json()["extractor"] == "HeuristicExtractor"
+
+
+def test_ingest_document_publishes_to_graphdb_when_configured(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+
+    import polanyi.semantic.rdf as rdf_module
+
+    published = {}
+
+    def fake_publish(graph, named_graph, replace):
+        published["named_graph"] = named_graph
+        published["replace"] = replace
+        return named_graph
+
+    monkeypatch.setattr(rdf_module, "publish_to_graphdb", fake_publish)
+
+    import polanyi.semantic.ontology as ontology_module
+
+    monkeypatch.setattr(ontology_module, "graphdb_configured", lambda: True)
+
+    res = client.post("/api/documents/ingest", json={"text": _SAMPLE_DOC_TEXT, "title": "Q1 Memo"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["published_uri"] is not None
+    assert "Q1" in body["published_uri"] or "memo" in body["published_uri"].lower()
+    assert published["named_graph"] == "urn:polanyi:documents"
+    assert published["replace"] is False  # accumulate, never wipe prior documents
+
+
+def test_ingest_document_omits_published_uri_when_graphdb_unconfigured(client, monkeypatch):
+    monkeypatch.delenv("GRAPHDB_ENDPOINT", raising=False)
+
+    res = client.post("/api/documents/ingest", json={"text": _SAMPLE_DOC_TEXT, "title": "Q1 Memo"})
+    assert res.status_code == 200
+    assert res.json()["published_uri"] is None
+
+
+def test_ingest_document_returns_422_with_the_shacl_report_on_failure(client, monkeypatch):
+    import polanyi.semantic.rdf as rdf_module
+
+    monkeypatch.setattr(
+        rdf_module, "validate_rdf", lambda graph: (False, "Shape violation: missing text")
+    )
+    res = client.post("/api/documents/ingest", json={"text": _SAMPLE_DOC_TEXT, "title": "Bad Doc"})
+    assert res.status_code == 422
+    assert "missing text" in res.json()["detail"]

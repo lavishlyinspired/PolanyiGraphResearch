@@ -706,14 +706,19 @@ def create_app(
 
     @app.post("/api/documents/ingest")
     def ingest_doc(req: "IngestDocumentRequest"):
+        from rdflib import RDF
+
         from polanyi.semantic.documents import (
+            DOCUMENTS_GRAPH_IRI,
             DocumentExtraction,
             IngestedDocument,
             document_to_rdf,
             make_extractor,
             resolve_mentions,
+            scan_glossary_terms,
         )
-        from polanyi.semantic.rdf import validate_rdf
+        from polanyi.semantic.ontology import graphdb_configured
+        from polanyi.semantic.rdf import GOS, publish_to_graphdb, validate_rdf
 
         extractor = make_extractor(resolve_llm("pipeline"))
         doc = IngestedDocument(
@@ -723,14 +728,32 @@ def create_app(
             extraction=DocumentExtraction(),
         )
         doc.extraction = extractor.extract(req.text)
+        # Glossary terms are known up front — string-match them in even when
+        # the extractor misses a metric, guaranteeing document->term links.
+        already_extracted = {m.text.lower() for m in doc.extraction.mentions}
+        doc.extraction.mentions.extend(
+            m for m in scan_glossary_terms(req.text, context()) if m.text.lower() not in already_extracted
+        )
         doc = resolve_mentions(doc, context())
         graph = document_to_rdf(doc)
         conforms, report = validate_rdf(graph)
         if not conforms:
             raise HTTPException(status_code=422, detail=f"SHACL validation failed: {report}")
+
+        published_uri = None
+        if graphdb_configured():
+            try:
+                publish_to_graphdb(graph, named_graph=DOCUMENTS_GRAPH_IRI, replace=False)
+                published_uri = str(next(graph.subjects(RDF.type, GOS.Document)))
+            except Exception:  # noqa: BLE001 — persistence is best-effort; the parsed
+                # result below is still real and useful even if publishing fails
+                published_uri = None
+
         return {
             "mentions": [m.model_dump() for m in doc.extraction.mentions],
             "triples": len(graph),
+            "extractor": type(extractor).__name__,
+            "published_uri": published_uri,
         }
 
     @app.post("/api/context/align")
