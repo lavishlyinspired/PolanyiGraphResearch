@@ -203,6 +203,37 @@ def test_ask_returns_the_real_answer_and_reasoning_trace(client, monkeypatch):
     assert captured["session_id"] == "sess-1"
 
 
+def test_sessions_endpoint_reports_real_conversations_from_the_checkpointer(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("POLANYI_SESSIONS_DB", str(tmp_path / "sessions.db"))
+
+    from langchain_core.messages import AIMessage, HumanMessage
+    from langgraph.checkpoint.base import empty_checkpoint
+    from polanyi.memory import build_checkpointer
+
+    checkpointer = build_checkpointer()
+    config = {"configurable": {"thread_id": "sess-1", "checkpoint_ns": ""}}
+    checkpoint = empty_checkpoint()
+    checkpoint["channel_values"] = {
+        "messages": [HumanMessage(content="How many trades?"), AIMessage(content="6.")]
+    }
+    checkpointer.put(config, checkpoint, {"source": "input", "step": 0}, {})
+
+    res = client.get("/api/sessions")
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body) == 1
+    assert body[0]["session_id"] == "sess-1"
+    assert body[0]["turn_count"] == 1
+    assert body[0]["last_message"] == "How many trades?"
+
+
+def test_sessions_endpoint_returns_an_empty_list_when_nothing_has_run(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("POLANYI_SESSIONS_DB", str(tmp_path / "empty-sessions.db"))
+    res = client.get("/api/sessions")
+    assert res.status_code == 200
+    assert res.json() == []
+
+
 def test_sql_execute_runs_a_valid_query_and_returns_rows(client):
     res = client.post(
         "/api/sql/execute", json={"sql": "SELECT legal_name FROM counterparties LIMIT 3"}

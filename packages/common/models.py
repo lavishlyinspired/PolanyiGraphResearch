@@ -173,3 +173,13 @@ class AskResult(BaseModel):
     question: str
     answer: str
     steps: list[AgentStep] = Field(default_factory=list)
+
+
+class SessionSummary(BaseModel):
+    """One conversation thread, derived from the checkpointer's own state —
+    no separate session store."""
+
+    session_id: str
+    turn_count: int = 0
+    last_message: str = ""
+    updated_at: str = ""

@@ -228,6 +228,7 @@ def create_app(
         "snapshot_at": None,
         "context": None,
         "agent": None,
+        "checkpointer": None,
         "databricks_client": None,
         "embedding_index": None,
         "extra_sources": _sources_config["extra"],
@@ -669,6 +670,15 @@ def create_app(
             return state["agent"].ask(req.question, session_id=req.session_id).model_dump()
         except Exception as exc:  # noqa: BLE001 — agent/LLM failures become 502s
             raise HTTPException(status_code=502, detail=f"Agent failed: {exc}") from exc
+
+    @app.get("/api/sessions")
+    def list_sessions_endpoint():
+        from polanyi.memory import build_checkpointer
+        from polanyi.memory.sessions import list_sessions
+
+        if state["checkpointer"] is None:
+            state["checkpointer"] = build_checkpointer()
+        return [s.model_dump() for s in list_sessions(state["checkpointer"])]
 
     @app.get("/api/ontology/search")
     def ontology_search(q: str):
