@@ -378,3 +378,25 @@ def _register_optional_backends(registry: CapabilityRegistry) -> None:
                     metadata={"guarded": True},
                 )
             )
+
+        from polanyi.execution.graphrag_pipeline import graph_rag_query as _graph_rag_query
+
+        @tool
+        def graph_rag_query(question: str) -> str:
+            """Answer a question using GraphRAG over the enterprise knowledge
+            graph: semantic + lexical retrieval over glossary terms, grounded
+            by their real entity/document relationships, then LLM generation.
+            Degrades honestly (no fabricated answer) if no LLM is configured
+            or the graph hasn't been materialized with search indexes yet."""
+            return _graph_rag_query(question)
+
+        registry.register(
+            CapabilityProvider(
+                name="graphrag-query",
+                capability="GraphRAGQuery",
+                kind="tool",
+                description="Retrieval-augmented generation over the enterprise knowledge graph",
+                handler=graph_rag_query,
+                metadata={"guarded": True},
+            )
+        )

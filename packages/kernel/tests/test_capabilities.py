@@ -543,3 +543,31 @@ def test_find_similar_terms_tool_reports_honestly_when_no_embeddings_exist(demo_
     tool = next(t for t in registry.agent_tools() if t.name == "find_similar_terms")
     result = tool.invoke({"top_n": 5})
     assert "no term embeddings" in result.lower()
+
+
+# ── GraphRAG (Phase 4) ─────────────────────────────────────────────
+
+
+def test_graph_rag_query_tool_registered_when_neo4j_configured(demo_uri, monkeypatch):
+    _configure_fake_neo4j(monkeypatch, _FakeNeo4jStore(node_count=1, labels=[], rel_types=[]))
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    names = {t.name for t in registry.agent_tools()}
+    assert "graph_rag_query" in names
+
+
+def test_graph_rag_query_tool_omitted_when_neo4j_unconfigured(demo_uri, monkeypatch):
+    monkeypatch.delenv("NEO4J_URI", raising=False)
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    names = {t.name for t in registry.agent_tools()}
+    assert "graph_rag_query" not in names
+
+
+def test_graph_rag_query_tool_calls_through_to_the_real_pipeline_function(demo_uri, monkeypatch):
+    import polanyi.execution.graphrag_pipeline as graphrag_module
+
+    _configure_fake_neo4j(monkeypatch, _FakeNeo4jStore(node_count=1, labels=[], rel_types=[]))
+    monkeypatch.setattr(graphrag_module, "graph_rag_query", lambda question: f"answered: {question}")
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    tool = next(t for t in registry.agent_tools() if t.name == "graph_rag_query")
+    result = tool.invoke({"question": "What is a Counterparty?"})
+    assert result == "answered: What is a Counterparty?"
