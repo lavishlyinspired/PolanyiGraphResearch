@@ -376,6 +376,18 @@ def test_accept_moves_a_term_from_review_into_the_aligned_band(client, monkeypat
     assert after["Account Name"] == "auto"
 
 
+def test_accept_endpoint_persists_an_explicitly_chosen_non_top_candidate(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+    _fake_ambiguous_store(monkeypatch)  # 0.7 top + 0.55 alternative for "Account Name"
+
+    res = client.post(
+        "/api/context/align/Account Name/accept", json={"candidate_uri": "urn:fibo:AccountRef"}
+    )
+    assert res.status_code == 200
+    item = next(i for i in res.json()["items"] if i["term"] == "Account Name")
+    assert item["candidate_uri"] == "urn:fibo:AccountRef"
+
+
 def test_accept_returns_404_for_an_unknown_term(client, monkeypatch):
     monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
     _fake_account_store(monkeypatch)

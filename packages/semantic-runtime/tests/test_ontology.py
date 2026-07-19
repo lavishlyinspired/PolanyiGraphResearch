@@ -9,6 +9,7 @@ from polanyi.semantic.ontology import (
     classify_band,
     reject_alignment,
     score_label,
+    score_reason,
 )
 
 
@@ -27,6 +28,14 @@ def test_score_prefix_beats_substring_beats_miss():
     miss = score_label("Trade", "interest rate")
     assert prefix > substring > miss
     assert miss == 0.0
+
+
+def test_score_reason_names_the_matching_rule_for_every_real_case():
+    assert score_reason("Trade", "trade") == "exact match"
+    assert score_reason("Trades", "trade") == "singular/plural match"
+    assert score_reason("Trade Date", "trade date value") == "prefix match"
+    assert score_reason("Trade", "equity trade confirmation") == "substring match"
+    assert score_reason("Trade", "interest rate") == "no match"
 
 
 class FakeStore:
@@ -277,6 +286,22 @@ def test_alignment_queue_places_mid_confidence_candidate_in_review_band():
     assert item.score == 0.7
 
 
+def test_alignment_queue_exposes_up_to_three_real_candidates_per_term():
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:A", label="a", score=0.8),
+                OntologyCandidate(uri="urn:fibo:B", label="b", score=0.7),
+                OntologyCandidate(uri="urn:fibo:C", label="c", score=0.6),
+                OntologyCandidate(uri="urn:fibo:D", label="d", score=0.5),
+            ],
+        }
+    )
+    queue = alignment_queue(make_context(), store)
+    item = next(i for i in queue.items if i.term == "Notional Amount")
+    assert [c.uri for c in item.candidates] == ["urn:fibo:A", "urn:fibo:B", "urn:fibo:C"]
+
+
 def test_alignment_queue_reflects_a_persisted_alignment_as_aligned_despite_a_low_live_score():
     """A term a human accepted stays in the 'auto' (aligned) band even though its
     live candidate would otherwise be mere 'review' — the queue honors decisions."""
@@ -394,6 +419,41 @@ def test_accept_alignment_attaches_the_best_candidate_to_the_term():
     assert entry.ontology_class == "notional amount"
 
 
+def test_accept_alignment_persists_an_explicitly_chosen_non_top_candidate():
+    """A user reviewing the top-N list can accept an alternative, not only the
+    algorithmically-best one."""
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:NotionalAmount", label="notional amount", score=0.61),
+                OntologyCandidate(uri="urn:fibo:Other", label="notional other", score=0.55),
+            ],
+        }
+    )
+    ctx = accept_alignment(
+        make_context(), "Notional Amount", store, candidate_uri="urn:fibo:Other"
+    )
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    assert entry.ontology_uri == "urn:fibo:Other"
+    assert entry.ontology_class == "notional other"
+
+
+def test_accept_alignment_raises_for_a_candidate_uri_not_actually_retrieved():
+    """Can only accept from what search actually returned right now — never an
+    arbitrary/stale URI, same "never expand the retrieved list" rule as LLM ranking."""
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:NotionalAmount", label="notional amount", score=0.61),
+            ],
+        }
+    )
+    with pytest.raises(LookupError):
+        accept_alignment(
+            make_context(), "Notional Amount", store, candidate_uri="urn:made:up"
+        )
+
+
 def test_accept_alignment_raises_for_an_unknown_term():
     with pytest.raises(LookupError):
         accept_alignment(make_context(), "No Such Term", FakeStore({}))
@@ -482,6 +542,22 @@ def test_reject_alignment_records_the_best_candidate_uri():
     ctx = reject_alignment(make_context(), "Notional Amount", REVIEW_STORE)
     entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
     assert "urn:fibo:NotionalStep" in entry.rejected_ontology_uris
+
+
+def test_reject_alignment_records_an_explicitly_chosen_non_top_candidate():
+    store = FakeStore(
+        {
+            "notional amount": [
+                OntologyCandidate(uri="urn:fibo:NotionalAmount", label="notional amount", score=0.61),
+                OntologyCandidate(uri="urn:fibo:Other", label="notional other", score=0.55),
+            ],
+        }
+    )
+    ctx = reject_alignment(
+        make_context(), "Notional Amount", store, candidate_uri="urn:fibo:Other"
+    )
+    entry = next(e for e in ctx.glossary if e.term == "Notional Amount")
+    assert entry.rejected_ontology_uris == ["urn:fibo:Other"]
 
 
 def test_reject_alignment_clears_a_persisted_alignment_when_it_matches_the_rejected_uri():
@@ -697,6 +773,41 @@ def test_sparql_query_flattens_bindings_to_plain_dicts(monkeypatch):
     ]
     assert captured["url"] == "http://localhost:7200/repositories/fibo"
     assert "SELECT ?term" in captured["query"]
+
+
+def test_search_classes_populates_a_human_readable_rationale(monkeypatch):
+    from polanyi.semantic.ontology import GraphDBOntologyStore
+
+    class FakeResponse:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "results": {
+                    "bindings": [
+                        {
+                            "class": {"value": "urn:fibo:Trades"},
+                            "label": {"value": "trade"},
+                            "subCount": {"value": "12"},
+                        },
+                        {
+                            "class": {"value": "urn:fibo:TradeLeaf"},
+                            "label": {"value": "trade"},
+                            "subCount": {"value": "0"},
+                        },
+                    ]
+                }
+            }
+
+    monkeypatch.setattr("httpx.post", lambda *a, **k: FakeResponse())
+
+    store = GraphDBOntologyStore(endpoint="http://localhost:7200", repository="fibo")
+    candidates = store.search_classes("Trade")
+    by_uri = {c.uri: c for c in candidates}
+
+    assert by_uri["urn:fibo:Trades"].rationale == "exact match; boosted +0.15 for 12 subclasses"
+    assert by_uri["urn:fibo:TradeLeaf"].rationale == "exact match; penalized -0.10, leaf class"
 
 
 def test_class_hierarchy_splits_parent_and_children_labels_by_kind(monkeypatch):

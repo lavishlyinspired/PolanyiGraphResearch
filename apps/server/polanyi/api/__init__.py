@@ -143,6 +143,13 @@ class GenerateRequest(BaseModel):
     use_llm: bool = True
 
 
+class AlignmentDecisionRequest(BaseModel):
+    """Optional body for accept/reject — names a specific candidate from the
+    review queue's top-N list rather than the algorithmically-best one."""
+
+    candidate_uri: Optional[str] = None
+
+
 class IngestDocumentRequest(BaseModel):
     text: str
     title: Optional[str] = None
@@ -762,7 +769,7 @@ def create_app(
         )
 
     @app.post("/api/context/align/{term}/accept")
-    def accept_alignment_candidate(term: str):
+    def accept_alignment_candidate(term: str, req: AlignmentDecisionRequest = AlignmentDecisionRequest()):
         from polanyi.semantic.ontology import (
             GraphDBOntologyStore,
             accept_alignment,
@@ -778,7 +785,9 @@ def create_app(
         llm = resolve_llm("pipeline")
         index = embedding_index_for(store)
         try:
-            ctx = accept_alignment(context(), term, store, llm=llm, embedding_index=index)
+            ctx = accept_alignment(
+                context(), term, store, llm=llm, embedding_index=index, candidate_uri=req.candidate_uri
+            )
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         state["context"] = ctx
@@ -787,7 +796,7 @@ def create_app(
         return alignment_queue(ctx, store, llm=llm, embedding_index=index)
 
     @app.post("/api/context/align/{term}/reject")
-    def reject_alignment_candidate(term: str):
+    def reject_alignment_candidate(term: str, req: AlignmentDecisionRequest = AlignmentDecisionRequest()):
         from polanyi.semantic.ontology import (
             GraphDBOntologyStore,
             alignment_queue,
@@ -803,7 +812,9 @@ def create_app(
         llm = resolve_llm("pipeline")
         index = embedding_index_for(store)
         try:
-            ctx = reject_alignment(context(), term, store, llm=llm, embedding_index=index)
+            ctx = reject_alignment(
+                context(), term, store, llm=llm, embedding_index=index, candidate_uri=req.candidate_uri
+            )
         except LookupError as error:
             raise HTTPException(status_code=404, detail=str(error)) from error
         state["context"] = ctx

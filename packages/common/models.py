@@ -132,6 +132,17 @@ class SqlExecutionResult(BaseModel):
 AlignmentBand = Literal["auto", "review", "rejected", "unmapped"]
 
 
+class OntologyCandidate(BaseModel):
+    """One retrieved ontology class, scored against a business term."""
+
+    uri: str
+    label: str
+    definition: str = ""
+    score: float = Field(default=0.0, ge=0.0, le=1.0)
+    method: Literal["lexical", "embedding"] = "lexical"
+    rationale: str = ""
+
+
 class AlignmentReviewItem(BaseModel):
     """One glossary term's best ontology candidate and its confidence band."""
 
@@ -140,6 +151,7 @@ class AlignmentReviewItem(BaseModel):
     candidate_label: Optional[str] = None
     candidate_uri: Optional[str] = None
     score: float = Field(default=0.0, ge=0.0, le=1.0)
+    candidates: list[OntologyCandidate] = Field(default_factory=list)
 
 
 class AlignmentQueue(BaseModel):

@@ -9,12 +9,18 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Literal, Optional, Protocol
+from typing import Optional, Protocol
 
 import httpx
 from pydantic import BaseModel, Field  # noqa: F401 — Field used by _RankingChoice
 
-from polanyi.models import AlignmentBand, AlignmentQueue, AlignmentReviewItem, SemanticContext
+from polanyi.models import (
+    AlignmentBand,
+    AlignmentQueue,
+    AlignmentReviewItem,
+    OntologyCandidate,
+    SemanticContext,
+)
 
 # Prefix/substring hits (0.5–0.7) are useful for search ranking but too
 # imprecise to attach automatically ("Revenue" is not a "revenue bond").
@@ -24,13 +30,9 @@ _MIN_ALIGNMENT_SCORE = 0.9
 # also the floor `align_glossary` uses before asking the LLM to rank.
 _MIN_REVIEW_SCORE = 0.5
 
-
-class OntologyCandidate(BaseModel):
-    uri: str
-    label: str
-    definition: str = ""
-    score: float = Field(default=0.0, ge=0.0, le=1.0)
-    method: Literal["lexical", "embedding"] = "lexical"
+# How many candidates AlignmentReviewItem.candidates carries for a review-band
+# term — enough to show real alternatives without overwhelming the UI.
+_MAX_REVIEW_CANDIDATES = 3
 
 
 class OntologyStore(Protocol):
@@ -61,22 +63,34 @@ def _singular(word: str) -> str:
     return word
 
 
-def score_label(term: str, label: str) -> float:
-    """Lexical similarity between a business term and an ontology class label."""
+def _score_and_reason(term: str, label: str) -> tuple[float, str]:
+    """The score_label decision, plus which rule produced it — one
+    implementation so the score and its human-readable explanation can never
+    drift apart."""
     term_n, label_n = _normalize(term), _normalize(label)
     if not term_n or not label_n:
-        return 0.0
+        return 0.0, "no match"
     if term_n == label_n:
-        return 1.0
+        return 1.0, "exact match"
     term_s = " ".join(_singular(w) for w in term_n.split())
     label_s = " ".join(_singular(w) for w in label_n.split())
     if term_s == label_s:
-        return 0.9
+        return 0.9, "singular/plural match"
     if label_s.startswith(term_s) or term_s.startswith(label_s):
-        return 0.7
+        return 0.7, "prefix match"
     if term_s in label_s or label_s in term_s:
-        return 0.5
-    return 0.0
+        return 0.5, "substring match"
+    return 0.0, "no match"
+
+
+def score_label(term: str, label: str) -> float:
+    """Lexical similarity between a business term and an ontology class label."""
+    return _score_and_reason(term, label)[0]
+
+
+def score_reason(term: str, label: str) -> str:
+    """Which rule `score_label` matched — for human-readable rationale text."""
+    return _score_and_reason(term, label)[1]
 
 
 class GraphDBOntologyStore:
@@ -245,19 +259,22 @@ class GraphDBOntologyStore:
         candidates = []
         for binding in response.json()["results"]["bindings"]:
             label = binding["label"]["value"]
-            base_score = score_label(term, label)
+            base_score, reason = _score_and_reason(term, label)
             sub_count = int(binding.get("subCount", {}).get("value", "0"))
             # Boost main classes (has subclasses) and penalize leaf nodes
             if sub_count > 0:
                 boosted = min(base_score + 0.15, 1.0)
+                reason += f"; boosted +0.15 for {sub_count} subclass{'' if sub_count == 1 else 'es'}"
             else:
                 boosted = max(base_score - 0.1, 0.0)
+                reason += "; penalized -0.10, leaf class"
             candidates.append(
                 OntologyCandidate(
                     uri=binding["class"]["value"],
                     label=label,
                     definition=binding.get("definition", {}).get("value", ""),
                     score=round(boosted, 2),
+                    rationale=reason,
                 )
             )
         candidates.sort(key=lambda c: c.score, reverse=True)
@@ -454,6 +471,9 @@ def alignment_queue(
     glossary_terms = [e.term for e in context.glossary]
     for entry in context.glossary:
         candidates = _candidates_for(entry, store, embedding_index, glossary_terms)
+        top_candidates = sorted(candidates, key=lambda c: c.score, reverse=True)[
+            :_MAX_REVIEW_CANDIDATES
+        ]
         if entry.ontology_uri is not None:
             score = next((c.score for c in candidates if c.uri == entry.ontology_uri), 0.0)
             items.append(
@@ -463,6 +483,7 @@ def alignment_queue(
                     candidate_label=entry.ontology_class,
                     candidate_uri=entry.ontology_uri,
                     score=score,
+                    candidates=top_candidates,
                 )
             )
             continue
@@ -481,9 +502,26 @@ def alignment_queue(
                 candidate_label=displayed.label if displayed is not None else None,
                 candidate_uri=displayed.uri if displayed is not None else None,
                 score=displayed.score if displayed is not None else 0.0,
+                candidates=top_candidates,
             )
         )
     return AlignmentQueue(items=items)
+
+
+def _choose_candidate(
+    entry,
+    candidates: list[OntologyCandidate],
+    llm=None,
+    store: Optional[OntologyStore] = None,
+    candidate_uri: Optional[str] = None,
+) -> Optional[OntologyCandidate]:
+    """Which candidate a write operation (accept/reject) should act on: an
+    explicit user choice when given — constrained to what was actually
+    retrieved, same "never expand the list" rule as LLM ranking — else the
+    same resolution the review queue used to decide what to display."""
+    if candidate_uri is not None:
+        return next((c for c in candidates if c.uri == candidate_uri), None)
+    return _resolve_best_candidate(entry, candidates, llm, store=store)
 
 
 def accept_alignment(
@@ -492,21 +530,23 @@ def accept_alignment(
     store: OntologyStore,
     llm=None,
     embedding_index: Optional[EmbeddingIndex] = None,
+    candidate_uri: Optional[str] = None,
 ) -> SemanticContext:
     """Attach a term's best retrieved candidate — a human accepting the alignment.
 
     Re-runs retrieval server-side and resolves the same candidate the review queue
     displayed (see `_resolve_best_candidate`), so an accept can only ever pick from
     what the deterministic search returned, never an arbitrary URI, and never drifts
-    from what the user actually reviewed. Raises ``LookupError`` for an unknown term
-    or one with no candidate.
+    from what the user actually reviewed — unless `candidate_uri` names a specific
+    alternative from the review queue's top-N list. Raises ``LookupError`` for an
+    unknown term or one with no matching candidate.
     """
     entry = next((e for e in context.glossary if e.term == term), None)
     if entry is None:
         raise LookupError(f"No glossary term named {term!r}")
     glossary_terms = [e.term for e in context.glossary]
     candidates = _candidates_for(entry, store, embedding_index, glossary_terms)
-    best = _resolve_best_candidate(entry, candidates, llm, store=store)
+    best = _choose_candidate(entry, candidates, llm, store=store, candidate_uri=candidate_uri)
     if best is None:
         raise LookupError(f"No ontology candidate to accept for {term!r}")
     entry.ontology_class = best.label
@@ -520,20 +560,22 @@ def reject_alignment(
     store: OntologyStore,
     llm=None,
     embedding_index: Optional[EmbeddingIndex] = None,
+    candidate_uri: Optional[str] = None,
 ) -> SemanticContext:
     """Reject a term's best retrieved candidate — precision over recall.
 
     Records the candidate URI so the term surfaces in the 'rejected' band and is
     not re-suggested, and clears any persisted alignment that pointed at it. Resolves
-    the same candidate the review queue displayed, symmetric with `accept_alignment`.
-    Raises ``LookupError`` for an unknown term or one with no candidate.
+    the same candidate the review queue displayed, symmetric with `accept_alignment`
+    (including the optional `candidate_uri` override). Raises ``LookupError`` for an
+    unknown term or one with no matching candidate.
     """
     entry = next((e for e in context.glossary if e.term == term), None)
     if entry is None:
         raise LookupError(f"No glossary term named {term!r}")
     glossary_terms = [e.term for e in context.glossary]
     candidates = _candidates_for(entry, store, embedding_index, glossary_terms)
-    best = _resolve_best_candidate(entry, candidates, llm, store=store)
+    best = _choose_candidate(entry, candidates, llm, store=store, candidate_uri=candidate_uri)
     if best is None:
         raise LookupError(f"No ontology candidate to reject for {term!r}")
     if best.uri not in entry.rejected_ontology_uris:
