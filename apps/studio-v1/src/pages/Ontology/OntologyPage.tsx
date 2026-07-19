@@ -7,7 +7,7 @@ import {
   rejectAlignment,
   type AlignmentQueue,
 } from "@/api/ontology";
-import { AlignmentDashboard } from "./components/AlignmentDashboard";
+import { AlignmentDashboard, type BulkAcceptResult } from "./components/AlignmentDashboard";
 import { OntologyGraph } from "./components/OntologyGraph";
 import { TermDetail } from "./components/TermDetail";
 import { TermList } from "./components/TermList";
@@ -85,6 +85,25 @@ export function OntologyPage() {
       .catch(() => setState({ kind: "error" }));
   }
 
+  async function handleBulkAccept(thresholdPercent: number): Promise<BulkAcceptResult> {
+    const eligible = queue.items.filter(
+      (item) => item.band === "review" && item.score * 100 >= thresholdPercent,
+    );
+    let latest = queue;
+    let accepted = 0;
+    let failed = 0;
+    for (const item of eligible) {
+      try {
+        latest = await acceptAlignment(item.term);
+        accepted += 1;
+      } catch {
+        failed += 1;
+      }
+    }
+    setState({ kind: "ready", queue: latest });
+    return { accepted, failed };
+  }
+
   return (
     <main className="p-6">
       <h1 className="mb-1 font-serif text-xl font-bold text-slate-900">Ontology · FIBO</h1>
@@ -92,7 +111,7 @@ export function OntologyPage() {
         Every glossary term, grounded against the Financial Industry Business Ontology.
       </p>
       <div className="mb-4">
-        <AlignmentDashboard queue={queue} />
+        <AlignmentDashboard queue={queue} onBulkAccept={handleBulkAccept} />
       </div>
       <div className="mb-4">
         <OntologyGraph queue={queue} selectedTerm={selectedTerm} onSelectTerm={setSelectedTerm} />

@@ -191,6 +191,92 @@ test("rejecting the displayed candidate moves the term to the rejected band in t
   await expect.element(detail.getByText(/rejected/i)).toBeVisible();
 });
 
+test("bulk-accepting above a threshold only accepts review terms meeting it", async () => {
+  const twoReviewTerms = getMockQueue({
+    items: [
+      ...getMockQueue().items.filter((i) => i.band !== "review"),
+      {
+        term: "Revenue",
+        band: "review",
+        candidate_label: "RevenueBond",
+        candidate_uri: "fibo:RevenueBond",
+        score: 0.85,
+        candidates: [],
+      },
+      {
+        term: "Trade Date",
+        band: "review",
+        candidate_label: "TradeDate",
+        candidate_uri: "fibo:TradeDate",
+        score: 0.55,
+        candidates: [],
+      },
+    ],
+  });
+  mockQueue(twoReviewTerms);
+
+  const acceptedTerms: string[] = [];
+  worker.use(
+    http.post("/api/context/align/:term/accept", ({ params }) => {
+      const term = decodeURIComponent(params.term as string);
+      acceptedTerms.push(term);
+      return HttpResponse.json(twoReviewTerms);
+    }),
+  );
+
+  const screen = await render(<OntologyPage />);
+  const dashboard = screen.getByRole("region", { name: /alignment summary/i });
+
+  await dashboard.getByLabelText(/minimum confidence/i).fill("70");
+  await dashboard.getByRole("button", { name: /accept all above threshold/i }).click();
+
+  await expect.element(dashboard.getByText(/done/i)).toBeVisible();
+  expect(acceptedTerms).toEqual(["Revenue"]);
+});
+
+test("bulk-accept reports per-term failures instead of failing silently", async () => {
+  const twoReviewTerms = getMockQueue({
+    items: [
+      ...getMockQueue().items.filter((i) => i.band !== "review"),
+      {
+        term: "Revenue",
+        band: "review",
+        candidate_label: "RevenueBond",
+        candidate_uri: "fibo:RevenueBond",
+        score: 0.85,
+        candidates: [],
+      },
+      {
+        term: "Trade Date",
+        band: "review",
+        candidate_label: "TradeDate",
+        candidate_uri: "fibo:TradeDate",
+        score: 0.75,
+        candidates: [],
+      },
+    ],
+  });
+  mockQueue(twoReviewTerms);
+
+  worker.use(
+    http.post("/api/context/align/:term/accept", ({ params }) => {
+      const term = decodeURIComponent(params.term as string);
+      if (term === "Trade Date") {
+        return HttpResponse.json({ detail: "no candidate" }, { status: 404 });
+      }
+      return HttpResponse.json(twoReviewTerms);
+    }),
+  );
+
+  const screen = await render(<OntologyPage />);
+  const dashboard = screen.getByRole("region", { name: /alignment summary/i });
+
+  await dashboard.getByLabelText(/minimum confidence/i).fill("70");
+  await dashboard.getByRole("button", { name: /accept all above threshold/i }).click();
+
+  await expect.element(dashboard.getByText(/1 failed/i)).toBeVisible();
+});
+
 test("renders a graph node for every term and syncs selection when a node is clicked", async () => {
   mockQueue(getMockQueue());
   const screen = await render(<OntologyPage />);
