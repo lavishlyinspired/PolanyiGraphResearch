@@ -11,7 +11,8 @@
     "src/pages/Graph/graphLayout.ts",
     "src/pages/Graph/glossaryAlignment.ts",
     "src/pages/Graph/complianceGraph.ts",
-    "src/pages/Graph/documentsGraph.ts"
+    "src/pages/Graph/documentsGraph.ts",
+    "src/pages/Graph/lineagePipeline.ts"
   ],
   "reporters": ["clear-text", "progress"],
   "concurrency": 2

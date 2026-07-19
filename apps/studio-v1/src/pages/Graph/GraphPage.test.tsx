@@ -173,3 +173,24 @@ test("switching to the Documents perspective shows real mention-chain data", asy
   await expect.element(summary).toBeVisible();
   await expect.element(summary.getByText("q1-memo")).toBeVisible();
 });
+
+test("switching to the Lineage perspective shows the real pipeline and guided walk", async () => {
+  mockStats({ nodes: 0, edges: 0, materialized_at: null });
+  worker.use(
+    http.get("/api/schema", () => HttpResponse.json({ dialect: "sqlite", tables: [] })),
+    http.get("/api/context", () =>
+      HttpResponse.json({ domain: "d", glossary: [], relationships: [], business_rules: [], key_entities: [], generated_by: "deterministic" }),
+    ),
+    http.get("/api/context/align/queue", () => HttpResponse.json({ detail: "not configured" }, { status: 503 })),
+    http.get("/api/rules", () => HttpResponse.json([])),
+    http.get("/api/sessions", () => HttpResponse.json([])),
+    http.get("/api/compliance/events", () => HttpResponse.json([])),
+  );
+
+  const screen = await render(<GraphPage />);
+  const perspectiveSwitcher = screen.getByRole("group", { name: /graph perspective/i });
+  await perspectiveSwitcher.getByRole("button", { name: "Lineage" }).click();
+
+  await expect.element(screen.getByRole("region", { name: /knowledge lineage pipeline/i })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: /how the graph was built/i })).toBeVisible();
+});

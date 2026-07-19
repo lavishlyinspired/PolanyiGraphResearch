@@ -7,8 +7,9 @@ import { GraphCanvas } from "./GraphCanvas";
 import { GlossaryPerspective } from "./GlossaryPerspective";
 import { CompliancePerspective } from "./CompliancePerspective";
 import { DocumentsPerspective } from "./DocumentsPerspective";
+import { LineagePerspective } from "./LineagePerspective";
 
-type Perspective = "full-graph" | "glossary" | "compliance" | "documents";
+type Perspective = "full-graph" | "glossary" | "compliance" | "documents" | "lineage";
 
 type State =
   | { kind: "loading" }
@@ -139,6 +140,9 @@ export function GraphPage() {
           <button type="button" aria-pressed={perspective === "documents"} onClick={() => setPerspective("documents")}>
             Documents
           </button>
+          <button type="button" aria-pressed={perspective === "lineage"} onClick={() => setPerspective("lineage")}>
+            Lineage
+          </button>
         </div>
       </div>
 
@@ -211,6 +215,7 @@ export function GraphPage() {
       {perspective === "glossary" && <GlossaryPerspective />}
       {perspective === "compliance" && <CompliancePerspective />}
       {perspective === "documents" && <DocumentsPerspective />}
+      {perspective === "lineage" && <LineagePerspective />}
     </main>
   );
 }
