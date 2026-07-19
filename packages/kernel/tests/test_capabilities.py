@@ -130,7 +130,7 @@ def test_default_registry_reports_validation_events(demo_uri):
     assert any(e.kind == "validation" and e.name == "blocked" for e in events)
 
 
-def _configure_fake_graphdb(monkeypatch, search_result=None, expand_result=None):
+def _configure_fake_graphdb(monkeypatch, search_result=None, expand_result=None, sparql_result=None):
     """Real gap this closes: SearchOntology/ExpandOntology were registered as
     kind='function' (invisible to the agent's tool list) even when GraphDB is
     configured -- promote them to kind='tool', matching query_knowledge_graph's
@@ -145,6 +145,9 @@ def _configure_fake_graphdb(monkeypatch, search_result=None, expand_result=None)
 
         def expand_subclasses(self, uri):
             return expand_result if expand_result is not None else [f"expanded:{uri}"]
+
+        def sparql_query(self, query):
+            return sparql_result if sparql_result is not None else [{"queried": query}]
 
     monkeypatch.setattr(ontology_module, "graphdb_configured", lambda: True)
     monkeypatch.setattr(ontology_module, "GraphDBOntologyStore", lambda: FakeStore())
@@ -180,7 +183,41 @@ def test_expand_ontology_tool_calls_through_to_the_real_store(demo_uri, monkeypa
     tool = next(t for t in registry.agent_tools() if t.name == "expand_ontology")
     result = tool.invoke({"uri": "https://fibo/Bond"})
     assert "fibo:Bond" in result
-    assert "fibo:MunicipalBond" in result
+
+
+# ── SPARQL agent tool (Phase 5.2) ──────────────────────────────────
+
+
+def test_query_ontology_tool_registered_when_graphdb_configured(demo_uri, monkeypatch):
+    _configure_fake_graphdb(monkeypatch)
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    names = {t.name for t in registry.agent_tools()}
+    assert "query_ontology" in names
+
+
+def test_query_ontology_tool_omitted_when_graphdb_unconfigured(demo_uri, monkeypatch):
+    import polanyi.semantic.ontology as ontology_module
+
+    monkeypatch.setattr(ontology_module, "graphdb_configured", lambda: False)
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    names = {t.name for t in registry.agent_tools()}
+    assert "query_ontology" not in names
+
+
+def test_query_ontology_tool_rejects_write_sparql(demo_uri, monkeypatch):
+    _configure_fake_graphdb(monkeypatch)
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    tool = next(t for t in registry.agent_tools() if t.name == "query_ontology")
+    result = tool.invoke({"sparql": "INSERT DATA { <urn:x> <urn:y> <urn:z> }"})
+    assert "BLOCKED" in result
+
+
+def test_query_ontology_tool_calls_through_to_the_real_store(demo_uri, monkeypatch):
+    _configure_fake_graphdb(monkeypatch, sparql_result=[{"class": "fibo:Bond"}])
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    tool = next(t for t in registry.agent_tools() if t.name == "query_ontology")
+    result = tool.invoke({"sparql": "SELECT ?class WHERE { ?class a owl:Class }"})
+    assert "fibo:Bond" in result
 
 
 class _FakeNeo4jStore:

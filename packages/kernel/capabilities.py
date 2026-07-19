@@ -217,6 +217,32 @@ def _register_optional_backends(registry: CapabilityRegistry) -> None:
             )
         )
 
+        from polanyi.semantic.ontology import guard_sparql
+
+        @make_tool
+        def query_ontology(sparql: str) -> str:
+            """Run read-only SPARQL against the FIBO ontology repository on
+            GraphDB. Write operations are rejected."""
+            violation = guard_sparql(sparql)
+            if violation:
+                return f"QUERY BLOCKED: {violation}"
+            try:
+                rows = store.sparql_query(sparql)
+            except Exception as exc:  # noqa: BLE001 — surface driver errors to the model
+                return f"Error: {exc}"
+            return str(rows[:50])
+
+        registry.register(
+            CapabilityProvider(
+                name="graphdb-query_ontology",
+                capability="QuerySPARQL",
+                kind="tool",
+                description="Read-only SPARQL over the FIBO ontology repository",
+                handler=query_ontology,
+                metadata={"guarded": True, "repository": store.repository},
+            )
+        )
+
         from polanyi.semantic.owl import java_available, reason_about_class
 
         registry.register(
