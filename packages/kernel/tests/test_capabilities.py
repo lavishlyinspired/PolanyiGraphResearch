@@ -121,6 +121,65 @@ def test_default_registry_agent_tools_include_the_sql_toolset(demo_uri):
     assert {"sql_db_list_tables", "sql_db_schema", "sql_db_query"} <= names
 
 
+def test_default_registry_agent_tools_shape_after_the_specialist_split(demo_uri, monkeypatch):
+    """S23 (plan Slice 3): the whole point of the specialist split -- with
+    both backends configured, the supervisor's visible tool list is exactly
+    the 3 SQL tools + the 2 specialists (+ any skill-plugin tools), never
+    any of the 9 original raw ontology/graph tool names directly."""
+    import polanyi.execution.knowledge_graph as kg_module
+    import polanyi.execution.gds_tools as gds_module
+    import polanyi.semantic.ontology as ontology_module
+
+    class FakeGraphStore:
+        def run_cypher(self, query):
+            if "count(n)" in query:
+                return [{"c": 1}]
+            if "db.labels" in query:
+                return [{"label": "Entity"}]
+            if "db.relationshipTypes" in query:
+                return [{"relationshipType": "DESCRIBES"}]
+            return []
+
+        def close(self):
+            pass
+
+    class FakeOntologyStore:
+        repository = "fibo-prod"
+
+        def search_classes(self, term):
+            return []
+
+        def expand_subclasses(self, uri):
+            return []
+
+        def sparql_query(self, query):
+            return []
+
+    monkeypatch.setattr(kg_module, "neo4j_configured", lambda: True)
+    monkeypatch.setattr(kg_module, "Neo4jGraphStore", lambda **kwargs: FakeGraphStore())
+    monkeypatch.setattr(gds_module, "gds_client_for_neo4j", lambda: None)
+    monkeypatch.setattr(ontology_module, "graphdb_configured", lambda: True)
+    monkeypatch.setattr(ontology_module, "GraphDBOntologyStore", lambda: FakeOntologyStore())
+
+    registry = default_registry(demo_uri, build_rule_contexts(DEMO_BUSINESS_RULES))
+    names = {t.name for t in registry.agent_tools()}
+
+    assert {"sql_db_list_tables", "sql_db_schema", "sql_db_query"} <= names
+    assert {"ask_ontology_specialist", "ask_graph_specialist"} <= names
+    raw_tool_names = {
+        "search_ontology",
+        "expand_ontology",
+        "query_ontology",
+        "query_knowledge_graph",
+        "search_knowledge_graph",
+        "graph_page_rank",
+        "find_graph_communities",
+        "find_similar_terms",
+        "graph_rag_query",
+    }
+    assert not raw_tool_names & names
+
+
 def test_default_registry_reports_validation_events(demo_uri):
     events = []
     registry = default_registry(
