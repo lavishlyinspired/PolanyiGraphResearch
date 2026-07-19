@@ -1,7 +1,16 @@
 import { z } from "zod";
 
-// Mirrors packages/common/models.py (AlignmentReviewItem/AlignmentQueue).
+// Mirrors packages/common/models.py (OntologyCandidate/AlignmentReviewItem/AlignmentQueue).
 export const alignmentBandSchema = z.enum(["auto", "review", "rejected", "unmapped"]);
+
+export const ontologyCandidateSchema = z.object({
+  uri: z.string(),
+  label: z.string(),
+  definition: z.string().default(""),
+  score: z.number(),
+  method: z.enum(["lexical", "embedding"]).default("lexical"),
+  rationale: z.string().default(""),
+});
 
 export const alignmentReviewItemSchema = z.object({
   term: z.string(),
@@ -9,6 +18,7 @@ export const alignmentReviewItemSchema = z.object({
   candidate_label: z.string().nullable().default(null),
   candidate_uri: z.string().nullable().default(null),
   score: z.number(),
+  candidates: z.array(ontologyCandidateSchema).default([]),
 });
 
 export const alignmentQueueSchema = z.object({
@@ -16,6 +26,7 @@ export const alignmentQueueSchema = z.object({
 });
 
 export type AlignmentBand = z.infer<typeof alignmentBandSchema>;
+export type OntologyCandidate = z.infer<typeof ontologyCandidateSchema>;
 export type AlignmentReviewItem = z.infer<typeof alignmentReviewItemSchema>;
 export type AlignmentQueue = z.infer<typeof alignmentQueueSchema>;
 
@@ -35,11 +46,14 @@ export async function fetchAlignmentQueue(): Promise<AlignmentQueue> {
   return alignmentQueueSchema.parse(await response.json());
 }
 
-/** Accept a term's best candidate. Returns the recomputed queue (the term moves
- *  into the aligned band). */
-export async function acceptAlignment(term: string): Promise<AlignmentQueue> {
+/** Accept a term's candidate — the algorithmically-best one by default, or a
+ *  specific alternative from its top-N list when `candidateUri` is given.
+ *  Returns the recomputed queue (the term moves into the aligned band). */
+export async function acceptAlignment(term: string, candidateUri?: string): Promise<AlignmentQueue> {
   const response = await fetch(`/api/context/align/${encodeURIComponent(term)}/accept`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidate_uri: candidateUri ?? null }),
   });
   if (!response.ok) {
     throw new Error(`Accept request failed with status ${response.status}`);
@@ -47,11 +61,14 @@ export async function acceptAlignment(term: string): Promise<AlignmentQueue> {
   return alignmentQueueSchema.parse(await response.json());
 }
 
-/** Reject a term's best candidate. Returns the recomputed queue (the term moves
- *  into the rejected band). */
-export async function rejectAlignment(term: string): Promise<AlignmentQueue> {
+/** Reject a term's candidate — the algorithmically-best one by default, or a
+ *  specific alternative from its top-N list when `candidateUri` is given.
+ *  Returns the recomputed queue (the term moves into the rejected band). */
+export async function rejectAlignment(term: string, candidateUri?: string): Promise<AlignmentQueue> {
   const response = await fetch(`/api/context/align/${encodeURIComponent(term)}/reject`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidate_uri: candidateUri ?? null }),
   });
   if (!response.ok) {
     throw new Error(`Reject request failed with status ${response.status}`);
