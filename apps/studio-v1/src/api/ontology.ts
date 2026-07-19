@@ -75,3 +75,41 @@ export async function rejectAlignment(term: string, candidateUri?: string): Prom
   }
   return alignmentQueueSchema.parse(await response.json());
 }
+
+// Mirrors packages/semantic-runtime/semantic/owl.py (OwlClassInfo/ReasonerResult).
+export const owlClassInfoSchema = z.object({
+  iri: z.string(),
+  label: z.string(),
+});
+
+export const reasonerResultSchema = z.object({
+  ran: z.boolean(),
+  consistent: z.boolean().nullable().default(null),
+  detail: z.string().default(""),
+});
+
+export const ontologyHierarchySchema = z.object({
+  class: z.string(),
+  ancestors: z.array(owlClassInfoSchema).default([]),
+  descendants: z.array(owlClassInfoSchema).default([]),
+  reasoner: reasonerResultSchema,
+});
+
+export type OwlClassInfo = z.infer<typeof owlClassInfoSchema>;
+export type ReasonerResult = z.infer<typeof reasonerResultSchema>;
+export type OntologyHierarchy = z.infer<typeof ontologyHierarchySchema>;
+
+/** Ancestors/descendants (real GraphDB subclass-neighborhood export) plus
+ *  HermiT consistency status for one FIBO class — degrades honestly
+ *  (`reasoner.ran: false`) when no Java runtime is available, never fakes
+ *  a consistency result. */
+export async function fetchOntologyHierarchy(uri: string): Promise<OntologyHierarchy> {
+  const response = await fetch(`/api/ontology/reason?uri=${encodeURIComponent(uri)}`);
+  if (response.status === 503) {
+    throw new GraphDBUnavailableError("GraphDB is required for ontology reasoning.");
+  }
+  if (!response.ok) {
+    throw new Error(`Hierarchy request failed with status ${response.status}`);
+  }
+  return ontologyHierarchySchema.parse(await response.json());
+}

@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { AlignmentReviewItem } from "@/api/ontology";
+import { HierarchyPanel } from "./HierarchyPanel";
 
 const bandLabel: Record<AlignmentReviewItem["band"], string> = {
   auto: "Aligned",
@@ -23,6 +25,8 @@ type TermDetailProps = {
 };
 
 export function TermDetail({ item, onAccept, onReject }: TermDetailProps) {
+  const [expandedUri, setExpandedUri] = useState<string | null>(null);
+
   return (
     <section aria-label="Term detail" className="flex-1 overflow-y-auto p-4">
       <h2 className="font-serif text-lg font-bold text-slate-900">{item.term}</h2>
@@ -43,16 +47,28 @@ export function TermDetail({ item, onAccept, onReject }: TermDetailProps) {
                 <p className="mt-1 text-xs text-slate-500">
                   {candidate.method} — {candidate.rationale || "no rationale available"}
                 </p>
-                {item.band === "review" && (
-                  <div className="mt-2 flex gap-2">
-                    <Button size="sm" onClick={() => onAccept(item.term, candidate.uri)}>
-                      Accept
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => onReject(item.term, candidate.uri)}>
-                      Reject
-                    </Button>
-                  </div>
-                )}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {item.band === "review" && (
+                    <>
+                      <Button size="sm" onClick={() => onAccept(item.term, candidate.uri)}>
+                        Accept
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => onReject(item.term, candidate.uri)}>
+                        Reject
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setExpandedUri(expandedUri === candidate.uri ? null : candidate.uri)
+                    }
+                  >
+                    {expandedUri === candidate.uri ? "Hide hierarchy" : "View hierarchy"}
+                  </Button>
+                </div>
+                {expandedUri === candidate.uri && <HierarchyPanel uri={candidate.uri} />}
               </CardContent>
             </Card>
           ))}
