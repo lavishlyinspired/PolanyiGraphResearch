@@ -249,6 +249,50 @@ def test_graph_stats_returns_503_when_neo4j_unreachable(client, monkeypatch):
     assert res.status_code == 503
 
 
+def test_ontology_reason_returns_503_when_graphdb_unconfigured(client, monkeypatch):
+    monkeypatch.delenv("GRAPHDB_ENDPOINT", raising=False)
+    res = client.get("/api/ontology/reason", params={"uri": "urn:fibo:Account"})
+    assert res.status_code == 503
+
+
+def test_ontology_reason_returns_real_hierarchy_and_reasoner_status(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+
+    import polanyi.semantic.owl as owl_module
+
+    monkeypatch.setattr(
+        owl_module,
+        "reason_about_class",
+        lambda uri: {
+            "class": uri,
+            "ancestors": [{"iri": "urn:fibo:FinancialInstrument", "label": "financial instrument"}],
+            "descendants": [{"iri": "urn:fibo:BankAccount", "label": "bank account"}],
+            "reasoner": {"ran": True, "consistent": True, "detail": "HermiT completed"},
+        },
+    )
+
+    res = client.get("/api/ontology/reason", params={"uri": "urn:fibo:Account"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["ancestors"] == [{"iri": "urn:fibo:FinancialInstrument", "label": "financial instrument"}]
+    assert body["descendants"] == [{"iri": "urn:fibo:BankAccount", "label": "bank account"}]
+    assert body["reasoner"] == {"ran": True, "consistent": True, "detail": "HermiT completed"}
+
+
+def test_ontology_reason_returns_502_on_failure(client, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+
+    import polanyi.semantic.owl as owl_module
+
+    def boom(uri):
+        raise RuntimeError("export failed")
+
+    monkeypatch.setattr(owl_module, "reason_about_class", boom)
+
+    res = client.get("/api/ontology/reason", params={"uri": "urn:fibo:Account"})
+    assert res.status_code == 502
+
+
 def test_sparql_uses_graphdb_when_configured_and_available(client, monkeypatch):
     monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
 
