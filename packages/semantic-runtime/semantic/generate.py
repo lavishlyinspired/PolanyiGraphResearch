@@ -42,14 +42,40 @@ def generate_context(
     rules: list[BusinessRule],
     llm=None,
     domain: str = "Financial Services",
+    db_uri: Optional[str] = None,
+    previous: Optional[SemanticContext] = None,
 ) -> SemanticContext:
-    """Generate semantic context, preferring the LLM but never failing without one."""
+    """Generate semantic context, preferring the LLM but never failing without one.
+
+    Both engines build fresh `GlossaryEntry` objects, so a regenerate would
+    otherwise silently wipe any FIBO alignment a steward already accepted or
+    rejected. Passing the context being replaced as `previous` carries those
+    decisions forward onto matching terms.
+    """
     if llm is not None:
         try:
-            return llm_context(snapshot, rules, llm, domain=domain)
+            ctx = llm_context(snapshot, rules, llm, domain=domain, db_uri=db_uri)
         except Exception as exc:  # noqa: BLE001 — any LLM failure falls back
             logger.warning("LLM context generation failed (%s); using deterministic engine", exc)
-    return deterministic_context(snapshot, rules, domain=domain)
+            ctx = deterministic_context(snapshot, rules, domain=domain)
+    else:
+        ctx = deterministic_context(snapshot, rules, domain=domain)
+    if previous is not None:
+        ctx = _preserve_alignment(ctx, previous)
+    return ctx
+
+
+def _preserve_alignment(ctx: SemanticContext, previous: SemanticContext) -> SemanticContext:
+    """Carry FIBO alignment decisions forward onto matching glossary terms."""
+    by_term = {entry.term: entry for entry in previous.glossary}
+    for entry in ctx.glossary:
+        prior = by_term.get(entry.term)
+        if prior is None:
+            continue
+        entry.ontology_class = prior.ontology_class
+        entry.ontology_uri = prior.ontology_uri
+        entry.rejected_ontology_uris = list(prior.rejected_ontology_uris)
+    return ctx
 
 
 # ── Deterministic engine ─────────────────────────────────────────
@@ -195,8 +221,15 @@ def llm_context(
     rules: list[BusinessRule],
     llm,
     domain: str = "Financial Services",
+    db_uri: Optional[str] = None,
 ) -> SemanticContext:
     from langchain_core.prompts import ChatPromptTemplate
+
+    from polanyi.semantic.introspect import table_info_text_for
+
+    # The rich CREATE TABLE + sample-row text is only ever useful here, so it's
+    # generated on demand rather than eagerly on every introspect().
+    table_info = table_info_text_for(db_uri) if db_uri else ""
 
     structured_llm = llm.with_structured_output(SemanticContext)
     prompt = ChatPromptTemplate.from_messages(
@@ -206,7 +239,7 @@ def llm_context(
         f"[{r.rule_id}] {r.name}: {r.description} (Severity: {r.severity})" for r in rules
     )
     result: Optional[SemanticContext] = (prompt | structured_llm).invoke(
-        {"table_info": snapshot.table_info_text, "rules": rules_text}
+        {"table_info": table_info, "rules": rules_text}
     )
     if result is None:
         raise ValueError("LLM returned no structured output")

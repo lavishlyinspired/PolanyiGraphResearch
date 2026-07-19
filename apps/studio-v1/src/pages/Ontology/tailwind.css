@@ -1,0 +1,4 @@
+/* Utilities-only import (no preflight) — the Ontology page opts into Tailwind
+   without resetting global element styles the rest of studio-v1 relies on. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);

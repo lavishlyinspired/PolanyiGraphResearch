@@ -52,7 +52,6 @@ def introspect(db_uri: str) -> SchemaSnapshot:
         return SchemaSnapshot(
             dialect=engine.dialect.name,
             tables=tables,
-            table_info_text=_table_info_text(_normalize_databricks_uri(db_uri)),
         )
     finally:
         engine.dispose()
@@ -87,8 +86,13 @@ def _foreign_keys_for(inspector, table_name: str) -> list[ForeignKeyInfo]:
     return fks
 
 
-def _table_info_text(db_uri: str) -> str:
-    """Rich CREATE TABLE + sample-row text for LLM prompts (LangChain SQLDatabase)."""
+def table_info_text_for(db_uri: str) -> str:
+    """Rich CREATE TABLE + sample-row text for LLM prompts (LangChain SQLDatabase).
+
+    Computed lazily, on demand — only called from the LLM enrichment path,
+    since it needs a second DB connection and the LangChain import, and the
+    deterministic engine never needs it.
+    """
     from langchain_community.utilities import SQLDatabase
 
-    return SQLDatabase.from_uri(db_uri).get_table_info()
+    return SQLDatabase.from_uri(_normalize_databricks_uri(db_uri)).get_table_info()

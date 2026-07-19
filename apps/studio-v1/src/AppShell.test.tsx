@@ -4,19 +4,35 @@ import { expect, test } from "vitest";
 import { worker } from "../vitest.browser.setup";
 import { AppShell } from "./AppShell";
 
-test("defaults to the Validator page", async () => {
+test("shows the wordmark and defaults to the Overview page", async () => {
   const screen = await render(<AppShell />);
-  await expect.element(screen.getByRole("heading", { name: "Validator" })).toBeVisible();
+  await expect.element(screen.getByText("Polanyi Works")).toBeVisible();
+  await expect.element(screen.getByRole("heading", { name: "Overview" })).toBeVisible();
 });
 
-test("navigates to Query Console and back to Validator", async () => {
+test("shows the built-out nav groups in prototype order", async () => {
+  const screen = await render(<AppShell />);
+  await expect.element(screen.getByText("Ground")).toBeVisible();
+  await expect.element(screen.getByText("Explore")).toBeVisible();
+  await expect.element(screen.getByText("Govern")).toBeVisible();
+});
+
+test("navigates to Query Console and back to Overview, updating aria-current", async () => {
   const screen = await render(<AppShell />);
 
-  await screen.getByRole("link", { name: /query console/i }).click();
-  await expect.element(screen.getByRole("heading", { name: "Query Console" })).toBeVisible();
+  const overviewNav = screen.getByRole("button", { name: /^overview$/i });
+  const consoleNav = screen.getByRole("button", { name: /query console/i });
 
-  await screen.getByRole("link", { name: /^validator/i }).click();
-  await expect.element(screen.getByRole("heading", { name: "Validator" })).toBeVisible();
+  await expect.element(overviewNav).toHaveAttribute("aria-current", "page");
+
+  await consoleNav.click();
+  await expect.element(screen.getByRole("heading", { name: "Query Console" })).toBeVisible();
+  await expect.element(consoleNav).toHaveAttribute("aria-current", "page");
+  await expect.element(overviewNav).not.toHaveAttribute("aria-current");
+
+  await overviewNav.click();
+  await expect.element(screen.getByRole("heading", { name: "Overview" })).toBeVisible();
+  await expect.element(overviewNav).toHaveAttribute("aria-current", "page");
 });
 
 test("navigates to the Semantic Model page", async () => {
@@ -33,7 +49,7 @@ test("navigates to the Semantic Model page", async () => {
   );
 
   const screen = await render(<AppShell />);
-  await screen.getByRole("link", { name: /semantic model/i }).click();
+  await screen.getByRole("button", { name: /semantic model/i }).click();
   await expect.element(screen.getByRole("heading", { name: "Semantic Model" })).toBeVisible();
 });
 
@@ -41,8 +57,18 @@ test("navigates to the Business Rules page", async () => {
   worker.use(http.get("/api/rules", () => HttpResponse.json([])));
 
   const screen = await render(<AppShell />);
-  await screen.getByRole("link", { name: /business rules/i }).click();
+  await screen.getByRole("button", { name: /business rules/i }).click();
   await expect.element(screen.getByRole("heading", { name: "Business Rules" })).toBeVisible();
+});
+
+test("navigates to the Ontology · FIBO page", async () => {
+  worker.use(
+    http.get("/api/context/align/queue", () => HttpResponse.json({ items: [] })),
+  );
+
+  const screen = await render(<AppShell />);
+  await screen.getByRole("button", { name: /ontology/i }).click();
+  await expect.element(screen.getByRole("heading", { name: /ontology · fibo/i })).toBeVisible();
 });
 
 test("navigates to the Data Sources page", async () => {
@@ -52,6 +78,28 @@ test("navigates to the Data Sources page", async () => {
   );
 
   const screen = await render(<AppShell />);
-  await screen.getByRole("link", { name: /data sources/i }).click();
+  await screen.getByRole("button", { name: /data sources/i }).click();
   await expect.element(screen.getByRole("heading", { name: "Data Sources" })).toBeVisible();
+});
+
+test("navigates to the Documents page", async () => {
+  const screen = await render(<AppShell />);
+  await screen.getByRole("button", { name: /^documents$/i }).click();
+  await expect.element(screen.getByRole("heading", { name: "Documents" })).toBeVisible();
+});
+
+test("navigates to the Agent Workspace page", async () => {
+  worker.use(http.get("/api/sessions", () => HttpResponse.json([])));
+
+  const screen = await render(<AppShell />);
+  await screen.getByRole("button", { name: /agent workspace/i }).click();
+  await expect.element(screen.getByRole("heading", { name: "Agent" })).toBeVisible();
+});
+
+test("navigates to the Knowledge Graph page", async () => {
+  worker.use(http.get("/api/graph/stats", () => HttpResponse.json({ nodes: 0, edges: 0, materialized_at: null })));
+
+  const screen = await render(<AppShell />);
+  await screen.getByRole("button", { name: /knowledge graph/i }).click();
+  await expect.element(screen.getByRole("heading", { name: "Knowledge Graph" })).toBeVisible();
 });

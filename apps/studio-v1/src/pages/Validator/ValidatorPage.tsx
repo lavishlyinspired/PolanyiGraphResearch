@@ -14,11 +14,24 @@ const bannerLabels: Record<OverallVerdict, string> = {
   passed: "PASSED",
 };
 
+const bannerChip: Record<OverallVerdict, string> = {
+  blocked: "chip-bad",
+  "passed-with-warnings": "chip-warn",
+  passed: "chip-good",
+};
+
 const stampLabels: Record<RuleLevel, string> = {
   blocked: "BLOCKED",
   warning: "WARNING",
   advisory: "ADVISORY",
   pass: "PASS",
+};
+
+const stampChip: Record<RuleLevel, string> = {
+  blocked: "chip-bad",
+  warning: "chip-warn",
+  advisory: "",
+  pass: "chip-good",
 };
 
 export const VIOLATING_SQL = `SELECT c.name, SUM(t.notional_amount) AS exposure
@@ -62,13 +75,23 @@ export function ValidatorPage() {
   const canValidate = sql.trim().length > 0;
 
   return (
-    <main>
-      <h1>Validator</h1>
-      <p>
-        Checked against rules — this is not a proof of correctness; predicate-level
-        SQL parsing is a known limitation.
-      </p>
-      <div>
+    <main className="view">
+      <div className="view-head">
+        <div>
+          <h1>Validator</h1>
+          <p className="sub">
+            Checked against rules — this is not a proof of correctness; predicate-level
+            SQL parsing is a known limitation.
+          </p>
+        </div>
+        <div className="actions">
+          <span className="chip chip-moss">
+            <span className="g">⬢</span> symbolic · no LLM
+          </span>
+        </div>
+      </div>
+
+      <div className="seg" role="group" aria-label="Example queries" style={{ marginBottom: 14 }}>
         <button type="button" onClick={() => setSql(VIOLATING_SQL)}>
           Violating query
         </button>
@@ -76,35 +99,76 @@ export function ValidatorPage() {
           Corrected query
         </button>
       </div>
-      <label>
-        SQL
-        <textarea value={sql} onChange={(event) => setSql(event.target.value)} />
-      </label>
-      <button type="button" onClick={handleValidate} disabled={!canValidate}>
-        Validate
-      </button>
-      <p>
+
+      <div className={verdict === null && !error ? undefined : "cols cols-2"}>
+        <div className="panel" style={{ marginBottom: 18, alignSelf: "start" }}>
+          <div className="panel-h">
+            <h2>SQL</h2>
+            <div className="actions">
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={handleValidate}
+                disabled={!canValidate}
+              >
+                Validate
+              </button>
+            </div>
+          </div>
+          <div style={{ padding: 14 }}>
+            <label>
+              SQL
+              <textarea
+                value={sql}
+                onChange={(event) => setSql(event.target.value)}
+                className="code"
+                style={{ width: "100%", minHeight: 140, display: "block", marginTop: 6 }}
+              />
+            </label>
+          </div>
+        </div>
+
+        <div>
+          {error && (
+            <div className="panel chip-bad" style={{ padding: 14, marginBottom: 18 }}>
+              <p>Couldn&apos;t validate — the request failed.</p>
+              <button type="button" className="btn btn-sm" onClick={handleValidate}>
+                Retry
+              </button>
+            </div>
+          )}
+
+          {verdict !== null && (
+            <div role="status" className={`chip ${bannerChip[verdict]}`} style={{ fontSize: 13, padding: "6px 14px", marginBottom: 14 }}>
+              {bannerLabels[verdict]}
+            </div>
+          )}
+
+          {rows !== null && (
+            <div className="panel">
+              <div className="panel-h">
+                <h2>Rule ledger</h2>
+              </div>
+              <ul aria-label="Rule verdicts" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {rows.map((row) => (
+                  <li
+                    key={row.ruleId}
+                    style={{ display: "flex", gap: 10, alignItems: "baseline", padding: "9px 14px", borderBottom: "1px solid var(--line)" }}
+                  >
+                    <span className={`chip ${stampChip[row.level]}`}>{stampLabels[row.level]}</span>
+                    <span>{row.name}</span>
+                    {row.message !== null && <p className="dim" style={{ margin: 0 }}>{row.message}</p>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <p className="dim">
         CLI equivalent: <code>polanyi validate &quot;SELECT …&quot;</code>
       </p>
-      {error && (
-        <div>
-          <p>Couldn&apos;t validate — the request failed.</p>
-          <button type="button" onClick={handleValidate}>
-            Retry
-          </button>
-        </div>
-      )}
-      {verdict !== null && <div role="status">{bannerLabels[verdict]}</div>}
-      {rows !== null && (
-        <ul aria-label="Rule verdicts">
-          {rows.map((row) => (
-            <li key={row.ruleId}>
-              <span>{stampLabels[row.level]}</span> <span>{row.name}</span>
-              {row.message !== null && <p>{row.message}</p>}
-            </li>
-          ))}
-        </ul>
-      )}
     </main>
   );
 }

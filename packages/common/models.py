@@ -34,7 +34,6 @@ class TableInfo(BaseModel):
 class SchemaSnapshot(BaseModel):
     dialect: str
     tables: list[TableInfo] = Field(default_factory=list)
-    table_info_text: str = ""
 
 
 # ── Business rules (input) ───────────────────────────────────────
@@ -64,6 +63,10 @@ class GlossaryEntry(BaseModel):
     )
     ontology_uri: Optional[str] = Field(
         default=None, description="URI of the aligned ontology class"
+    )
+    rejected_ontology_uris: list[str] = Field(
+        default_factory=list,
+        description="Candidate URIs a steward rejected for this term (precision-first)",
     )
 
 
@@ -124,6 +127,51 @@ class SqlExecutionResult(BaseModel):
     rows: list[dict] = Field(default_factory=list)
 
 
+class EnforcementEvent(BaseModel):
+    """One rule checked against one real SQL statement — the atomic unit of
+    the compliance perspective's enforcement history. Derived from an actual
+    ValidationResult, never synthesized."""
+
+    rule_id: str
+    verdict: Literal["passed", "flagged", "blocked"]
+    sql: str
+    timestamp: str
+    source: Literal["validate", "execute", "agent"]
+
+
+# ── Ontology alignment review ────────────────────────────────────
+
+AlignmentBand = Literal["auto", "review", "rejected", "unmapped"]
+
+
+class OntologyCandidate(BaseModel):
+    """One retrieved ontology class, scored against a business term."""
+
+    uri: str
+    label: str
+    definition: str = ""
+    score: float = Field(default=0.0, ge=0.0, le=1.0)
+    method: Literal["lexical", "embedding"] = "lexical"
+    rationale: str = ""
+
+
+class AlignmentReviewItem(BaseModel):
+    """One glossary term's best ontology candidate and its confidence band."""
+
+    term: str
+    band: AlignmentBand
+    candidate_label: Optional[str] = None
+    candidate_uri: Optional[str] = None
+    score: float = Field(default=0.0, ge=0.0, le=1.0)
+    candidates: list[OntologyCandidate] = Field(default_factory=list)
+
+
+class AlignmentQueue(BaseModel):
+    """The alignment review queue: every glossary term, bucketed by confidence."""
+
+    items: list[AlignmentReviewItem] = Field(default_factory=list)
+
+
 # ── Agent interaction ────────────────────────────────────────────
 
 
@@ -137,3 +185,13 @@ class AskResult(BaseModel):
     question: str
     answer: str
     steps: list[AgentStep] = Field(default_factory=list)
+
+
+class SessionSummary(BaseModel):
+    """One conversation thread, derived from the checkpointer's own state —
+    no separate session store."""
+
+    session_id: str
+    turn_count: int = 0
+    last_message: str = ""
+    updated_at: str = ""

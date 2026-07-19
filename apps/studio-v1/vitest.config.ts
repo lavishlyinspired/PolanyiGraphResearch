@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: { alias },
   optimizeDeps: {
-    include: ["zod", "react", "react-dom", "react/jsx-dev-runtime"],
+    include: ["zod", "react", "react-dom", "react-dom/client", "react/jsx-dev-runtime", "lucide-react"],
   },
   test: {
     coverage: {
@@ -30,7 +30,7 @@ export default defineConfig({
         plugins: [react()],
         resolve: { alias },
         optimizeDeps: {
-          include: ["zod", "react", "react-dom", "react/jsx-dev-runtime"],
+          include: ["zod", "react", "react-dom", "react-dom/client", "react/jsx-dev-runtime", "lucide-react"],
         },
         test: {
           name: "browser",

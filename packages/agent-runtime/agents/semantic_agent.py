@@ -16,6 +16,7 @@ from polanyi.models import (
     AskResult,
     BusinessRuleContext,
     SemanticContext,
+    ValidationResult,
 )
 from polanyi.semantic.prompt import build_agent_prompt
 from polanyi.execution.validate import validate_sql
@@ -43,12 +44,14 @@ def build_sql_tools(
     db_uri: str,
     rules: list[BusinessRuleContext],
     on_event: Optional[Callable[[AgentStep], None]] = None,
+    on_validation: Optional[Callable[[str, ValidationResult], None]] = None,
 ):
     """SQL tools with the symbolic validator wired in front of execution."""
     from langchain_community.utilities import SQLDatabase
 
     db = SQLDatabase.from_uri(db_uri)
     emit = on_event or (lambda step: None)
+    record_validation = on_validation or (lambda sql, result: None)
 
     @tool
     def sql_db_list_tables() -> str:
@@ -74,6 +77,7 @@ def build_sql_tools(
         Queries are validated against enterprise business rules first; if the
         query is BLOCKED, rewrite it following the violation guidance."""
         result = validate_sql(query, rules)
+        record_validation(query, result)
         if not result.valid:
             messages = "; ".join(v.message for v in result.violations)
             emit(
@@ -146,7 +150,14 @@ class SemanticAgent:
     its multi-turn conversation across restarts.
     """
 
-    def __init__(self, db_uri: str, context: SemanticContext, llm, registry=None):
+    def __init__(
+        self,
+        db_uri: str,
+        context: SemanticContext,
+        llm,
+        registry=None,
+        on_validation: Optional[Callable[[str, ValidationResult], None]] = None,
+    ):
         if llm is None:
             raise ValueError(
                 "No LLM configured. Set NVIDIA_API_KEY, OPENAI_API_KEY, or "
@@ -157,7 +168,10 @@ class SemanticAgent:
             from polanyi.kernel.capabilities import default_registry
 
             registry = default_registry(
-                db_uri, context.business_rules, on_event=self._steps.append
+                db_uri,
+                context.business_rules,
+                on_event=self._steps.append,
+                on_validation=on_validation,
             )
         dialect = db_uri.split(":", 1)[0]
         system_prompt = _AGENT_PREAMBLE.format(dialect=dialect) + build_agent_prompt(context)

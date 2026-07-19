@@ -34,10 +34,20 @@ def test_introspect_captures_foreign_keys(demo_uri):
     assert {"counterparties", "instruments"} <= fk_targets
 
 
-def test_introspect_produces_table_info_text_for_llm(demo_uri):
+def test_introspect_does_not_eagerly_generate_llm_table_info(demo_uri):
+    """table_info_text is LLM-only fuel — computed lazily by table_info_text_for(),
+    not as part of every introspect() call (introspect() is on the hot path for
+    every schema browse; the LLM path is opt-in and comparatively rare)."""
     snapshot = introspect(demo_uri)
-    assert "CREATE TABLE" in snapshot.table_info_text
-    assert "trades" in snapshot.table_info_text
+    assert not hasattr(snapshot, "table_info_text")
+
+
+def test_table_info_text_for_produces_create_table_ddl_for_llm(demo_uri):
+    from polanyi.semantic.introspect import table_info_text_for
+
+    text = table_info_text_for(demo_uri)
+    assert "CREATE TABLE" in text
+    assert "trades" in text
 
 
 def test_databricks_uris_are_normalized_for_sqlalchemy():

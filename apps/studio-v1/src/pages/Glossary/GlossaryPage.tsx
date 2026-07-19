@@ -1,64 +1,61 @@
-import { useState } from "react";
-import { fetchContext, type GlossaryEntry, type Rule, type SemanticContext } from "@/api/context";
-import { governingRules } from "./governingRules";
+import { useEffect, useState } from "react";
+import { fetchContext, type SemanticContext } from "@/api/context";
+import { EntitiesRelationshipsTab } from "./EntitiesRelationshipsTab";
+import { GlossaryTab } from "./GlossaryTab";
 
-function TermDrawer({ term, rules }: { term: GlossaryEntry; rules: Rule[] }) {
-  return (
-    <aside aria-label="Term detail">
-      <h2>{term.term}</h2>
-      <p>{term.definition}</p>
-      {term.ontology_uri !== null && <p>{term.ontology_uri}</p>}
-      <h3>Governing rules</h3>
-      {rules.length === 0 ? (
-        <p>No rules govern this term.</p>
-      ) : (
-        <ul>
-          {rules.map((rule) => (
-            <li key={rule.rule_id}>{rule.name}</li>
-          ))}
-        </ul>
-      )}
-    </aside>
-  );
-}
+type TabId = "glossary" | "entities";
 
 export function GlossaryPage() {
   const [context, setContext] = useState<SemanticContext | null>(null);
-  const [selected, setSelected] = useState<GlossaryEntry | null>(null);
+  const [active, setActive] = useState<TabId>("glossary");
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchContext().then((ctx) => {
+      if (!cancelled) setContext(ctx);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (context === null) {
-    void fetchContext().then(setContext);
     return <p>Loading…</p>;
   }
 
   return (
-    <div>
-      <h1>Semantic Model</h1>
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">Term</th>
-            <th scope="col">Definition</th>
-            <th scope="col">FIBO</th>
-          </tr>
-        </thead>
-        <tbody>
-          {context.glossary.map((entry) => (
-            <tr key={entry.term}>
-              <td>
-                <button type="button" onClick={() => setSelected(entry)}>
-                  {entry.term}
-                </button>
-              </td>
-              <td>{entry.definition}</td>
-              <td>{entry.ontology_class ?? "Not aligned"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {selected !== null && (
-        <TermDrawer term={selected} rules={governingRules(selected, context.business_rules)} />
-      )}
-    </div>
+    <main className="view">
+      <div className="view-head">
+        <h1>Semantic Model</h1>
+      </div>
+      <div className="tabs" role="tablist" aria-label="Semantic model view">
+        <button
+          type="button"
+          role="tab"
+          className="tab"
+          aria-selected={active === "glossary"}
+          onClick={() => setActive("glossary")}
+        >
+          Glossary · {context.glossary.length}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className="tab"
+          aria-selected={active === "entities"}
+          onClick={() => setActive("entities")}
+        >
+          Entities &amp; relationships · {context.key_entities.length} / {context.relationships.length}
+        </button>
+      </div>
+      {/* Both panes stay mounted so switching tabs doesn't lose the term
+          drawer's selection — only visibility toggles. */}
+      <div className="tabpane" hidden={active !== "glossary"}>
+        <GlossaryTab context={context} />
+      </div>
+      <div className="tabpane" hidden={active !== "entities"}>
+        <EntitiesRelationshipsTab context={context} />
+      </div>
+    </main>
   );
 }
