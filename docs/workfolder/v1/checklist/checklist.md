@@ -230,12 +230,48 @@ assessment, done only once two real matchers exist.
   write) and later became unresponsive entirely — restarted cleanly rather than debugged further,
   since a fresh process reproduced every finding above identically; a stale `.pyc` cache
   (carried over from T2, see T2's own entry) required one more `__pycache__` sweep.
-- [ ] **T4. Assess: extract a shared Matcher abstraction** (plan Slice 4, only if the evidence
-  justifies it). A REFACTOR-step assessment, not new production code by default — done once T1-T3
-  are live, comparing `align_glossary`'s real shape (external store, per-term SPARQL) against
-  `reconcile_taxonomies`'s real shape (in-memory pairwise scoring) to decide whether a shared
-  `MatchCandidate`/review-queue abstraction is actually justified by the two concrete cases in hand
-  — not a speculative interface for the reviewer's other 6 named-but-unbuilt matcher types.
+- [x] **T4. Assess: extract a shared Matcher abstraction** DONE — **verdict: no, don't extract
+  one.** Compared the two real matchers' actual shapes, not their names:
+  - **Retrieval** differs in kind, not just detail. `align_glossary`/`alignment_queue` retrieve
+    from an unbounded *external* store (`OntologyStore.search_classes(term, limit)`, live SPARQL
+    against FIBO's 110K+ triples, network I/O per term) and return top-N candidates.
+    `reconcile_taxonomies` compares two already-in-memory, small, *bounded* glossaries pairwise
+    (nested loop, zero I/O) and returns exactly one best match per term. A shared retrieval
+    interface would have to paper over "paginated external search" vs. "exhaustive in-memory
+    comparison" — different enough that the interface would just be `Callable[[...], list]` in
+    practice, which isn't an abstraction worth naming.
+  - **Candidate cardinality** differs structurally. Alignment shows a term's top-N candidates and
+    lets a human pick a *non-top* one (`candidate_uri` override on accept/reject — real, exercised
+    by `test_accept_endpoint_persists_an_explicitly_chosen_non_top_candidate`). Reconciliation
+    never has more than one candidate per term by construction. A shared `MatchCandidate` type
+    would carry a `candidates: list[...]` field that's dead weight — always length ≤ 1 — on every
+    reconciliation payload.
+  - **Persistence target** differs for a structural reason, not an accidental one. An accepted
+    alignment mutates a field that one object already owns (`GlossaryEntry.ontology_uri` on the
+    context being aligned). An accepted taxonomy match has no single owning object — it's a
+    relationship *between* two peer glossaries — so it has to live in its own store
+    (`taxonomy_decisions.json`, keyed by `(source_name, term)`), a real, load-bearing difference
+    T2 hit directly while designing persistence (see T2's entry). Forcing both into one
+    `AlignmentReviewItem`-shaped queue would mean giving reconciliation a fake "owner" or making
+    the shared type's owner field optional everywhere just for alignment's sake — an abstraction
+    leaking its one real user's assumptions into its other real user.
+  - **LLM ranking** is alignment-only (`_rank_with_llm`, the 0.50–0.89 ambiguous band); no such
+    phase exists or is planned for reconciliation, which has no ranking ambiguity to resolve since
+    every match is already "the best of exactly one candidate list, picked by score."
+  - **What's actually shared already, with zero new abstraction needed**: `score_label`/
+    `_score_and_reason` (the lexical scoring ladder) and `classify_band` (the confidence-to-band
+    bucketing) — imported and reused verbatim by `reconcile_taxonomies`, unchanged from
+    `align_glossary`'s own use of them. This *is* the real, load-bearing "Matching Engine" the
+    external review asked for — two small pure functions, not a class hierarchy — and it already
+    existed before this plan started. There is nothing else genuinely common between the two
+    matchers to extract; the differences above are intrinsic to what each is matching (a formal
+    external ontology vs. two peer glossaries), not incidental duplication.
+  - The other 6 named-but-unbuilt matcher types from the original review (`SchemaMatcher`,
+    `EntityMatcher`, `IdentityMatcher`, `ColumnMatcher`, `GlossaryMatcher`, `RelationshipMatcher`)
+    remain unbuilt and out of scope — per the plan's own discipline, two real cases is the correct
+    amount of evidence to act on, not six imagined ones.
+  No code changed for this entry — a REFACTOR-step assessment that concluded "leave it alone" is
+  itself the deliverable, consistent with CLAUDE.md's "only refactor if it adds value."
 
 - [ ] **S25. OKF bundle export** (plan Slice 5). Real vertical slice, not a backend-only module (corrected after review — no download mechanism of any kind exists anywhere in `studio-v1` today, confirmed by direct check, so wiring it up is required scope, not a deferred follow-up). `packages/semantic-runtime/semantic/okf_export.py` (new): pure `glossary_concept_markdown`/`table_concept_markdown`/`index_markdown` builders + `export_okf_bundle()` orchestrator, producing a real SPEC.md-§9-conformant bundle from `SemanticContext` (FIBO-aligned terms get a real `# Citations` section citing the real ontology URI, never fabricated for unaligned ones) → new `POST /api/okf/export` route zips it (stdlib `zipfile`, no new dep) → new "Export as OKF bundle" button on `GlossaryPage.tsx` (Blob/`createObjectURL`/`<a download>`, a newly-introduced browser pattern with no existing precedent in this codebase to mirror). Deliberately **not** a `SemanticAgent` tool — a deterministic bulk export doesn't benefit from an LLM in the loop, the same reasoning that keeps SQL validation LLM-optional elsewhere in this project. Documents explicitly excluded from this slice's scope — S9's own recorded finding (`document_to_rdf` never persists original text) means a bulk historical document export isn't honestly buildable yet; revisit only once that storage gap closes.
 - [ ] **S26. OKF bundle import + browse/view in Studio** (plan Slice 6). **Correction after being asked to make ArcKit usable "inside the UI"**: checked ArcKit's actual mechanics directly — its `arckit` CLI has exactly one standalone command (`arckit init`, scaffolding); every real governance command including `/arckit:export-okf`/`/arckit:import-okf` is a **chat slash-command**, only executable inside a full coding-agent harness (Claude Code, Copilot Chat, Codex, Mistral Vibe) with broad file/shell access — no API, no package, no CLI subcommand exists for Polanyi to call into. The honest, achievable equivalent: Polanyi gets its own OKF viewer that opens *any* conformant bundle, including one a user separately produced with ArcKit's own export command and uploads here — no ArcKit code ever runs inside Polanyi. New `packages/semantic-runtime/semantic/okf_bundle.py` (`parse_okf_concept` — real `yaml.safe_load` frontmatter parsing, correcting the earlier ad-hoc line-split approach, which can't handle OKF's list-valued `tags` field; matches `packages/kernel/skills.py`'s own existing YAML-parsing convention for `skill.yaml`). New `semantics/knowledge/okf/` persisted bundle directory (matches this project's existing local artifact-store convention — `financial_demo.db`, `semantic-models/`, `documents/`, etc. already live there); Slice 5's export now writes here too, not just an ephemeral zip. `POST /api/okf/import` (accepts an uploaded zip, validates with `is_okf_conformant()`, rejects non-conformant bundles honestly) + `GET /api/okf/concepts` (list) + `GET /api/okf/concepts/{id}` (one, parsed). New Studio "Knowledge Bundles" page renders concept bodies as real markdown via `react-markdown` (new, small, directly-justified dependency — no markdown renderer exists anywhere in `studio-v1` today).
