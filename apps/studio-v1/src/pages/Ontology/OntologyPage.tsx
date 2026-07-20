@@ -9,6 +9,7 @@ import {
 } from "@/api/ontology";
 import { AlignmentDashboard, type BulkAcceptResult } from "./components/AlignmentDashboard";
 import { OntologyGraph } from "./components/OntologyGraph";
+import { ReconciliationPanel } from "./components/ReconciliationPanel";
 import { TermDetail } from "./components/TermDetail";
 import { TermList } from "./components/TermList";
 
@@ -37,8 +38,18 @@ export function OntologyPage() {
     };
   }, []);
 
+  // Cross-source reconciliation doesn't depend on the FIBO alignment queue
+  // (which can take a while against a large ontology) — it renders in every
+  // state below rather than being gated behind the queue's own load/error.
   if (state.kind === "loading") {
-    return <p>Loading…</p>;
+    return (
+      <main className="p-6">
+        <p>Loading…</p>
+        <div className="mt-4">
+          <ReconciliationPanel />
+        </div>
+      </main>
+    );
   }
 
   if (state.kind === "unavailable") {
@@ -53,6 +64,9 @@ export function OntologyPage() {
             repository, then reload.
           </p>
         </div>
+        <div className="mt-4">
+          <ReconciliationPanel />
+        </div>
       </main>
     );
   }
@@ -65,6 +79,9 @@ export function OntologyPage() {
         </div>
         <div className="panel" style={{ padding: 16 }}>
           <p style={{ margin: 0 }}>Couldn&apos;t load the alignment queue.</p>
+        </div>
+        <div className="mt-4">
+          <ReconciliationPanel />
         </div>
       </main>
     );
@@ -128,6 +145,9 @@ export function OntologyPage() {
             Select a term to review its FIBO candidates.
           </div>
         )}
+      </div>
+      <div className="mt-4">
+        <ReconciliationPanel />
       </div>
     </main>
   );

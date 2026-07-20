@@ -71,6 +71,18 @@ test("shows real dashboard counts for each confidence band", async () => {
   await expect.element(dashboard).toHaveTextContent("Unmapped");
 });
 
+test("cross-source reconciliation renders even while the alignment queue is still loading", async () => {
+  // The alignment queue can take a long time against a large ontology --
+  // reconciliation doesn't depend on it and must not be gated behind it.
+  worker.use(http.get("/api/context/align/queue", () => new Promise(() => {})));
+  worker.use(http.get("/api/sources", () => HttpResponse.json([])));
+
+  const screen = await render(<OntologyPage />);
+  await expect
+    .element(screen.getByRole("region", { name: /cross-source reconciliation/i }))
+    .toBeVisible();
+});
+
 test("shows an honest 'requires GraphDB' state when the endpoint returns 503", async () => {
   worker.use(
     http.get("/api/context/align/queue", () =>

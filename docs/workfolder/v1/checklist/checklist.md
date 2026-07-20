@@ -185,9 +185,51 @@ assessment, done only once two real matchers exist.
   `.../term/kyc-portfolio-demo/currency`) — never colliding with `context_to_rdf`'s own unscoped
   term URIs. Test artifact graph dropped from GraphDB after verification. 448 backend tests total
   (was 429, +19 new).
-- [ ] **T3. Studio UI for reconciliation review** (plan Slice 3). Extends the existing Ontology·FIBO
-  page's 3-band queue component rather than building a new one from scratch. Browser Mode tests +
-  live browser verification against the real two-source demo data.
+- [x] **T3. Studio UI for reconciliation review** DONE. New `apps/studio-v1/src/api/reconcile.ts`
+  (zod schemas + `fetchReconciliation`/`acceptTaxonomyMatch`/`rejectTaxonomyMatch`/
+  `publishTaxonomyMatches`, mirroring `api/ontology.ts`'s existing shape and error-typing
+  conventions). New `ReconciliationPanel.tsx`, mounted on `OntologyPage.tsx` alongside — not
+  inside — the existing 3-band alignment queue (a flat per-source-pair list rather than
+  reusing `TermList`/`TermDetail`, since a `TaxonomyMatch` already carries its one resolved
+  candidate and has no per-term candidate drill-down to show, unlike `AlignmentReviewItem`).
+  Source picker excludes Databricks connections — a real discovered boundary, not a
+  hypothetical: Databricks lives outside `state["extra_sources"]` on the backend (a separate
+  catalog/schema browser), so reconciliation's `_other_glossary` 404s for it; offering it in the
+  picker would silently fail every time, so it's filtered out with a comment naming why. 10
+  browser-mode component tests (msw-mocked) + 1 new `OntologyPage` regression test proving the
+  panel renders during — not gated behind — the alignment queue's own loading state. 253 frontend
+  tests total (was 242 before this slice, +11: 10 `ReconciliationPanel` tests + 1 `OntologyPage`
+  regression test).
+  **Two real bugs found and fixed during this slice, not assumed clean**:
+  (1) `OntologyPage` originally gated its ENTIRE render behind the alignment queue's own
+  `loading`/`unavailable`/`error` states via early `return`, so the new reconciliation panel
+  (which doesn't depend on the FIBO alignment queue at all) was unreachable in the UI for as
+  long as that queue took to load — confirmed live as ~75-90s against the real GraphDB `fibo`
+  repository (per-term SPARQL search across 44 glossary terms). Fixed by rendering
+  `<ReconciliationPanel/>` in every state branch instead of only the `ready` one, with a
+  regression test (`http.get("/api/context/align/queue", () => new Promise(() => {}))`) pinning
+  the fix. (2) The panel had no error state at all — a failed `fetchReconciliation` (e.g. the
+  Databricks 404 above) left an unhandled promise rejection and a silently empty list, no honest
+  message; fixed with a `loadError` state rendering "Couldn't load matches for this source.",
+  matching this codebase's established "never fabricate, always show what actually happened"
+  convention (`TermDetail`'s "no Java runtime" message, `alignment_queue`'s honest bands).
+  **Live-verified in a real browser** (Chrome via `mcp__claude-in-chrome`, Vite dev server +
+  real FastAPI backend + real GraphDB `fibo` repo + real Neo4j): navigated to Ontology·FIBO,
+  confirmed the panel renders immediately alongside the alignment queue's "Loading…" (proving
+  the decoupling fix); confirmed T2's earlier persisted decisions (`Base Currency`→auto,
+  `Issuer`→rejected) survived a full backend restart and rendered correctly; clicked Accept on a
+  real review-band match (`Account Name`→`Name`, 0.50) and watched it move to the auto band
+  live; clicked Publish and got "Published 13 triples to
+  urn:polanyi:taxonomy:financial_demo.db:kyc_portfolio_demo." — the real count (12 pre-existing
+  auto matches + 1 newly-accepted). Confirmed the Databricks source (`dbc-a541b96d-b43f`) never
+  appears in the source picker. Test-published triples dropped from GraphDB afterward
+  (`DROP GRAPH <urn:polanyi:taxonomy:financial_demo.db:kyc_portfolio_demo>`, confirmed 0 triples
+  remain via a live `COUNT(*)` query). **Also found, diagnosed, and fixed as pure environment
+  friction, not product bugs**: a long-running dev `uvicorn --reload` process left over from
+  earlier in this session had a stale in-memory `extra_sources` snapshot (predating a sources.json
+  write) and later became unresponsive entirely — restarted cleanly rather than debugged further,
+  since a fresh process reproduced every finding above identically; a stale `.pyc` cache
+  (carried over from T2, see T2's own entry) required one more `__pycache__` sweep.
 - [ ] **T4. Assess: extract a shared Matcher abstraction** (plan Slice 4, only if the evidence
   justifies it). A REFACTOR-step assessment, not new production code by default — done once T1-T3
   are live, comparing `align_glossary`'s real shape (external store, per-term SPARQL) against
