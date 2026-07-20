@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Optional, Protocol
+from typing import Literal, Optional, Protocol
 
 import httpx
 from pydantic import BaseModel, Field  # noqa: F401 — Field used by _RankingChoice
@@ -18,8 +18,10 @@ from polanyi.models import (
     AlignmentBand,
     AlignmentQueue,
     AlignmentReviewItem,
+    GlossaryEntry,
     OntologyCandidate,
     SemanticContext,
+    TaxonomyMatch,
 )
 
 # Prefix/substring hits (0.5–0.7) are useful for search ranking but too
@@ -459,6 +461,64 @@ def classify_band(score: Optional[float]) -> AlignmentBand:
     if score >= _MIN_ALIGNMENT_SCORE:
         return "auto"
     return "review"
+
+
+def reconcile_taxonomies(
+    glossary_a: list[GlossaryEntry],
+    glossary_b: list[GlossaryEntry],
+) -> list[TaxonomyMatch]:
+    """Real candidate concept matches between two sources' own glossaries --
+    e.g. one source's "Counterparty" against another's "Legal Name" --
+    reusing score_label/classify_band unchanged, the exact scoring
+    machinery already proven for FIBO alignment. One match per glossary_a
+    term (its best-scoring candidate in glossary_b), same "pick the best
+    candidate" shape as align_glossary. A term with no candidate at or
+    above the review floor produces no match, never a fabricated
+    low-confidence guess."""
+    matches: list[TaxonomyMatch] = []
+    for entry_a in glossary_a:
+        best_entry: Optional[GlossaryEntry] = None
+        best_score = 0.0
+        for entry_b in glossary_b:
+            score = score_label(entry_a.term, entry_b.term)
+            if score > best_score:
+                best_score = score
+                best_entry = entry_b
+        if best_entry is not None and best_score >= _MIN_REVIEW_SCORE:
+            matches.append(
+                TaxonomyMatch(
+                    source=entry_a.term,
+                    target=best_entry.term,
+                    confidence=best_score,
+                    band=classify_band(best_score),
+                )
+            )
+    return matches
+
+
+def apply_taxonomy_decisions(
+    matches: list[TaxonomyMatch],
+    decisions: dict[str, Literal["accepted", "rejected"]],
+) -> list[TaxonomyMatch]:
+    """Overlay human accept/reject decisions onto freshly recomputed matches,
+    keyed by each match's source term (reconcile_taxonomies produces at most
+    one match per source term, so this is unambiguous). An accept promotes a
+    match to 'auto' -- the same band a persisted alignment reports -- a
+    reject demotes it to 'rejected'; a term with no decision keeps the band
+    reconcile_taxonomies gave it. Confidence is never altered by a decision:
+    it reflects the lexical score, not the review outcome. Returns a new
+    list; the input matches are never mutated, matching reconcile_taxonomies'
+    own pure-function contract."""
+    decided = []
+    for match in matches:
+        decision = decisions.get(match.source)
+        if decision == "accepted":
+            decided.append(match.model_copy(update={"band": "auto"}))
+        elif decision == "rejected":
+            decided.append(match.model_copy(update={"band": "rejected"}))
+        else:
+            decided.append(match)
+    return decided
 
 
 def _resolve_best_candidate(

@@ -5,8 +5,9 @@ from polanyi.models import (
     EntityRelationship,
     GlossaryEntry,
     SemanticContext,
+    TaxonomyMatch,
 )
-from polanyi.semantic.rdf import GOS, context_to_rdf, local_sparql, validate_rdf
+from polanyi.semantic.rdf import GOS, context_to_rdf, local_sparql, taxonomy_match_graph, validate_rdf
 
 
 def make_context() -> SemanticContext:
@@ -125,3 +126,39 @@ def test_local_sparql_queries_the_context_without_graphdb():
         """,
     )
     assert [r["label"] for r in rows] == ["Notional Amount", "Settlement Date"]
+
+
+# ── taxonomy_match_graph ──────────────────────────────────────────
+
+
+def test_taxonomy_match_graph_links_two_terms_via_skos_exact_match():
+    match = TaxonomyMatch(source="Counterparty", target="Legal Entity", confidence=0.5, band="review")
+    graph = taxonomy_match_graph("financial_demo", "kyc_portfolio_demo", match)
+
+    matches = list(graph.subject_objects(SKOS.exactMatch))
+    assert len(matches) == 1
+
+
+def test_taxonomy_match_graph_source_scopes_uris_to_avoid_cross_source_collisions():
+    """context_to_rdf mints one TERM URI per term-slug -- two different
+    sources sharing a term name (e.g. both have "Currency") would collide
+    without source-scoping. This is the real bug taxonomy_match_graph must
+    avoid, not a hypothetical."""
+    match_a = TaxonomyMatch(source="Currency", target="Currency", confidence=1.0, band="auto")
+    graph_a = taxonomy_match_graph("financial_demo", "kyc_portfolio_demo", match_a)
+    (source_uri_a, _) = next(graph_a.subject_objects(SKOS.exactMatch))
+
+    match_b = TaxonomyMatch(source="Currency", target="Currency", confidence=1.0, band="auto")
+    graph_b = taxonomy_match_graph("other_source", "kyc_portfolio_demo", match_b)
+    (source_uri_b, _) = next(graph_b.subject_objects(SKOS.exactMatch))
+
+    assert source_uri_a != source_uri_b
+
+
+def test_taxonomy_match_graph_never_confuses_source_and_target_terms():
+    match = TaxonomyMatch(source="Counterparty", target="Legal Entity", confidence=0.5, band="review")
+    graph = taxonomy_match_graph("financial_demo", "kyc_portfolio_demo", match)
+
+    (subject, obj) = next(graph.subject_objects(SKOS.exactMatch))
+    assert "counterparty" in str(subject).lower()
+    assert "legal-entity" in str(obj).lower()

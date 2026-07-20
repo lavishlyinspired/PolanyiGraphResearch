@@ -33,6 +33,7 @@ from polanyi.execution.enforcement import events_for, summarize
 DEFAULT_DB_PATH = "semantics/knowledge/financial_demo.db"
 CONTEXT_FILENAME = "semantic_context.json"
 SOURCES_FILENAME = "sources.json"
+TAXONOMY_DECISIONS_FILENAME = "taxonomy_decisions.json"
 
 
 def _primary_source_name(db_uri: str) -> str:
@@ -200,6 +201,7 @@ def create_app(
     rules = rules if rules is not None else DEMO_BUSINESS_RULES
     context_path = Path(artifacts_dir) / CONTEXT_FILENAME
     sources_path = Path(artifacts_dir) / SOURCES_FILENAME
+    taxonomy_decisions_path = Path(artifacts_dir) / TAXONOMY_DECISIONS_FILENAME
 
     def _load_sources_config() -> dict:
         default: dict = {
@@ -229,6 +231,17 @@ def create_app(
             encoding="utf-8",
         )
 
+    def _load_taxonomy_decisions() -> dict[str, dict[str, str]]:
+        if not taxonomy_decisions_path.exists():
+            return {}
+        return json.loads(taxonomy_decisions_path.read_text(encoding="utf-8"))
+
+    def _save_taxonomy_decisions() -> None:
+        taxonomy_decisions_path.parent.mkdir(parents=True, exist_ok=True)
+        taxonomy_decisions_path.write_text(
+            json.dumps(state["taxonomy_decisions"], indent=2), encoding="utf-8"
+        )
+
     app = FastAPI(title="Polanyi Works", version=__version__)
     app.add_middleware(
         CORSMiddleware,
@@ -253,6 +266,7 @@ def create_app(
         "extra_introspected_at": {},
         "databricks_browse": _sources_config["databricks_browse"],
         "primary_uri_override": _sources_config["primary_uri_override"],
+        "taxonomy_decisions": _load_taxonomy_decisions(),
     }
 
     def effective_db_uri() -> str:
@@ -991,6 +1005,85 @@ def create_app(
         state["agent"] = None
         save_context(ctx)
         return alignment_queue(ctx, store, llm=llm, embedding_index=index)
+
+    def _other_glossary(source: str) -> list:
+        """The connected extra source's own glossary, for reconciliation
+        against the primary context — introspects and caches on first use,
+        same lazy-snapshot pattern as introspect_source()."""
+        entry = next((s for s in state["extra_sources"] if s["name"] == source), None)
+        if entry is None:
+            raise HTTPException(status_code=404, detail=f"No connected source named '{source}'")
+        snap = state["extra_snapshots"].get(source)
+        if snap is None:
+            try:
+                snap = introspect(entry["uri"])
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(status_code=502, detail=_friendly_introspect_error(exc)) from exc
+            state["extra_snapshots"][source] = snap
+            state["extra_introspected_at"][source] = datetime.now()
+        from polanyi.semantic.generate import deterministic_context
+
+        return deterministic_context(snap, [], domain=context().domain).glossary
+
+    def _reconciled_matches(source: str) -> list:
+        from polanyi.semantic.ontology import apply_taxonomy_decisions, reconcile_taxonomies
+
+        matches = reconcile_taxonomies(context().glossary, _other_glossary(source))
+        decisions = state["taxonomy_decisions"].get(source, {})
+        return apply_taxonomy_decisions(matches, decisions)
+
+    @app.get("/api/context/reconcile")
+    def reconcile_context(source: str = Query(...)):
+        matches = _reconciled_matches(source)
+        return {"source": source, "matches": [m.model_dump() for m in matches]}
+
+    @app.post("/api/context/reconcile/{source}/{term}/accept")
+    def accept_taxonomy_match(source: str, term: str):
+        matches = _reconciled_matches(source)
+        if not any(m.source == term for m in matches):
+            raise HTTPException(
+                status_code=404, detail=f"No taxonomy match for term '{term}' against source '{source}'"
+            )
+        state["taxonomy_decisions"].setdefault(source, {})[term] = "accepted"
+        _save_taxonomy_decisions()
+        matches = _reconciled_matches(source)
+        return {"source": source, "matches": [m.model_dump() for m in matches]}
+
+    @app.post("/api/context/reconcile/{source}/{term}/reject")
+    def reject_taxonomy_match(source: str, term: str):
+        matches = _reconciled_matches(source)
+        if not any(m.source == term for m in matches):
+            raise HTTPException(
+                status_code=404, detail=f"No taxonomy match for term '{term}' against source '{source}'"
+            )
+        state["taxonomy_decisions"].setdefault(source, {})[term] = "rejected"
+        _save_taxonomy_decisions()
+        matches = _reconciled_matches(source)
+        return {"source": source, "matches": [m.model_dump() for m in matches]}
+
+    @app.post("/api/context/reconcile/{source}/publish")
+    def publish_taxonomy_matches(source: str):
+        from polanyi.semantic.ontology import graphdb_configured
+        from polanyi.semantic.rdf import publish_to_graphdb, taxonomy_match_graph
+        from rdflib import Graph as RdfGraph
+        from rdflib import SKOS
+
+        if not graphdb_configured():
+            raise HTTPException(status_code=503, detail="GRAPHDB_ENDPOINT not configured")
+        matches = _reconciled_matches(source)
+        to_publish = [m for m in matches if m.band == "auto"]
+        primary_name = _primary_source_name(effective_db_uri())
+        graph = RdfGraph()
+        graph.bind("skos", SKOS)
+        for match in to_publish:
+            graph += taxonomy_match_graph(primary_name, source, match)
+        named_graph = f"urn:polanyi:taxonomy:{primary_name}:{source}"
+        publish_to_graphdb(graph, named_graph=named_graph, replace=True)
+        return {
+            "named_graph": named_graph,
+            "triples": len(graph),
+            "published_matches": len(to_publish),
+        }
 
     @app.get("/api/rdf")
     def get_rdf():

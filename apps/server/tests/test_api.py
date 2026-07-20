@@ -1144,6 +1144,165 @@ def test_accepted_alignment_survives_a_context_regenerate(client, monkeypatch):
     assert after["Account Name"] == "auto"
 
 
+# ── Taxonomy reconciliation ───────────────────────────────────────────
+
+
+def _connect_second_source(client, tmp_path, name="kyc_portfolio_demo"):
+    """A second SQLite source whose schema deliberately overlaps the primary
+    demo glossary at some terms (exact/prefix) and not at others, so
+    reconciliation exercises real auto/review bands, not fabricated ones.
+    Primary demo already has "Legal Name" (counterparties.legal_name) and
+    "Account Name" (accounts.account_name) -- see packages/common/demo.py."""
+    import sqlite3
+
+    db_path = tmp_path / f"{name}.db"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute(
+        "CREATE TABLE entities (entity_id INTEGER PRIMARY KEY, legal_name TEXT, "
+        "account TEXT, jurisdiction TEXT)"
+    )
+    conn.commit()
+    conn.close()
+
+    res = client.post(
+        "/api/sources",
+        json={"name": name, "kind": "sqlite", "uri": f"sqlite:///{db_path}"},
+    )
+    assert res.status_code == 200
+    return name
+
+
+def test_reconcile_lists_real_cross_source_matches_bucketed_by_band(client, tmp_path):
+    name = _connect_second_source(client, tmp_path)
+
+    res = client.get("/api/context/reconcile", params={"source": name})
+    assert res.status_code == 200
+    bands = {m["source"]: m["band"] for m in res.json()["matches"]}
+    assert bands["Legal Name"] == "auto"  # exact match: legal_name <-> legal_name
+    assert bands["Account Name"] == "review"  # prefix match: "account" <-> "account name"
+
+
+def test_reconcile_returns_404_for_an_unknown_source(client):
+    res = client.get("/api/context/reconcile", params={"source": "no-such-source"})
+    assert res.status_code == 404
+
+
+def test_reconcile_accept_promotes_a_review_match_to_auto_and_persists(client, tmp_path):
+    name = _connect_second_source(client, tmp_path)
+
+    res = client.post(f"/api/context/reconcile/{name}/Account Name/accept")
+    assert res.status_code == 200
+    bands = {m["source"]: m["band"] for m in res.json()["matches"]}
+    assert bands["Account Name"] == "auto"
+
+    reloaded = client.get("/api/context/reconcile", params={"source": name})
+    after = {m["source"]: m["band"] for m in reloaded.json()["matches"]}
+    assert after["Account Name"] == "auto"
+
+
+def test_reconcile_reject_demotes_a_match_to_rejected_and_persists(client, tmp_path):
+    name = _connect_second_source(client, tmp_path)
+
+    res = client.post(f"/api/context/reconcile/{name}/Legal Name/reject")
+    assert res.status_code == 200
+    bands = {m["source"]: m["band"] for m in res.json()["matches"]}
+    assert bands["Legal Name"] == "rejected"
+
+    reloaded = client.get("/api/context/reconcile", params={"source": name})
+    after = {m["source"]: m["band"] for m in reloaded.json()["matches"]}
+    assert after["Legal Name"] == "rejected"
+
+
+def test_reconcile_accept_returns_404_for_a_term_with_no_real_match(client, tmp_path):
+    name = _connect_second_source(client, tmp_path)
+
+    res = client.post(f"/api/context/reconcile/{name}/No Such Term/accept")
+    assert res.status_code == 404
+
+
+def test_reconcile_accept_returns_404_for_an_unknown_source(client):
+    res = client.post("/api/context/reconcile/no-such-source/Legal Name/accept")
+    assert res.status_code == 404
+
+
+def test_reconcile_decisions_survive_a_new_app_instance(client, tmp_path):
+    """Persistence to disk, not just in-memory state -- mirrors sources.json's
+    own restart-survival guarantee."""
+    name = _connect_second_source(client, tmp_path)
+    accept_res = client.post(f"/api/context/reconcile/{name}/Legal Name/reject")
+    assert accept_res.status_code == 200
+
+    from fastapi.testclient import TestClient
+
+    from polanyi.api import create_app
+
+    demo_db = tmp_path / "demo.db"
+    new_client = TestClient(create_app(db_uri=f"sqlite:///{demo_db}", artifacts_dir=str(tmp_path)))
+
+    reloaded = new_client.get("/api/context/reconcile", params={"source": name})
+    after = {m["source"]: m["band"] for m in reloaded.json()["matches"]}
+    assert after["Legal Name"] == "rejected"
+
+
+def test_reconcile_publish_writes_accepted_matches_as_real_skos_exact_match_triples(
+    client, tmp_path, monkeypatch
+):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+    name = _connect_second_source(client, tmp_path)
+
+    published = {}
+
+    def fake_publish(graph, named_graph, replace):
+        published["graph"] = graph
+        published["named_graph"] = named_graph
+        published["replace"] = replace
+        return named_graph
+
+    import polanyi.semantic.rdf as rdf_module
+
+    monkeypatch.setattr(rdf_module, "publish_to_graphdb", fake_publish)
+
+    res = client.post(f"/api/context/reconcile/{name}/publish")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["published_matches"] >= 1
+
+    from rdflib import SKOS
+
+    triples = list(published["graph"].subject_objects(SKOS.exactMatch))
+    assert len(triples) == body["published_matches"]
+
+
+def test_reconcile_publish_excludes_rejected_and_review_band_matches(client, tmp_path, monkeypatch):
+    monkeypatch.setenv("GRAPHDB_ENDPOINT", "http://fake-graphdb:7200")
+    name = _connect_second_source(client, tmp_path)
+
+    published = {}
+    import polanyi.semantic.rdf as rdf_module
+
+    monkeypatch.setattr(
+        rdf_module,
+        "publish_to_graphdb",
+        lambda graph, named_graph, replace: published.setdefault("graph", graph),
+    )
+
+    res = client.post(f"/api/context/reconcile/{name}/publish")
+    assert res.status_code == 200
+    from rdflib import SKOS
+
+    labels = {str(s) for s, _o in published["graph"].subject_objects(SKOS.exactMatch)}
+    # "Account Name" is still in the 'review' band (never accepted) -- must not publish.
+    assert not any("account-name" in label for label in labels)
+
+
+def test_reconcile_publish_returns_503_when_graphdb_unconfigured(client, tmp_path, monkeypatch):
+    monkeypatch.delenv("GRAPHDB_ENDPOINT", raising=False)
+    name = _connect_second_source(client, tmp_path)
+
+    res = client.post(f"/api/context/reconcile/{name}/publish")
+    assert res.status_code == 503
+
+
 # ── Databricks integration ────────────────────────────────────────────
 
 

@@ -16,7 +16,7 @@ from typing import Any, Optional
 import httpx
 from rdflib import RDF, RDFS, SKOS, Graph, Literal, Namespace, URIRef
 
-from polanyi.models import SemanticContext
+from polanyi.models import SemanticContext, TaxonomyMatch
 
 GOS = Namespace("https://polanyi.dev/ontology#")
 ENTITY = Namespace("https://polanyi.dev/entity/")
@@ -92,6 +92,22 @@ def context_to_rdf(context: SemanticContext) -> Graph:
         for entity_name in rule.affected_entities:
             graph.add((node, GOS.appliesTo, ENTITY[_slug(entity_name)]))
 
+    return graph
+
+
+def taxonomy_match_graph(source_name: str, target_name: str, match: TaxonomyMatch) -> Graph:
+    """One accepted cross-source concept match as a real skos:exactMatch
+    triple. context_to_rdf mints term URIs from a namespace shared across
+    all contexts (TERM[_slug(term)]), so two sources with a same-named term
+    (e.g. both have "Currency") would collide there. Term URIs here are
+    scoped by source/target name first to keep cross-source matches distinct
+    from any single context's own graph."""
+    graph = Graph()
+    graph.bind("skos", SKOS)
+
+    source_term = TERM[f"{_slug(source_name)}/{_slug(match.source)}"]
+    target_term = TERM[f"{_slug(target_name)}/{_slug(match.target)}"]
+    graph.add((source_term, SKOS.exactMatch, target_term))
     return graph
 
 

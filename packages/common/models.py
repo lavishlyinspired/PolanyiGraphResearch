@@ -172,6 +172,24 @@ class AlignmentQueue(BaseModel):
     items: list[AlignmentReviewItem] = Field(default_factory=list)
 
 
+# ── Taxonomy reconciliation ───────────────────────────────────────
+
+
+class TaxonomyMatch(BaseModel):
+    """One candidate cross-source concept match -- e.g. one data source's
+    "Counterparty" against another's "Legal Name" -- scored by the same
+    lexical scorer ontology alignment uses (score_label/classify_band).
+    Field names (source/target/confidence/band) anticipate a shared
+    matcher vocabulary with AlignmentReviewItem without committing to a
+    full shared abstraction yet (see docs/workfolder/v1/implementation/
+    07-taxonomy-reconciliation-semantic-pipeline.md)."""
+
+    source: str
+    target: str
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    band: AlignmentBand
+
+
 # ── Agent interaction ────────────────────────────────────────────
 
 

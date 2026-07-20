@@ -6,8 +6,10 @@ from polanyi.semantic.ontology import (
     accept_alignment,
     align_glossary,
     alignment_queue,
+    apply_taxonomy_decisions,
     classify_band,
     guard_sparql,
+    reconcile_taxonomies,
     reject_alignment,
     score_label,
     score_reason,
@@ -942,3 +944,169 @@ def test_class_hierarchy_returns_empty_lists_for_a_root_and_leaf_class(monkeypat
 
     assert parents == []
     assert children == []
+
+
+# ── Taxonomy reconciliation (glossary A <-> glossary B) ───────────
+#
+# Deliberately reuses score_label/classify_band unchanged -- no new scoring
+# algorithm. Field names on TaxonomyMatch (source/target/confidence/band)
+# anticipate a shared matcher vocabulary; see docs/workfolder/v1/
+# implementation/07-taxonomy-reconciliation-semantic-pipeline.md.
+
+
+def make_entry(term: str, **overrides) -> GlossaryEntry:
+    return GlossaryEntry(
+        term=term,
+        definition=overrides.pop("definition", f"{term} definition"),
+        source_tables=overrides.pop("source_tables", ["some_table"]),
+        source_columns=overrides.pop("source_columns", ["some_column"]),
+        **overrides,
+    )
+
+
+def test_reconcile_taxonomies_matches_an_exact_term_across_glossaries():
+    glossary_a = [make_entry("Trade")]
+    glossary_b = [make_entry("trade")]
+
+    matches = reconcile_taxonomies(glossary_a, glossary_b)
+
+    assert len(matches) == 1
+    assert matches[0].source == "Trade"
+    assert matches[0].target == "trade"
+    assert matches[0].confidence == 1.0
+    assert matches[0].band == "auto"
+
+
+def test_reconcile_taxonomies_excludes_terms_with_no_candidate_above_the_review_floor():
+    glossary_a = [make_entry("Zzz Unmatched")]
+    glossary_b = [make_entry("Interest Rate")]
+
+    matches = reconcile_taxonomies(glossary_a, glossary_b)
+
+    assert matches == []
+
+
+def test_reconcile_taxonomies_includes_a_review_band_match_at_the_floor_boundary():
+    # score_label("Trade", "equity trade confirmation") == 0.5 (substring match) --
+    # a real boundary value score_label actually produces, not an arbitrary number.
+    glossary_a = [make_entry("Trade")]
+    glossary_b = [make_entry("Equity Trade Confirmation")]
+
+    matches = reconcile_taxonomies(glossary_a, glossary_b)
+
+    assert len(matches) == 1
+    assert matches[0].confidence == 0.5
+    assert matches[0].band == "review"
+
+
+def test_reconcile_taxonomies_picks_the_best_candidate_when_multiple_targets_score():
+    glossary_a = [make_entry("Trade")]
+    glossary_b = [
+        make_entry("Equity Trade Confirmation"),  # substring match, 0.5
+        make_entry("trade"),  # exact match, 1.0 -- the real best candidate
+        make_entry("Trade Date Value"),  # prefix match, 0.7
+    ]
+
+    matches = reconcile_taxonomies(glossary_a, glossary_b)
+
+    assert len(matches) == 1
+    assert matches[0].target == "trade"
+    assert matches[0].confidence == 1.0
+    assert matches[0].band == "auto"
+
+
+def test_reconcile_taxonomies_never_swaps_source_and_target():
+    """A real mutator-aware case: source/target field assignment is easy to
+    accidentally flip without a test catching it, since both are just
+    strings."""
+    glossary_a = [make_entry("Counterparty")]
+    glossary_b = [make_entry("counterparties")]
+
+    matches = reconcile_taxonomies(glossary_a, glossary_b)
+
+    assert len(matches) == 1
+    assert matches[0].source == "Counterparty"
+    assert matches[0].target == "counterparties"
+
+
+def test_reconcile_taxonomies_matches_each_source_term_independently():
+    glossary_a = [make_entry("Trade"), make_entry("Zzz Unmatched")]
+    glossary_b = [make_entry("trade"), make_entry("Interest Rate")]
+
+    matches = reconcile_taxonomies(glossary_a, glossary_b)
+
+    assert len(matches) == 1
+    assert matches[0].source == "Trade"
+
+
+def test_reconcile_taxonomies_keeps_the_first_candidate_on_a_genuine_tie():
+    """Two targets score identically (both exact matches via case-
+    insensitivity) -- pins down first-occurrence-wins, not last, as the
+    real tie-break rule."""
+    glossary_a = [make_entry("Trade")]
+    glossary_b = [make_entry("TRADE"), make_entry("trade")]
+
+    matches = reconcile_taxonomies(glossary_a, glossary_b)
+
+    assert len(matches) == 1
+    assert matches[0].target == "TRADE"
+
+
+def test_apply_taxonomy_decisions_promotes_an_accepted_review_match_to_auto():
+    matches = reconcile_taxonomies(
+        [make_entry("Trade")], [make_entry("Equity Trade Confirmation")]
+    )
+    assert matches[0].band == "review"  # sanity-check the fixture's real starting band
+
+    decided = apply_taxonomy_decisions(matches, {"Trade": "accepted"})
+
+    assert len(decided) == 1
+    assert decided[0].band == "auto"
+    assert decided[0].source == "Trade"
+    assert decided[0].target == "Equity Trade Confirmation"
+
+
+def test_apply_taxonomy_decisions_demotes_a_rejected_match_to_rejected_band():
+    matches = reconcile_taxonomies([make_entry("Trade")], [make_entry("trade")])
+    assert matches[0].band == "auto"
+
+    decided = apply_taxonomy_decisions(matches, {"Trade": "rejected"})
+
+    assert len(decided) == 1
+    assert decided[0].band == "rejected"
+
+
+def test_apply_taxonomy_decisions_leaves_undecided_matches_unchanged():
+    matches = reconcile_taxonomies([make_entry("Trade")], [make_entry("trade")])
+
+    decided = apply_taxonomy_decisions(matches, {})
+
+    assert decided == matches
+
+
+def test_apply_taxonomy_decisions_never_mutates_the_input_list():
+    matches = reconcile_taxonomies([make_entry("Trade")], [make_entry("trade")])
+    original_band = matches[0].band
+
+    apply_taxonomy_decisions(matches, {"Trade": "rejected"})
+
+    assert matches[0].band == original_band
+
+
+def test_apply_taxonomy_decisions_ignores_a_decision_for_an_unknown_source_term():
+    matches = reconcile_taxonomies([make_entry("Trade")], [make_entry("trade")])
+
+    decided = apply_taxonomy_decisions(matches, {"Nonexistent Term": "accepted"})
+
+    assert decided == matches
+
+
+def test_apply_taxonomy_decisions_preserves_confidence_when_overriding_the_band():
+    matches = reconcile_taxonomies(
+        [make_entry("Trade")], [make_entry("Equity Trade Confirmation")]
+    )
+    original_confidence = matches[0].confidence
+
+    decided = apply_taxonomy_decisions(matches, {"Trade": "accepted"})
+
+    assert decided[0].confidence == original_confidence
